@@ -1,0 +1,163 @@
+PROCTORING REBUILD — KNOWN DIVERGENCES (must reconcile before go-live)
+========================================================================
+This file tracks every point where the server-side proctoring judge
+(backend/app/services/proctoring_scorer.py) intentionally computes a
+DIFFERENT result than the browser's live logic (frontend/interview.html).
+Both PROCTORING_AI_ENABLED (interview.html) and SERVER_SIDE_PROCTORING_JUDGE
+(backend) stay false/off until every divergence below is resolved — do not
+flip either flag to true in production while this list is non-empty.
+
+------------------------------------------------------------------------
+DIVERGENCE 1 — RESOLVED (opened 2026-08-19 Phase 3 Part B; closed
+2026-08-19 Phase 7 Fix 2)
+------------------------------------------------------------------------
+Rule: on a phone session (device_type = 'phone'):
+  - phone_detected is EXCLUDED entirely from strike counting (a visible
+    phone on a phone session is the candidate's own test device, not
+    evidence of cheating).
+  - no_face threshold is relaxed from 5 -> 8 consecutive ticks (25s -> 40s).
+  - face_away threshold is relaxed from 4 -> 7 consecutive ticks (20s -> 35s).
+  (All other flag types unchanged on phone sessions.)
+
+Now implemented on BOTH sides:
+  - Server: backend/app/services/proctoring_scorer.py, PHONE_EXCLUDED_TYPES /
+    PHONE_STRIKE_OVERRIDES constants (line ~48-49).
+  - Browser: frontend/interview.html, PHONE_EXCLUDED_TYPES / PHONE_STRIKE_
+    OVERRIDES constants (~line 397-398) + _effectiveStrikeRules() (~line
+    399-407), which _evalStrikeTick now calls at the top of its body instead
+    of reading STRIKE_FLAG_TYPES/STRIKE_PERSIST_DETECTIONS directly. Device
+    type comes from the SAME _detectDeviceType()/_reportDeviceAndNudge() call
+    already built in Phase 2, Part D — now also stored in a new global,
+    _procDeviceType, which _evalStrikeTick reads.
+
+TWO INDEPENDENT SOURCES THAT MUST STAY IN SYNC: proctoring_scorer.py's
+PHONE_EXCLUDED_TYPES/PHONE_STRIKE_OVERRIDES and interview.html's constants of
+the same name are two separate literals in two separate files/languages —
+there is no shared source of truth or build-time check that they match. If
+either side's values ever change, the other MUST be updated by hand in the
+same change, or DIVERGENCE 1 reopens silently. Verified identical as of this
+entry: PHONE_EXCLUDED_TYPES = ['phone_detected']; PHONE_STRIKE_OVERRIDES =
+{no_face: 8, face_away: 7}.
+
+Verification performed (flag still false throughout, so this was static/
+functional testing, not a live run): called _evalStrikeTick directly in a
+loaded page with _procDeviceType manually set, confirmed (a) laptop no_face
+still strikes at exactly tick 5 (unchanged), (b) phone no_face does NOT
+strike through tick 7 and DOES strike at tick 8, (c) phone phone_detected
+never strikes even after 10 ticks, (d) phone face_away strikes at tick 7 not
+before, (e) laptop phone_detected still strikes immediately (threshold 1,
+unchanged) — i.e. the laptop path is provably byte-identical to its
+pre-Fix-2 behaviour, only the phone path changed.
+
+Remaining before this is fully proven in the real world (see the Phase 7
+go-live checklist): a live controlled interview with PROCTORING_AI_ENABLED
+actually turned on, holding a real phone, has never been run — everything
+above is unit-level verification of the decision logic in isolation, not an
+end-to-end proof with a real camera and a real detection pipeline.
+
+------------------------------------------------------------------------
+Phase 4 (2026-08-19) — human-alerting layer — NO NEW DIVERGENCE OPENED
+------------------------------------------------------------------------
+Phase 4 added proctoring_integrity_flag (monitoring_gap /
+termination_discrepancy / secret_misuse / impossible_data), a digest email
+(services/proctoring_alerts.py, template 'proctoring_integrity_alert'), and
+review-screen surfacing (GET/PATCH .../integrity-flags). This layer is
+purely additive on top of Divergence 1 above -- it does not introduce any
+NEW rule the browser and server disagree on, because none of it is a rule
+the browser evaluates at all:
+  - monitoring_gap / secret_misuse are server-only observations (heartbeat
+    gaps, wrong/revoked secrets) the browser has no visibility into or
+    opinion about, by design.
+  - termination_discrepancy just surfaces Divergence 1's existing
+    disagreement more visibly (as an emailed/reviewable flag) -- it doesn't
+    add a new rule of its own.
+So there is nothing new here to reconcile before go-live beyond Divergence 1
+itself. Tampering/integrity signals in this phase NEVER auto-terminate --
+they only flag a human, by design (see Design decisions in the Phase 4
+handoff) -- so there's no new termination-behavior gap to close either.
+
+Related but NOT a server-vs-browser divergence — a real infra risk found
+and fixed during Phase 4: this repo's local dev Docker stack
+(docker-compose.dev.yml) deliberately loads .env.prod as its env_file (to
+keep API keys in sync), which means a "dev" container can carry real SMTP
+credentials, real Google OAuth secrets, and even ENV=prod. Testing the
+Part C digest email against this dev stack sent 4 real emails to
+hr@amnex.com / qa.tamanager@test.local before this was noticed. Fixed with
+an explicit send gate in connectors.send_email: real transmission now
+requires EMAIL_REAL_SEND_ENABLED=true, set ONLY in docker-compose.prod.yml's
+own environment: block (never in the shared .env.prod), so every
+environment that hasn't explicitly opted in — including this dev stack —
+is safe by default. Not a proctoring-rule divergence, but flagged here
+since it was discovered while building this phase and affects any future
+email-sending work in this codebase, not just proctoring.
+
+------------------------------------------------------------------------
+Phase 5, Fix 3 (2026-08-19) — kill-switch comment corrected, no behaviour
+change; future-work note for a camera-only toggle
+------------------------------------------------------------------------
+interview.html's PROCTORING_AI_ENABLED comment previously claimed it only
+disabled "vision-based flags + strikes." Corrected: it is the sole gate on
+_startProcAIAnalysis(), which is where EVERY strike-eligible signal is
+generated — including tab_switch and screen_share_stopped, which are
+non-vision (browser-event-driven) but are ALSO only pushed inside that same
+function's tick loop. So this flag disables ALL enforcement, not just the
+camera-based part. This was a comment-accuracy fix only — no code/behaviour
+changed, PROCTORING_AI_ENABLED is still false, and the detection loop's
+structure is unchanged (see the fix's own commit/diff for confirmation).
+
+FUTURE WORK (not done, not requested for Phase 5): if a "disable only the
+camera checks, keep tab_switch/screen_share_stopped active" toggle is ever
+wanted, tab_switch/screen_share_stopped detection would need to be split out
+of _startProcAIAnalysis()'s tick loop into their own always-on interval
+(they don't depend on the TF.js/BlazeFace models that function loads, so
+there's no technical reason they need to share its gate — they're only
+coupled to it today because they were added inline into the existing tick
+for convenience). Until that split happens, PROCTORING_AI_ENABLED remains
+strictly all-or-nothing.
+
+------------------------------------------------------------------------
+Phase 6 (2026-08-19) — appeal/relink verified, two small gaps closed,
+ONE REAL GAP FOUND (not fixed — appeal/relink mechanics declared out of
+scope for edits this phase; needs a product decision)
+------------------------------------------------------------------------
+Confirmed correct, untouched: appeal submission (one-per-session + Phase-5
+min-length validator), GET /appeals pagination, and relink_appeal's token
+revocation / session reset / fresh invite issuance. Added: (1) a deep-link
+from the appeal screen straight to that session's evidence (recording,
+strikes, integrity flags) instead of the generic review list; (2) a
+NEUTRAL/CHEATING/NEEDS-REVIEW outcome badge on the appeals list, appeal
+detail, and proctoring review detail, classified from the
+"ended_low_light:" reason prefix and/or score_detail.server_judge_outcome.
+
+GAP FOUND DURING PART D END-TO-END TESTING, NOT FIXED: proctoring_appeal
+is keyed by nexai_session_id (UNIQUE-in-practice via the one-appeal check
+in create_appeal), and relink_appeal RESETS the session's fields but does
+NOT touch or clear the existing appeal row for that same nexai_session_id
+(relink reuses the same session row rather than creating a new one, by
+design, so the retaken attempt has the same id). Empirically confirmed: if
+a candidate is relinked and their RETAKEN attempt is ALSO terminated for
+proctoring reasons, a second appeal attempt is unconditionally rejected
+409 "An appeal has already been submitted for this session" — REGARDLESS
+of content/validity. A fresh appeal slot never actually becomes available
+after relink under the current design. The Phase-5 min-length validator
+still correctly guards whatever does reach it (confirmed: an empty appeal
+on a retaken+re-terminated session still 422s before the 409 would even be
+reached) -- this is not a validator bug, it's that the one-appeal rule's
+key doesn't get reset alongside the session it's keyed to.
+NEEDS A PRODUCT DECISION before this can be closed: should relink_appeal
+(or a new step in it) archive/supersede the prior appeal row so a second,
+genuinely new appeal can be filed against the same nexai_session_id? Or is
+"one appeal per candidate, ever, regardless of how many times they're
+relinked" the intended lifetime policy? Not fixed here because the
+instruction for this phase was explicitly not to touch appeal/relink
+mechanics -- flagging for an explicit decision, likely before or during
+Phase 7.
+
+Also reconfirmed during Phase 6 testing (Part A's own observation): in
+dev, relink_appeal's response reads email_sent:true and the appeal is
+marked relink_sent even when the email was actually SUPPRESSED by the
+Phase-4 guard (send_email returns a non-raising {"sent": False,
+"suppressed_non_prod": True} dict, so the try/except around it in
+_do_single_invite sees no exception and treats it as success). This is
+expected/correct guard behaviour, not a bug -- just don't read
+"relink_sent" in dev as proof a real email arrived. See Phase 7 checklist.

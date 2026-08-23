@@ -1,0 +1,6 @@
+-- ============================================================
+-- Migration 06: hiring_manager role seed
+-- Intentionally empty for production installs.
+-- Add real hiring manager accounts via the admin Users & Access
+-- screen (Settings → Users & Access → + New user → hiring_manager).
+-- ============================================================

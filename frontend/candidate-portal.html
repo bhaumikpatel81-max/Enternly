@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0A1F44">
+<title>Enternly — My Applications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0A1F44; --paper: #F8FCFE; --card: #ffffff; --navy: #0A1F44;
+    --line: #D7E0EC; --accent: #2563EB; --muted: #596A83;
+    --font-head: 'Space Grotesk', system-ui, sans-serif;
+    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  body {
+    font-family: var(--font-body);
+    background: var(--paper); color: var(--ink);
+    min-height: 100vh;
+  }
+  /* ---- login screen ---- */
+  #login-screen {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .box {
+    background: var(--card); width: 100%; max-width: 480px;
+    border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(37,99,235,0.10);
+  }
+  .box-top { padding: 28px 44px 22px; text-align: center; border-bottom: 4px solid var(--accent); }
+  .logo { height: 120px; width: auto; margin-bottom: 10px; }
+  .tagline { font-family: var(--font-head); font-size: 11px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
+  .box-body { padding: 28px 44px 24px; }
+  h1 { font-family: var(--font-head); font-size: 24px; font-weight: 700; margin-bottom: 16px; color: var(--navy); }
+  .error-box {
+    background: #fdeaee; border: 1px solid #f6c9d1; color: #e2455a;
+    font-size: 14px; padding: 10px 14px; border-radius: 4px; margin-bottom: 14px;
+  }
+  .success-box {
+    background: #e8f7f0; border: 1px solid #bfe8d3; color: #0e9f6e;
+    font-size: 14px; padding: 10px 14px; border-radius: 4px; margin-bottom: 14px;
+  }
+  label {
+    display: block; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin: 14px 0 5px; font-weight: 600;
+  }
+  input, select, textarea {
+    width: 100%; padding: 11px 14px; border: 1px solid var(--line);
+    border-radius: 6px; font-family: inherit; font-size: 15px;
+    background: #f7f8fc; outline: none; transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); background: #fff; }
+  textarea { resize: vertical; min-height: 64px; }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 42px; }
+  .pw-toggle {
+    position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; padding: 6px;
+    line-height: 0; font-size: 18px; color: var(--muted);
+  }
+  .btn {
+    width: 100%; margin-top: 22px; padding: 14px; background: var(--accent);
+    color: #fff; border: none; border-radius: 6px; font-family: inherit;
+    font-size: 17px; cursor: pointer; font-weight: 600; letter-spacing: 0.3px; transition: background 0.15s;
+  }
+  .btn:hover { background: var(--navy); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .powered-footer {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 16px; border-top: 1px solid var(--line); background: #f7f8fc;
+  }
+  .powered-footer span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+  .powered-footer img { height: 30px; width: auto; }
+
+  /* ---- dashboard screen ---- */
+  #dash-screen { display: none; max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  .dash-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0; padding-bottom: 16px; border-bottom: 1px solid var(--line);
+  }
+  .dash-header .brand { display: flex; align-items: center; gap: 10px; }
+  .dash-header img { height: 32px; }
+  .dash-header h2 { font-family: var(--font-head); font-size: 15px; font-weight: 700; color: var(--navy); }
+  .dash-header .who { font-size: 13px; color: var(--muted); }
+  .logout-link { font-size: 13px; color: var(--accent); text-decoration: none; font-weight: 600; cursor: pointer; }
+  .logout-link:hover { text-decoration: underline; }
+  .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+  .app-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px 20px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .app-card .job-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .app-card .meta { font-size: 13px; color: var(--muted); }
+  .status-pill {
+    display: inline-block; padding: 6px 14px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; background: #EAF0FF; color: var(--accent); white-space: nowrap;
+  }
+  .status-pill.rejected { background: #fdeaee; color: #e2455a; }
+  .status-pill.hired, .status-pill.offered { background: #e8f7f0; color: #0e9f6e; }
+  .empty-state { text-align: center; color: var(--muted); padding: 48px 16px; font-size: 14px; }
+  .loading { text-align: center; color: var(--muted); padding: 48px 16px; font-size: 14px; }
+
+  /* ---- tab bar ---- */
+  .tabbar { display: flex; gap: 4px; margin: 16px 0 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tab {
+    padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--muted);
+    cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; -webkit-user-select: none; user-select: none;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--navy); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ---- recommended ---- */
+  .rec-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; }
+  .rec-card .job-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .rec-card .meta { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .rec-card .match { font-size: 12.5px; color: #0e9f6e; font-weight: 600; margin-bottom: 12px; }
+  .btn-small { padding: 9px 18px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-small:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-outline { padding: 9px 18px; background: #fff; color: var(--navy); border: 1px solid var(--navy); border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+  /* ---- feedback ---- */
+  .fb-row { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 20px; margin-bottom: 10px; }
+  .fb-row .job-title { font-size: 14px; font-weight: 700; }
+  .fb-stars-display { color: var(--accent); font-size: 13px; margin: 4px 0; }
+  .fb-row .comment { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .fb-form-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-top: 18px; }
+  .star-picker { display: flex; gap: 6px; margin-top: 4px; }
+  .star-picker span { font-size: 24px; color: #d8dce6; cursor: pointer; }
+  .star-picker span.filled { color: var(--accent); }
+
+  /* ---- profile ---- */
+  .profile-block { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
+  .profile-block h3 { font-size: 13px; margin-bottom: 12px; color: var(--navy); font-family: var(--font-head); }
+  .field-row { margin-bottom: 12px; }
+  .field-row label { margin: 0 0 5px; }
+  .field-row .readonly-value { padding: 11px 14px; color: var(--muted); font-size: 15px; background: #f2f3f7; border-radius: 6px; }
+
+  .skill-chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .skill-chip { background: #EAF0FF; color: var(--accent); font-size: 12.5px; font-weight: 600; padding: 6px 10px 6px 12px; border-radius: 999px; display: flex; align-items: center; gap: 6px; }
+  .skill-chip button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+  .skill-add-row { display: flex; gap: 8px; }
+  .skill-add-row input { flex: 1; }
+
+  .entry-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .entry-card .entry-title { font-size: 14px; font-weight: 700; }
+  .entry-card .entry-meta { font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; }
+  .entry-card .entry-desc { font-size: 12.5px; color: var(--ink); margin-bottom: 8px; }
+  .entry-actions { display: flex; gap: 10px; }
+  .entry-actions a { font-size: 12px; font-weight: 600; color: var(--accent); cursor: pointer; }
+  .entry-actions a.danger { color: #e2455a; }
+  .entry-form { border: 1px dashed var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; background: #f7f8fc; }
+  .entry-form .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+  .checkbox-row input { width: auto; }
+  .checkbox-row label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--ink); }
+  .form-actions { display: flex; gap: 10px; margin-top: 12px; }
+  .cap-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .li-not-connected { text-align: center; padding: 18px 12px; }
+  .li-icon { width: 44px; height: 44px; border-radius: 10px; background: #eef0ff; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 20px; font-weight: 700; color: #0a66c2; }
+  .li-not-connected p { font-size: 13px; color: var(--muted); margin: 0 0 16px; max-width: 36ch; margin-left: auto; margin-right: auto; }
+  .li-connect-btn { padding: 11px 22px; background: #0a66c2; color: #fff; border: none; border-radius: 6px; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+  .li-connect-btn:disabled { background: #9db8d4; cursor: not-allowed; }
+  .li-connected { display: flex; gap: 14px; align-items: center; padding: 6px 2px 16px; border-bottom: 1px solid #f1f2f7; margin-bottom: 14px; }
+  .li-avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg,#0a66c2,#004182); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px; flex: 0 0 auto; overflow: hidden; }
+  .li-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .li-name { font-size: 14.5px; font-weight: 700; }
+  .li-synced-tag { font-size: 11px; color: #0e9f6e; font-weight: 600; margin-top: 4px; }
+  .manual-row { display: flex; gap: 8px; margin-top: 10px; }
+  .manual-row input { flex: 1; }
+  .coming-soon-tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; background: #fdf1e3; color: #a15a00; padding: 2px 8px; border-radius: 3px; margin-left: 6px; }
+  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 50; max-width: 90%; }
+
+  /* ---- application pipeline modal ---- */
+  .app-card { cursor: pointer; }
+  .app-card:hover { border-color: var(--accent); }
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(10,31,68,0.45);
+    align-items: center; justify-content: center; z-index: 60; padding: 16px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 10px; max-width: 480px; width: 100%;
+    max-height: 86vh; overflow-y: auto; padding: 26px 28px;
+  }
+  .modal-box .modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .modal-box .modal-title { font-family: var(--font-head); font-size: 18px; font-weight: 700; color: var(--navy); }
+  .modal-box .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .modal-close { background: none; border: none; font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; }
+  .pipeline-banner { border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-bottom: 18px; }
+  .pipeline-banner.on_hold { background: #fff6ea; color: #8a5b13; border: 1px solid #f3ddb5; }
+  .pipeline-banner.rejected { background: #fdeaee; color: #a8324a; border: 1px solid #f6c9d1; }
+  .step-row { display: flex; gap: 14px; }
+  .step-dot-col { display: flex; flex-direction: column; align-items: center; }
+  .step-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; margin-top: 3px; }
+  .step-dot.done { background: var(--accent); }
+  .step-dot.current { background: #16a34a; }
+  .step-dot.pending { background: transparent; border: 2px solid #bfc8de; width: 8px; height: 8px; }
+  .step-line { width: 2px; flex: 1; background: #D7E0EC; margin: 2px 0; min-height: 22px; }
+  .step-body { padding-bottom: 22px; }
+  .step-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .step-title.pending-text { color: #9aa3b8; }
+  .step-desc { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .step-date { font-size: 11.5px; color: #0e9f6e; font-weight: 600; margin-top: 4px; }
+
+  @media (max-width: 540px) {
+    .box { max-width: 100%; border-radius: 0; border-left: none; border-right: none; box-shadow: none; }
+    .box-top { padding: 24px 24px 18px; }
+    .box-body { padding: 20px 24px 20px; }
+    .logo { height: 96px; }
+    h1 { font-size: 22px; }
+    .app-card { flex-direction: column; align-items: flex-start; }
+    .entry-form .grid2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="box">
+    <div class="box-top">
+      <img src="/assets/Enternly_logo.png" alt="Enternly" class="logo">
+      <div class="tagline">Candidate Portal</div>
+    </div>
+    <div class="box-body">
+      <h1>Candidate sign in</h1>
+      <div id="err" class="error-box" style="display:none"></div>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+      <label for="pw">Password</label>
+      <div class="pw-wrap">
+        <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
+        <button type="button" class="pw-toggle" tabindex="-1" aria-label="Show password" onclick="togglePw()">👁</button>
+      </div>
+      <button class="btn" id="btn" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<div id="dash-screen">
+  <div class="dash-header">
+    <div class="brand">
+      <img src="/assets/Enternly_logo.png" alt="Enternly">
+      <div>
+        <h2>Candidate Portal</h2>
+        <div class="who" id="who"></div>
+      </div>
+    </div>
+    <a class="logout-link" onclick="logout()">Sign out</a>
+  </div>
+
+  <div class="tabbar">
+    <div class="tab active" data-tab="apps" onclick="showTab('apps')">My Applications</div>
+    <div class="tab" data-tab="rec" onclick="showTab('rec')">Recommended Roles</div>
+    <div class="tab" data-tab="fb" onclick="showTab('fb')">My Feedback</div>
+    <div class="tab" data-tab="profile" onclick="showTab('profile')">My Profile</div>
+  </div>
+
+  <div id="toast-area"></div>
+
+  <!-- APPLICATIONS -->
+  <div class="tab-panel active" id="panel-apps">
+    <div class="section-title">Your submitted applications</div>
+    <div id="apps-list"><div class="loading">Loading…</div></div>
+  </div>
+
+  <!-- RECOMMENDED -->
+  <div class="tab-panel" id="panel-rec">
+    <div class="section-title">Recommended for you</div>
+    <div id="rec-list"><div class="loading">Loading…</div></div>
+  </div>
+
+  <!-- FEEDBACK -->
+  <div class="tab-panel" id="panel-fb">
+    <div class="section-title">Your feedback history</div>
+    <div id="fb-list"><div class="loading">Loading…</div></div>
+    <div class="fb-form-card">
+      <div class="section-title" style="margin-bottom:14px">Share feedback on a past interview</div>
+      <label for="fb-app-select">Which application (optional)</label>
+      <select id="fb-app-select"><option value="">General feedback</option></select>
+      <label id="fb-star-company-label">How was your experience with the company?</label>
+      <div class="star-picker" id="fb-star-company" role="group" aria-labelledby="fb-star-company-label"></div>
+      <label id="fb-star-interview-label">How was the interview process?</label>
+      <div class="star-picker" id="fb-star-interview" role="group" aria-labelledby="fb-star-interview-label"></div>
+      <label for="fb-comments">Comments (optional)</label>
+      <textarea id="fb-comments" placeholder="Anything you'd like to share…"></textarea>
+      <div class="form-actions"><button class="btn-small" onclick="submitFeedback()">Submit feedback</button></div>
+    </div>
+  </div>
+
+  <!-- MY PROFILE -->
+  <div class="tab-panel" id="panel-profile">
+    <div class="section-title" id="basic-info">Your details</div>
+    <div class="profile-block">
+      <div class="field-row"><label for="prof-full-name">Full name</label><input id="prof-full-name"></div>
+      <div class="field-row"><label for="prof-given-name">Given / preferred name</label><input id="prof-given-name"></div>
+      <div class="field-row"><label id="prof-email-label">Email</label><div class="readonly-value" id="prof-email" aria-labelledby="prof-email-label"></div></div>
+      <div class="field-row"><label for="prof-phone">Phone</label><input id="prof-phone"></div>
+      <div class="form-actions"><button class="btn-small" onclick="saveBasicInfo()">Save changes</button></div>
+    </div>
+
+    <div class="profile-block">
+      <h3>Resume</h3>
+      <div class="field-row"><span class="readonly-value" id="prof-resume-name" style="display:inline-block">No resume on file</span></div>
+      <label for="resume-file">Upload a new resume (PDF/DOC/DOCX, 5MB max)</label>
+      <input type="file" id="resume-file" accept=".pdf,.doc,.docx">
+      <div class="form-actions"><button class="btn-small" onclick="uploadResume()">Upload &amp; re-parse</button></div>
+      <p class="cap-note">Uploading a new resume only fills in profile fields that are still empty — it never overwrites work experience, education, or skills you've already entered.</p>
+    </div>
+
+    <div class="profile-block">
+      <h3>Skills</h3>
+      <div class="skill-chip-list" id="skill-chips"></div>
+      <div class="skill-add-row">
+        <input id="skill-input" placeholder="Add a skill and press Enter" aria-label="Add a skill">
+        <button class="btn-outline" onclick="addSkill()">Add</button>
+      </div>
+    </div>
+
+    <div class="profile-block">
+      <h3>Work experience</h3>
+      <div id="experience-list"></div>
+      <div id="experience-form-slot"></div>
+      <button class="btn-outline" id="add-exp-btn" onclick="showExperienceForm()">+ Add experience</button>
+      <p class="cap-note" id="exp-cap-note"></p>
+    </div>
+
+    <div class="profile-block">
+      <h3>Education</h3>
+      <div id="education-list"></div>
+      <div id="education-form-slot"></div>
+      <button class="btn-outline" id="add-edu-btn" onclick="showEducationForm()">+ Add education</button>
+      <p class="cap-note" id="edu-cap-note"></p>
+    </div>
+
+    <div class="profile-block" id="linkedin-section">
+      <h3>LinkedIn profile</h3>
+      <div id="linkedin-body"><div class="loading">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="pipeline-modal" onclick="if(event.target===this) closePipeline()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="pipeline-job-title"></div>
+        <div class="modal-sub" id="pipeline-location"></div>
+      </div>
+      <button class="modal-close" onclick="closePipeline()">×</button>
+    </div>
+    <div id="pipeline-body"><div class="loading">Loading…</div></div>
+  </div>
+</div>
+
+<script>
+const TOKEN_KEY = 'enternly_candidate_token';
+const NAME_KEY  = 'enternly_candidate_name';
+const API = '/api/candidate/portal';
+let PROFILE = null;
+
+function togglePw() {
+  const input = document.getElementById('pw');
+  const btn = document.querySelector('.pw-toggle');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? '🙈' : '👁';
+}
+
+document.getElementById('pw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const pw    = document.getElementById('pw').value;
+  const err   = document.getElementById('err');
+  const btn   = document.getElementById('btn');
+
+  err.style.display = 'none';
+  if (!email || !pw) {
+    err.textContent = 'Please enter your email and password.';
+    err.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const res  = await fetch(API + '/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pw }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      err.textContent = data.detail || 'Sign in failed.';
+      err.style.display = 'block';
+      return;
+    }
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(NAME_KEY, data.name || '');
+    showDashboard();
+  } catch {
+    err.textContent = 'Could not reach the server. Is the backend running?';
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(NAME_KEY);
+  document.getElementById('dash-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+async function authFetch(path, opts = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  opts.headers = Object.assign({}, opts.headers, { Authorization: 'Bearer ' + token });
+  const res = await fetch(API + path, opts);
+  if (res.status === 401 || res.status === 403) {
+    logout();
+    throw new Error('Session expired');
+  }
+  return res;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function showToast(message, kind) {
+  const area = document.getElementById('toast-area');
+  const box = document.createElement('div');
+  box.className = kind === 'error' ? 'error-box' : 'success-box';
+  box.textContent = message;
+  area.innerHTML = '';
+  area.appendChild(box);
+  setTimeout(() => { if (area.contains(box)) area.removeChild(box); }, 6000);
+}
+
+function statusClass(status) {
+  if (status === 'rejected') return 'rejected';
+  if (status === 'hired' || status === 'offered') return 'hired';
+  return '';
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'rec' && !window._recLoaded) loadRecommended();
+  if (name === 'fb' && !window._fbLoaded) loadFeedback();
+  if (name === 'profile' && !window._profileLoaded) loadProfile();
+}
+
+async function showDashboard() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('dash-screen').style.display = 'block';
+  document.getElementById('who').textContent = localStorage.getItem(NAME_KEY) || '';
+
+  loadApplications();
+  handleDeepLinkParams();
+}
+
+async function loadApplications() {
+  const list = document.getElementById('apps-list');
+  list.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await authFetch('/applications');
+    const apps = await res.json();
+    if (!Array.isArray(apps) || apps.length === 0) {
+      list.innerHTML = '<div class="empty-state">You have no applications on file yet.</div>';
+      return;
+    }
+    list.innerHTML = apps.map(a => `
+      <div class="app-card" onclick="openPipeline('${a.application_id}')">
+        <div>
+          <div class="job-title">${escapeHtml(a.job_title || '')}</div>
+          <div class="meta">${escapeHtml(a.hiring_location || '')}${a.band ? ' · Band ' + escapeHtml(a.band) : ''}${a.applied_at ? ' · Applied ' + new Date(a.applied_at).toLocaleDateString() : ''}</div>
+        </div>
+        <span class="status-pill ${statusClass(a.status)}">${escapeHtml(a.stage_label || a.status || '')}</span>
+      </div>
+    `).join('');
+    // populate feedback application picker while we're here
+    const sel = document.getElementById('fb-app-select');
+    apps.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.application_id;
+      opt.textContent = a.job_title;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    if (e.message !== 'Session expired') list.innerHTML = '<div class="empty-state">Could not reach the server. Please try again later.</div>';
+  }
+}
+
+// ── Application pipeline modal ──────────────────────────────────────────────
+
+async function openPipeline(applicationId) {
+  const modal = document.getElementById('pipeline-modal');
+  const body = document.getElementById('pipeline-body');
+  document.getElementById('pipeline-job-title').textContent = '';
+  document.getElementById('pipeline-location').textContent = '';
+  body.innerHTML = '<div class="loading">Loading…</div>';
+  modal.classList.add('open');
+  try {
+    const res = await authFetch(`/applications/${applicationId}/pipeline`);
+    const data = await res.json();
+    if (!res.ok) { body.innerHTML = `<div class="empty-state">${escapeHtml(data.detail || 'Could not load this application.')}</div>`; return; }
+    renderPipeline(data);
+  } catch (e) {
+    if (e.message !== 'Session expired') body.innerHTML = '<div class="empty-state">Could not reach the server. Please try again later.</div>';
+  }
+}
+
+function closePipeline() {
+  document.getElementById('pipeline-modal').classList.remove('open');
+}
+
+function renderPipeline(data) {
+  document.getElementById('pipeline-job-title').textContent = data.job_title || '';
+  document.getElementById('pipeline-location').textContent = data.hiring_location || '';
+  const body = document.getElementById('pipeline-body');
+
+  const bannerHtml = data.banner
+    ? `<div class="pipeline-banner ${data.banner.type}">${escapeHtml(data.banner.text)}</div>`
+    : '';
+
+  const stepsHtml = data.steps.map((s, i) => {
+    const isLast = i === data.steps.length - 1;
+    const dateHtml = (s.state !== 'pending' && s.reached_at)
+      ? `<div class="step-date">${new Date(s.reached_at).toLocaleDateString()}</div>` : '';
+    return `
+      <div class="step-row">
+        <div class="step-dot-col">
+          <div class="step-dot ${s.state}"></div>
+          ${!isLast ? '<div class="step-line"></div>' : ''}
+        </div>
+        <div class="step-body">
+          <div class="step-title${s.state === 'pending' ? ' pending-text' : ''}">${escapeHtml(s.label)}</div>
+          <div class="step-desc">${escapeHtml(s.description)}</div>
+          ${dateHtml}
+        </div>
+      </div>`;
+  }).join('');
+
+  body.innerHTML = bannerHtml + stepsHtml;
+}
+
+// ── Recommended Roles ─────────────────────────────────────────────────────
+
+async function loadRecommended() {
+  window._recLoaded = true;
+  const list = document.getElementById('rec-list');
+  list.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await authFetch('/recommended');
+    const roles = await res.json();
+    if (!Array.isArray(roles) || roles.length === 0) {
+      list.innerHTML = '<div class="empty-state">No new recommendations right now — check back soon.</div>';
+      return;
+    }
+    list.innerHTML = roles.map(r => `
+      <div class="rec-card">
+        <div class="job-title">${escapeHtml(r.title)}</div>
+        <div class="meta">${escapeHtml(r.hiring_location || '')}${r.band ? ' · Band ' + escapeHtml(r.band) : ''}${(r.min_experience != null) ? ' · ' + r.min_experience + '–' + r.max_experience + ' yrs' : ''}</div>
+        <div class="match">${escapeHtml(r.match_reason || '')}</div>
+        <button class="btn-small" onclick="applyToRole('${r.requisition_id}', this)">Apply with one click</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    if (e.message !== 'Session expired') list.innerHTML = '<div class="empty-state">Could not reach the server. Please try again later.</div>';
+  }
+}
+
+async function applyToRole(reqId, btn) {
+  btn.disabled = true; btn.textContent = 'Applying…';
+  try {
+    const res = await authFetch('/apply/' + reqId, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.detail || 'Could not apply.', 'error'); btn.disabled = false; btn.textContent = 'Apply with one click'; return; }
+    btn.textContent = data.already_applied ? 'Already applied' : 'Applied ✓';
+    showToast('Application submitted!');
+    window._recLoaded = false;
+    loadApplications();
+  } catch (e) {
+    if (e.message !== 'Session expired') { showToast('Could not reach the server.', 'error'); btn.disabled = false; btn.textContent = 'Apply with one click'; }
+  }
+}
+
+// ── My Feedback ────────────────────────────────────────────────────────────
+
+let fbCompanyRating = 0, fbInterviewRating = 0;
+
+function buildStarPicker(containerId, onSet) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const s = document.createElement('span');
+    s.textContent = '★';
+    s.dataset.value = i;
+    s.onclick = () => { onSet(i); renderStars(containerId, i); };
+    el.appendChild(s);
+  }
+}
+function renderStars(containerId, value) {
+  document.querySelectorAll('#' + containerId + ' span').forEach(s => {
+    s.classList.toggle('filled', Number(s.dataset.value) <= value);
+  });
+}
+
+async function loadFeedback() {
+  window._fbLoaded = true;
+  buildStarPicker('fb-star-company', v => fbCompanyRating = v);
+  buildStarPicker('fb-star-interview', v => fbInterviewRating = v);
+  const list = document.getElementById('fb-list');
+  list.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await authFetch('/feedback');
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      list.innerHTML = '<div class="empty-state">You haven&#39;t shared any feedback yet.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(f => `
+      <div class="fb-row">
+        <div class="job-title">${escapeHtml(f.job_title || 'General feedback')}</div>
+        <div class="fb-stars-display">${'★'.repeat(f.company_rating)}${'☆'.repeat(5 - f.company_rating)} company · ${'★'.repeat(f.interview_rating)}${'☆'.repeat(5 - f.interview_rating)} interview</div>
+        ${f.comments ? `<div class="comment">"${escapeHtml(f.comments)}"</div>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    if (e.message !== 'Session expired') list.innerHTML = '<div class="empty-state">Could not reach the server. Please try again later.</div>';
+  }
+}
+
+async function submitFeedback() {
+  if (!fbCompanyRating || !fbInterviewRating) { showToast('Please rate both company and interview experience.', 'error'); return; }
+  const appId = document.getElementById('fb-app-select').value || null;
+  const comments = document.getElementById('fb-comments').value.trim() || null;
+  try {
+    const res = await authFetch('/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_rating: fbCompanyRating, interview_rating: fbInterviewRating, comments, application_id: appId }),
+    });
+    if (!res.ok) { const d = await res.json(); showToast(d.detail || 'Could not submit feedback.', 'error'); return; }
+    showToast('Thanks for your feedback!');
+    document.getElementById('fb-comments').value = '';
+    fbCompanyRating = 0; fbInterviewRating = 0;
+    renderStars('fb-star-company', 0); renderStars('fb-star-interview', 0);
+    window._fbLoaded = false;
+    loadFeedback();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+// ── My Profile ─────────────────────────────────────────────────────────────
+
+async function loadProfile() {
+  window._profileLoaded = true;
+  try {
+    const res = await authFetch('/profile');
+    PROFILE = await res.json();
+    renderProfile();
+    loadLinkedInSection();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not load your profile.', 'error');
+  }
+}
+
+function renderProfile() {
+  document.getElementById('prof-full-name').value = PROFILE.full_name || '';
+  document.getElementById('prof-given-name').value = PROFILE.given_name || '';
+  document.getElementById('prof-email').textContent = PROFILE.email || '';
+  document.getElementById('prof-phone').value = PROFILE.phone || '';
+  document.getElementById('prof-resume-name').textContent = PROFILE.resume_url ? 'Resume on file' : 'No resume on file';
+
+  const chips = document.getElementById('skill-chips');
+  chips.innerHTML = (PROFILE.skills || []).map(s => `
+    <span class="skill-chip">${escapeHtml(s)}<button onclick="removeSkill('${escapeHtml(s)}')">×</button></span>
+  `).join('') || '<span class="cap-note">No skills added yet.</span>';
+
+  renderExperienceList();
+  renderEducationList();
+}
+
+async function saveBasicInfo() {
+  try {
+    const res = await authFetch('/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name: document.getElementById('prof-full-name').value,
+        given_name: document.getElementById('prof-given-name').value,
+        phone: document.getElementById('prof-phone').value,
+      }),
+    });
+    if (!res.ok) { const d = await res.json(); showToast(d.detail || 'Could not save.', 'error'); return; }
+    showToast('Profile updated!');
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+async function uploadResume() {
+  const input = document.getElementById('resume-file');
+  if (!input.files.length) { showToast('Choose a file first.', 'error'); return; }
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  try {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const res = await fetch(API + '/profile/resume', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.detail || 'Could not upload resume.', 'error'); return; }
+    showToast(data.prefilled ? 'Resume uploaded — empty profile fields were prefilled from it.' : 'Resume uploaded.');
+    window._profileLoaded = false;
+    loadProfile();
+  } catch {
+    showToast('Could not reach the server.', 'error');
+  }
+}
+
+async function addSkill() {
+  const input = document.getElementById('skill-input');
+  const val = input.value.trim();
+  if (!val) return;
+  const skills = Array.from(new Set([...(PROFILE.skills || []), val]));
+  await saveSkills(skills);
+  input.value = '';
+}
+async function removeSkill(skill) {
+  const skills = (PROFILE.skills || []).filter(s => s !== skill);
+  await saveSkills(skills);
+}
+async function saveSkills(skills) {
+  try {
+    const res = await authFetch('/profile/skills', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skills }),
+    });
+    const data = await res.json();
+    PROFILE.skills = data.skills || skills;
+    renderProfile();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+// -- Work experience --
+
+function renderExperienceList() {
+  const list = document.getElementById('experience-list');
+  const items = PROFILE.experience || [];
+  list.innerHTML = items.map(x => `
+    <div class="entry-card">
+      <div class="entry-title">${escapeHtml(x.title)} · ${escapeHtml(x.company)}</div>
+      <div class="entry-meta">${monthYear(x.start_month, x.start_year)} – ${x.is_current ? 'Present' : monthYear(x.end_month, x.end_year)}</div>
+      ${x.description ? `<div class="entry-desc">${escapeHtml(x.description)}</div>` : ''}
+      <div class="entry-actions">
+        <a onclick="showExperienceForm('${x.id}')">Edit</a>
+        <a class="danger" onclick="deleteExperience('${x.id}')">Delete</a>
+      </div>
+    </div>
+  `).join('') || '<p class="cap-note">No work experience added yet.</p>';
+  const atCap = items.length >= 5;
+  document.getElementById('add-exp-btn').style.display = atCap ? 'none' : 'inline-block';
+  document.getElementById('exp-cap-note').textContent = atCap ? "You've reached the 5-entry limit." : '';
+}
+
+function monthYear(m, y) {
+  if (!y) return 'Unknown';
+  const names = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return (m ? names[m] + ' ' : '') + y;
+}
+
+function showExperienceForm(id) {
+  const existing = id ? (PROFILE.experience || []).find(x => x.id === id) : null;
+  const slot = document.getElementById('experience-form-slot');
+  slot.innerHTML = `
+    <div class="entry-form">
+      <div class="grid2">
+        <div><label>Company</label><input id="exp-company" value="${existing ? escapeHtml(existing.company) : ''}"></div>
+        <div><label>Title</label><input id="exp-title" value="${existing ? escapeHtml(existing.title) : ''}"></div>
+        <div><label>Start month (1-12)</label><input id="exp-start-month" type="number" min="1" max="12" value="${existing && existing.start_month || ''}"></div>
+        <div><label>Start year</label><input id="exp-start-year" type="number" value="${existing && existing.start_year || ''}"></div>
+        <div><label>End month (1-12)</label><input id="exp-end-month" type="number" min="1" max="12" value="${existing && existing.end_month || ''}"></div>
+        <div><label>End year</label><input id="exp-end-year" type="number" value="${existing && existing.end_year || ''}"></div>
+      </div>
+      <div class="checkbox-row"><input type="checkbox" id="exp-current" ${existing && existing.is_current ? 'checked' : ''}><label for="exp-current">I currently work here</label></div>
+      <label>Description (optional)</label>
+      <textarea id="exp-description">${existing ? escapeHtml(existing.description || '') : ''}</textarea>
+      <div class="form-actions">
+        <button class="btn-small" onclick="saveExperience(${existing ? `'${existing.id}'` : 'null'})">${existing ? 'Save' : 'Add'}</button>
+        <button class="btn-outline" onclick="document.getElementById('experience-form-slot').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveExperience(id) {
+  const body = {
+    company: document.getElementById('exp-company').value,
+    title: document.getElementById('exp-title').value,
+    start_month: numOrNull('exp-start-month'),
+    start_year: numOrNull('exp-start-year'),
+    end_month: numOrNull('exp-end-month'),
+    end_year: numOrNull('exp-end-year'),
+    is_current: document.getElementById('exp-current').checked,
+    description: document.getElementById('exp-description').value || null,
+  };
+  try {
+    const res = await authFetch(id ? `/profile/experience/${id}` : '/profile/experience', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.detail || 'Could not save.', 'error'); return; }
+    document.getElementById('experience-form-slot').innerHTML = '';
+    window._profileLoaded = false;
+    loadProfile();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+async function deleteExperience(id) {
+  if (!confirm('Remove this work experience entry?')) return;
+  try {
+    await authFetch(`/profile/experience/${id}`, { method: 'DELETE' });
+    window._profileLoaded = false;
+    loadProfile();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+function numOrNull(id) {
+  const v = document.getElementById(id).value;
+  return v === '' ? null : Number(v);
+}
+
+// -- Education --
+
+function renderEducationList() {
+  const list = document.getElementById('education-list');
+  const items = PROFILE.education || [];
+  list.innerHTML = items.map(x => `
+    <div class="entry-card">
+      <div class="entry-title">${escapeHtml(x.institution)}</div>
+      <div class="entry-meta">${[x.degree, x.field_of_study].filter(Boolean).map(escapeHtml).join(' · ')}${x.start_year || x.end_year ? ' · ' + (x.start_year || '') + '–' + (x.end_year || '') : ''}</div>
+      <div class="entry-actions">
+        <a onclick="showEducationForm('${x.id}')">Edit</a>
+        <a class="danger" onclick="deleteEducation('${x.id}')">Delete</a>
+      </div>
+    </div>
+  `).join('') || '<p class="cap-note">No education added yet.</p>';
+  const atCap = items.length >= 8;
+  document.getElementById('add-edu-btn').style.display = atCap ? 'none' : 'inline-block';
+  document.getElementById('edu-cap-note').textContent = atCap ? "You've reached the 8-entry limit." : '';
+}
+
+function showEducationForm(id) {
+  const existing = id ? (PROFILE.education || []).find(x => x.id === id) : null;
+  const slot = document.getElementById('education-form-slot');
+  slot.innerHTML = `
+    <div class="entry-form">
+      <label>Institution</label><input id="edu-institution" value="${existing ? escapeHtml(existing.institution) : ''}">
+      <div class="grid2">
+        <div><label>Degree</label><input id="edu-degree" value="${existing ? escapeHtml(existing.degree || '') : ''}"></div>
+        <div><label>Field of study</label><input id="edu-field" value="${existing ? escapeHtml(existing.field_of_study || '') : ''}"></div>
+        <div><label>Start year</label><input id="edu-start-year" type="number" value="${existing && existing.start_year || ''}"></div>
+        <div><label>End year</label><input id="edu-end-year" type="number" value="${existing && existing.end_year || ''}"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-small" onclick="saveEducation(${existing ? `'${existing.id}'` : 'null'})">${existing ? 'Save' : 'Add'}</button>
+        <button class="btn-outline" onclick="document.getElementById('education-form-slot').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveEducation(id) {
+  const body = {
+    institution: document.getElementById('edu-institution').value,
+    degree: document.getElementById('edu-degree').value || null,
+    field_of_study: document.getElementById('edu-field').value || null,
+    start_year: numOrNull('edu-start-year'),
+    end_year: numOrNull('edu-end-year'),
+  };
+  try {
+    const res = await authFetch(id ? `/profile/education/${id}` : '/profile/education', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.detail || 'Could not save.', 'error'); return; }
+    document.getElementById('education-form-slot').innerHTML = '';
+    window._profileLoaded = false;
+    loadProfile();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+async function deleteEducation(id) {
+  if (!confirm('Remove this education entry?')) return;
+  try {
+    await authFetch(`/profile/education/${id}`, { method: 'DELETE' });
+    window._profileLoaded = false;
+    loadProfile();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+// -- LinkedIn --
+
+async function loadLinkedInSection() {
+  const body = document.getElementById('linkedin-body');
+  body.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const statusRes = await authFetch('/linkedin/status');
+    const status = await statusRes.json();
+    renderLinkedInSection(status.configured);
+  } catch (e) {
+    if (e.message !== 'Session expired') body.innerHTML = '<div class="empty-state">Could not load LinkedIn status.</div>';
+  }
+}
+
+function renderLinkedInSection(configured) {
+  const body = document.getElementById('linkedin-body');
+  const li = PROFILE.linkedin || {};
+  const connectedBlock = li.connected_at ? `
+    <div class="li-connected">
+      <div class="li-avatar">${li.profile_photo_url ? `<img src="${escapeHtml(li.profile_photo_url)}" alt="">` : escapeHtml((li.profile_name || '?').slice(0,1))}</div>
+      <div>
+        <div class="li-name">${escapeHtml(li.profile_name || 'Connected')}</div>
+        <div class="li-synced-tag">✓ Verified via LinkedIn · last synced ${li.last_synced_at ? new Date(li.last_synced_at).toLocaleDateString() : '—'}</div>
+      </div>
+    </div>` : '';
+
+  body.innerHTML = `
+    ${connectedBlock}
+    <div class="li-not-connected" style="${li.connected_at ? 'display:none' : ''}">
+      <div class="li-icon">in</div>
+      <p>Connecting via LinkedIn verifies it's really you and refreshes your name and photo — it doesn't post anything or share your password.</p>
+      ${configured
+        ? `<button class="li-connect-btn" onclick="connectLinkedIn()">${li.connected_at ? 'Reconnect LinkedIn' : 'Connect LinkedIn'}</button>`
+        : `<button class="li-connect-btn" disabled>Connect LinkedIn <span class="coming-soon-tag">COMING SOON</span></button>`}
+    </div>
+    <label>LinkedIn profile URL (always editable, no LinkedIn account needed)</label>
+    <div class="manual-row">
+      <input id="li-manual-url" value="${escapeHtml(li.url || '')}" placeholder="https://www.linkedin.com/in/your-name">
+      <button class="btn-outline" onclick="saveLinkedInManual()">Save</button>
+    </div>
+  `;
+}
+
+async function connectLinkedIn() {
+  try {
+    const res = await authFetch('/linkedin/connect');
+    const data = await res.json();
+    if (!res.ok) { showToast(data.detail || 'LinkedIn connect is not available yet.', 'error'); return; }
+    window.location.href = data.auth_url;
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+async function saveLinkedInManual() {
+  const url = document.getElementById('li-manual-url').value.trim();
+  try {
+    const res = await authFetch('/linkedin/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linkedin_url: url }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.detail || 'Could not save.', 'error'); return; }
+    showToast('LinkedIn URL saved.');
+    window._profileLoaded = false;
+    loadProfile();
+  } catch (e) {
+    if (e.message !== 'Session expired') showToast('Could not reach the server.', 'error');
+  }
+}
+
+// ── Deep-link handling (?next=profile&section=linkedin, ?linkedinConnected=1, ?linkedinError=...) ──
+
+function handleDeepLinkParams() {
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get('next');
+  const section = params.get('section');
+  const linkedinConnected = params.get('linkedinConnected');
+  const linkedinError = params.get('linkedinError');
+
+  if (next === 'profile') {
+    showTab('profile');
+    if (section) {
+      setTimeout(() => {
+        const el = document.getElementById(section === 'linkedin' ? 'linkedin-section' : section);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 400);
+    }
+  }
+  if (linkedinConnected) showToast('LinkedIn connected!');
+  if (linkedinError) showToast('LinkedIn connection failed: ' + decodeURIComponent(linkedinError), 'error');
+  if (next || linkedinConnected || linkedinError) {
+    history.replaceState(null, '', window.location.pathname);
+  }
+}
+
+// Boot: already signed in? go straight to dashboard.
+if (localStorage.getItem(TOKEN_KEY)) {
+  showDashboard();
+}
+</script>
+</body>
+</html>

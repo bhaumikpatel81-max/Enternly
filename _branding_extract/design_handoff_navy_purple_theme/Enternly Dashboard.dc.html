@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; background: #F8FCFE; color: #0A1F44; -webkit-font-smoothing: antialiased; }
+  a { color: #2563EB; text-decoration: none; }
+  a:hover { color: #0A1F44; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #c9cfe0; border-radius: 8px; }
+</style>
+</helmet>
+
+<div style="display:flex; min-height:100vh; width:100%; background:#F8FCFE;">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside style="width:230px; flex:0 0 230px; background:#0A1F44; color:#fff; display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow-y:auto;">
+    <div style="display:flex; align-items:center; gap:10px; padding:20px 20px 16px;">
+      <div style="width:30px; height:30px; background:linear-gradient(150deg,#5FB4FF,#2563EB); border-radius:60% 60% 60% 8px; transform:rotate(45deg); box-shadow:0 4px 12px rgba(37,99,235,.35);"></div>
+      <span style="font-family:'Space Grotesk'; font-weight:800; font-size:22px; letter-spacing:-.5px;">Enternly</span>
+    </div>
+
+    <nav style="flex:1; padding:6px 12px 20px;">
+      <sc-for list="{{ navGroups }}" as="group" hint-placeholder-count="4">
+        <div style="margin-top:16px;">
+          <div style="font-family:'Space Grotesk'; font-size:10px; font-weight:700; letter-spacing:1.5px; color:rgba(255,255,255,.42); padding:0 12px 6px;">{{ group.label }}</div>
+          <sc-for list="{{ group.items }}" as="item" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; margin:1px 0; border-radius:8px; font-size:13.5px; font-weight:{{ item.weight }}; color:{{ item.color }}; background:{{ item.bg }}; cursor:pointer; border-left:3px solid {{ item.bar }};">
+              <span style="width:6px; height:6px; border-radius:50%; background:{{ item.dot }};"></span>
+              {{ item.name }}
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </nav>
+
+    <div style="padding:14px 20px 18px; border-top:1px solid rgba(255,255,255,.1); font-size:13px;">
+      <div style="display:flex; align-items:center; gap:8px; color:rgba(255,255,255,.72); padding:5px 0; cursor:pointer;">🔑 Change password</div>
+      <div style="display:flex; align-items:center; gap:8px; color:#ff8fa3; padding:5px 0; cursor:pointer;">⎋ Sign out</div>
+      <div style="margin-top:12px; font-size:9.5px; letter-spacing:1.5px; color:rgba(255,255,255,.35); font-weight:700;">POWERED BY</div>
+      <div style="font-family:'Space Grotesk'; font-weight:800; letter-spacing:3px; color:rgba(255,255,255,.6); font-size:13px;">ENTERNSTECH</div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- Top bar -->
+    <header style="display:flex; align-items:center; justify-content:space-between; padding:14px 26px; background:#fff; border-bottom:1px solid #D7E0EC; position:sticky; top:0; z-index:5;">
+      <h1 style="font-family:'Space Grotesk'; font-size:17px; font-weight:700; margin:0; color:#0A1F44;">Team Dashboard</h1>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <button style="border:0; background:#0e9f6e; color:#fff; font-family:'IBM Plex Sans'; font-weight:700; font-size:12.5px; padding:8px 14px; border-radius:8px; cursor:pointer;">↓ Download Excel</button>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <span style="font-size:13px; font-weight:600; color:#334;">Bhaumik Patel</span>
+          <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(150deg,#0A1F44,#2563EB); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px;">BP</div>
+        </div>
+      </div>
+    </header>
+
+    <div style="padding:22px 26px 40px; display:flex; flex-direction:column; gap:20px;">
+
+      <!-- Hero / progress -->
+      <div style="border-radius:16px; padding:20px 26px; background:linear-gradient(100deg,#0A1F44 0%,#14316B 52%,#2563EB 130%); color:#fff; display:flex; align-items:center; gap:34px; box-shadow:0 10px 30px rgba(10,31,68,.28); position:relative; overflow:hidden;">
+        <div style="position:absolute; right:-40px; top:-60px; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,.5),transparent 70%);"></div>
+        <div style="text-align:center; padding-right:26px; border-right:1px solid rgba(255,255,255,.2);">
+          <div style="font-size:10px; letter-spacing:2px; font-weight:700; color:rgba(255,255,255,.7);">BRONZE</div>
+          <div style="font-family:'Space Grotesk'; font-size:34px; font-weight:800; line-height:1;">0<span style="font-size:14px; font-weight:600; opacity:.7;"> pts</span></div>
+          <div style="font-size:11px; opacity:.65;">XP this period</div>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span style="font-weight:700;">Progress</span>
+            <span style="opacity:.8;">380 pts to Silver</span>
+          </div>
+          <div style="height:9px; border-radius:6px; background:rgba(255,255,255,.18);">
+            <div style="width:6%; height:100%; border-radius:6px; background:linear-gradient(90deg,#2563EB,#22D3EE);"></div>
+          </div>
+        </div>
+        <button style="border:1px solid rgba(255,255,255,.4); background:rgba(255,255,255,.12); color:#fff; font-weight:700; font-size:12.5px; padding:9px 16px; border-radius:9px; cursor:pointer; backdrop-filter:blur(4px);">My Stats →</button>
+      </div>
+
+      <!-- KPI row -->
+      <div style="display:grid; grid-template-columns:repeat(9,1fr); gap:12px;">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="9">
+          <div style="background:#fff; border:1px solid #D7E0EC; border-radius:13px; padding:16px 12px; text-align:center; border-top:3px solid {{ k.accent }};">
+            <div style="font-family:'Space Grotesk'; font-size:30px; font-weight:800; color:#0A1F44;">{{ k.value }}</div>
+            <div style="font-size:9.5px; letter-spacing:.6px; font-weight:700; color:#7a8199; margin-top:4px; text-transform:uppercase; line-height:1.3;">{{ k.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- NexAI pipeline -->
+      <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0; color:#0A1F44; display:flex; align-items:center; gap:8px;"><span style="color:#2563EB;">✦</span> NexAI Interview Pipeline</h2>
+          <a href="#" style="font-size:12px; font-weight:700;">View full tracker →</a>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px;">
+          <sc-for list="{{ nexaiStats }}" as="s" hint-placeholder-count="5">
+            <div style="background:#f7f8fc; border:1px solid #eceef6; border-radius:12px; padding:16px; text-align:center;">
+              <div style="font-family:'Space Grotesk'; font-size:26px; font-weight:800; color:{{ s.color }};">{{ s.value }}</div>
+              <div style="font-size:12px; font-weight:700; color:#3a4467; margin-top:2px;">{{ s.label }}</div>
+              <div style="font-size:10.5px; color:#9AA7BD;">{{ s.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:10px; letter-spacing:1px; font-weight:700; color:#9aa0b6; margin-bottom:8px;">RECENT INVITES</div>
+        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+          <thead>
+            <tr style="text-align:left; color:#9AA7BD; font-size:10px; letter-spacing:.8px;">
+              <th style="padding:6px 8px; font-weight:700;">CANDIDATE</th>
+              <th style="padding:6px 8px; font-weight:700;">REQUISITION</th>
+              <th style="padding:6px 8px; font-weight:700;">STATUS</th>
+              <th style="padding:6px 8px; font-weight:700; text-align:right;">SCORE</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ recentInvites }}" as="r" hint-placeholder-count="5">
+              <tr style="border-top:1px solid #F8FCFE;">
+                <td style="padding:9px 8px; font-weight:600;">{{ r.name }}</td>
+                <td style="padding:9px 8px; color:#596A83;">{{ r.req }}</td>
+                <td style="padding:9px 8px;"><span style="font-size:10px; font-weight:700; letter-spacing:.5px; padding:3px 9px; border-radius:20px; background:{{ r.badgeBg }}; color:{{ r.badgeFg }};">{{ r.status }}</span></td>
+                <td style="padding:9px 8px; text-align:right; color:#9aa0b6;">{{ r.score }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Recruiter performance + comparison -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 14px; color:#0A1F44;">Recruiter Performance</h2>
+          <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+            <thead><tr style="text-align:left; color:#9AA7BD; font-size:10px; letter-spacing:.8px;">
+              <th style="padding:6px 8px; font-weight:700;">RECRUITER</th>
+              <th style="padding:6px 8px; font-weight:700;">OPEN REQS</th>
+              <th style="padding:6px 8px; font-weight:700;">APPLICATIONS</th>
+              <th style="padding:6px 8px; font-weight:700;">CONVERTED</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ recruiterRows }}" as="r" hint-placeholder-count="5">
+                <tr style="border-top:1px solid #F8FCFE;">
+                  <td style="padding:10px 8px;"><a href="#" style="font-weight:700;">{{ r.name }}</a></td>
+                  <td style="padding:10px 8px; color:#596A83;">{{ r.reqs }}</td>
+                  <td style="padding:10px 8px; color:#596A83;">{{ r.apps }}</td>
+                  <td style="padding:10px 8px; color:#596A83;">{{ r.conv }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 18px; color:#0A1F44;">Recruiter Comparison</h2>
+          <div style="display:flex; align-items:flex-end; justify-content:space-around; height:170px; border-bottom:1px solid #D7E0EC; padding:0 4px;">
+            <sc-for list="{{ compareBars }}" as="c" hint-placeholder-count="5">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px; flex:1;">
+                <div style="display:flex; align-items:flex-end; gap:4px; height:140px;">
+                  <div style="width:16px; background:#2563EB; border-radius:4px 4px 0 0; height:{{ c.openH }};"></div>
+                  <div style="width:16px; background:#5FB4FF; border-radius:4px 4px 0 0; height:{{ c.appH }};"></div>
+                </div>
+                <div style="font-size:10px; color:#7a8199; text-align:center; max-width:80px;">{{ c.name }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; gap:18px; justify-content:center; margin-top:12px; font-size:11px; color:#596A83;">
+            <span style="display:flex; align-items:center; gap:6px;"><span style="width:11px; height:11px; border-radius:3px; background:#2563EB;"></span> Open Reqs</span>
+            <span style="display:flex; align-items:center; gap:6px;"><span style="width:11px; height:11px; border-radius:3px; background:#5FB4FF;"></span> Applications</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hiring manager + all requisitions -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px; display:flex; flex-direction:column;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 14px; color:#0A1F44;">Hiring Manager Overview</h2>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; min-height:170px; color:#9aa0b6; font-size:13px;">No hiring managers yet.</div>
+        </div>
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 14px; color:#0A1F44;">All Requisitions</h2>
+          <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+            <thead><tr style="text-align:left; color:#9AA7BD; font-size:10px; letter-spacing:.8px;">
+              <th style="padding:6px 8px; font-weight:700;">ROLE</th>
+              <th style="padding:6px 8px; font-weight:700;">BU</th>
+              <th style="padding:6px 8px; font-weight:700;">BAND</th>
+              <th style="padding:6px 8px; font-weight:700;">STATUS</th>
+              <th style="padding:6px 8px; font-weight:700;">PIPELINE</th>
+              <th style="padding:6px 8px; font-weight:700;">LEVELS</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ reqRows }}" as="r" hint-placeholder-count="4">
+                <tr style="border-top:1px solid #F8FCFE;">
+                  <td style="padding:10px 8px; font-weight:600; max-width:200px;">{{ r.role }}</td>
+                  <td style="padding:10px 8px; color:#596A83;">{{ r.bu }}</td>
+                  <td style="padding:10px 8px; color:#596A83;">{{ r.band }}</td>
+                  <td style="padding:10px 8px;"><span style="font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; background:#e8f7f0; color:#0e9f6e;">OPEN</span></td>
+                  <td style="padding:10px 8px; color:#2563EB; font-weight:700;">{{ r.pipeline }}</td>
+                  <td style="padding:10px 8px; color:#596A83;">{{ r.levels }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Funnel + cohort -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 4px; color:#0A1F44;">Team Pipeline Funnel</h2>
+          <div style="font-size:11px; color:#9aa0b6; margin-bottom:16px;">All candidates across all requisitions</div>
+          <sc-for list="{{ funnel }}" as="f" hint-placeholder-count="8">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:9px;">
+              <div style="width:100px; font-size:11.5px; color:#596A83; text-align:right;">{{ f.label }}</div>
+              <div style="flex:1; height:16px; background:#f2f3f9; border-radius:4px; overflow:hidden;">
+                <div style="height:100%; width:{{ f.width }}; background:linear-gradient(90deg,#0A1F44,#2563EB); border-radius:4px;"></div>
+              </div>
+              <div style="width:24px; font-size:11.5px; font-weight:700; color:#0A1F44;">{{ f.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 4px; color:#0A1F44;">Team Conversion Cohort</h2>
+          <div style="font-size:11px; color:#9aa0b6; margin-bottom:12px;">% of all applications reaching each stage</div>
+          <svg viewBox="0 0 520 200" style="width:100%; height:190px;">
+            <defs>
+              <linearGradient id="cohortFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#2563EB" stop-opacity="0.28"></stop>
+                <stop offset="100%" stop-color="#2563EB" stop-opacity="0"></stop>
+              </linearGradient>
+            </defs>
+            <line x1="40" y1="10" x2="40" y2="170" stroke="#D7E0EC"></line>
+            <line x1="40" y1="170" x2="510" y2="170" stroke="#D7E0EC"></line>
+            <path d="M40 20 C 110 120, 130 155, 190 155 C 250 155, 250 40, 320 55 C 390 68, 400 165, 460 167 L 510 168 L 510 170 L 40 170 Z" fill="url(#cohortFill)"></path>
+            <path d="M40 20 C 110 120, 130 155, 190 155 C 250 155, 250 40, 320 55 C 390 68, 400 165, 460 167 L 510 168" fill="none" stroke="#2563EB" stroke-width="2.5"></path>
+            <circle cx="40" cy="20" r="3.5" fill="#0A1F44"></circle>
+            <circle cx="320" cy="55" r="3.5" fill="#0A1F44"></circle>
+            <circle cx="510" cy="168" r="3.5" fill="#0A1F44"></circle>
+          </svg>
+          <div style="display:flex; justify-content:space-between; font-size:9px; color:#9aa0b6; padding:0 4px;">
+            <span>Applications</span><span>Screening</span><span>Shortlisted</span><span>Interview</span><span>Offered</span><span>Hired</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diversity + quick actions -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 16px; color:#0A1F44;">Organisation-wide Diversity</h2>
+          <div style="display:flex; align-items:center; gap:30px;">
+            <div style="width:130px; height:130px; border-radius:50%; background:conic-gradient(#2563EB 0 60%, #5FB4FF 60% 90%, #c3c8d8 90% 100%); display:flex; align-items:center; justify-content:center;">
+              <div style="width:78px; height:78px; border-radius:50%; background:#fff;"></div>
+            </div>
+            <div style="font-size:12.5px; color:#596A83; display:flex; flex-direction:column; gap:10px;">
+              <span style="display:flex; align-items:center; gap:8px;"><span style="width:11px; height:11px; border-radius:3px; background:#2563EB;"></span> Female</span>
+              <span style="display:flex; align-items:center; gap:8px;"><span style="width:11px; height:11px; border-radius:3px; background:#5FB4FF;"></span> Male</span>
+              <span style="display:flex; align-items:center; gap:8px;"><span style="width:11px; height:11px; border-radius:3px; background:#c3c8d8;"></span> Undisclosed</span>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #D7E0EC; border-radius:16px; padding:20px 22px;">
+          <h2 style="font-family:'Space Grotesk'; font-size:15px; font-weight:700; margin:0 0 16px; color:#0A1F44;">Quick Actions</h2>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <sc-for list="{{ quickActions }}" as="q" hint-placeholder-count="3">
+              <button style="display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left; border:1px solid #D7E0EC; background:#f9fafd; padding:13px 16px; border-radius:10px; font-family:'IBM Plex Sans'; font-weight:700; font-size:13px; color:#0A1F44; cursor:pointer;" style-hover="background:#EAF0FF; border-color:#2563EB;">{{ q }} <span style="color:#2563EB;">→</span></button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const nav = (name, opts = {}) => ({
+      name,
+      weight: opts.active ? 700 : 500,
+      color: opts.active ? '#fff' : 'rgba(255,255,255,.72)',
+      bg: opts.active ? 'rgba(37,99,235,.22)' : 'transparent',
+      bar: opts.active ? '#2563EB' : 'transparent',
+      dot: opts.active ? '#2563EB' : 'rgba(255,255,255,.3)',
+    });
+    return {
+      navGroups: [
+        { label: 'PIPELINE', items: [nav('Dashboard', { active: true }), nav('Requisitions'), nav('Candidates'), nav('Interviews'), nav('Offers & Approvals')] },
+        { label: 'SOURCING', items: [nav('Hiring Plan'), nav('Campus Hiring'), nav('NexAI')] },
+        { label: 'ANALYTICS', items: [nav('KPI Dashboard'), nav('Reports'), nav('SLA / Breaches'), nav('Leaderboard')] },
+        { label: 'ADMIN', items: [nav('Users & Access'), nav('Recruiter Access'), nav('Vendors'), nav('Team'), nav('Req Approvals'), nav('Proctoring'), nav('Appeals'), nav('Organisation'), nav('SLA Settings'), nav('Approval Chains'), nav('Email Templates'), nav('Form Fields'), nav('Raise a Ticket')] },
+      ],
+      kpis: [
+        { value: 4, label: 'Team Open Reqs', accent: '#2563EB' },
+        { value: 7, label: 'Applications', accent: '#5FB4FF' },
+        { value: 1, label: 'Under Screening', accent: '#2563EB' },
+        { value: 6, label: 'Screening Cleared', accent: '#5FB4FF' },
+        { value: 0, label: 'NexAI Interview', accent: '#2563EB' },
+        { value: 0, label: 'Panel Interview', accent: '#5FB4FF' },
+        { value: 0, label: 'HM Screening', accent: '#2563EB' },
+        { value: 0, label: 'Offer Approval', accent: '#5FB4FF' },
+        { value: 0, label: 'Hired', accent: '#2563EB' },
+      ],
+      nexaiStats: [
+        { value: 6, label: 'Total Invited', sub: '', color: '#0A1F44' },
+        { value: 4, label: 'Pending', sub: 'Not opened yet', color: '#e6a100' },
+        { value: 2, label: 'In Progress', sub: 'Interview started', color: '#5FB4FF' },
+        { value: 0, label: 'Completed', sub: 'Score available', color: '#0e9f6e' },
+        { value: 0, label: 'Approved', sub: '7-day limit passed', color: '#2563EB' },
+      ],
+      recentInvites: [
+        { name: 'Bhaumik Patel', req: 'Associate Developer (Software) — Fresher (AI-Native)', status: 'IN PROGRESS', badgeBg: '#e7ecff', badgeFg: '#5FB4FF', score: '—' },
+        { name: 'Rina P', req: 'Associate Developer (Software) — Fresher (AI-Native)', status: 'PENDING', badgeBg: '#fff2d6', badgeFg: '#b07d00', score: '—' },
+        { name: 'Megha Panara', req: 'Associate Developer (Software) — Fresher (AI-Native)', status: 'IN PROGRESS', badgeBg: '#e7ecff', badgeFg: '#5FB4FF', score: '—' },
+        { name: 'Harsita', req: 'Associate Developer (Software) — Fresher (AI-Native)', status: 'PENDING', badgeBg: '#fff2d6', badgeFg: '#b07d00', score: '—' },
+        { name: 'Rina Prakash', req: 'Associate Developer (Software) — Fresher (AI-Native)', status: 'PENDING', badgeBg: '#fff2d6', badgeFg: '#b07d00', score: '—' },
+      ],
+      recruiterRows: [
+        { name: 'Harisha Shyamnani', reqs: 1, apps: 0, conv: 0 },
+        { name: 'Nakul Pareek', reqs: 0, apps: 0, conv: 0 },
+        { name: 'Rina Dholakia', reqs: 1, apps: 1, conv: 0 },
+        { name: 'Megha Panara', reqs: 0, apps: 0, conv: 0 },
+        { name: 'Bhaumik Patel', reqs: 0, apps: 0, conv: 0 },
+      ],
+      compareBars: [
+        { name: 'Harisha Shyamnani', openH: '90%', appH: '4%' },
+        { name: 'Nakul Pareek', openH: '4%', appH: '4%' },
+        { name: 'Rina Dholakia', openH: '90%', appH: '90%' },
+        { name: 'Megha Panara', openH: '4%', appH: '4%' },
+        { name: 'Bhaumik Patel', openH: '4%', appH: '4%' },
+      ],
+      reqRows: [
+        { role: 'Associate Developer (Software) — Fresher (AI-Native)', bu: 'Corporate', band: '5', pipeline: 6, levels: 2 },
+        { role: 'Legal Head', bu: 'Corporate', band: '3A', pipeline: 1, levels: 2 },
+        { role: 'BU Head', bu: 'Mobility', band: '3B', pipeline: 0, levels: 2 },
+        { role: 'DevOps Engineer', bu: 'Agriculture', band: '5', pipeline: 0, levels: 2 },
+      ],
+      funnel: [
+        { label: 'Applications', value: 7, width: '100%' },
+        { label: 'Screening', value: 2, width: '30%' },
+        { label: 'Shortlisted', value: 6, width: '86%' },
+        { label: 'NexAI Interview', value: 0, width: '2%' },
+        { label: 'Interview', value: 0, width: '2%' },
+        { label: 'Documentation', value: 0, width: '2%' },
+        { label: 'Offered', value: 0, width: '2%' },
+        { label: 'Hired', value: 0, width: '2%' },
+      ],
+      quickActions: ['Manage Team', 'View Full Reports', 'All Requisitions'],
+    };
+  }
+}
+</script>
+</body>
+</html>

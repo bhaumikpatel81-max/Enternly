@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0a1628">
+<title>Enternly — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1d24; --paper: #f5f7fc; --card: #ffffff;
+    --line: #e2e8f0; --accent: #1e63f2; --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; overflow: hidden;
+  }
+  body {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    background: var(--paper); color: var(--ink);
+    height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .box {
+    background: var(--card); width: 100%; max-width: 480px;
+    border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(30,99,242,0.10);
+  }
+  .box-top {
+    padding: 28px 44px 22px; text-align: center;
+    border-bottom: 4px solid var(--accent);
+  }
+  .logo { height: 143px; width: auto; margin-bottom: 10px; }
+  .tagline { font-size: 11px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
+  .box-body { padding: 28px 44px 24px; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 16px; }
+  .powered-footer {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 16px; border-top: 1px solid var(--line); background: #f8faff;
+  }
+  .powered-footer span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+  .powered-footer img { height: 30px; width: auto; }
+  .error-box {
+    background: #fde8e4; border: 1px solid #f5b8ae; color: #8b2a1a;
+    font-size: 14px; padding: 10px 14px; border-radius: 4px; margin-bottom: 14px;
+  }
+  label {
+    display: block; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin: 14px 0 5px; font-weight: 600;
+  }
+  input {
+    width: 100%; padding: 11px 14px; border: 1px solid var(--line);
+    border-radius: 6px; font-family: inherit; font-size: 16px;
+    background: #f8faff; outline: none; transition: border-color 0.15s;
+  }
+  input:focus { border-color: var(--accent); background: #fff; }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 42px; }
+  .pw-toggle {
+    position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; padding: 6px;
+    line-height: 0; font-size: 18px; color: var(--muted);
+  }
+  .pw-toggle:hover { color: var(--ink); }
+  .btn {
+    width: 100%; margin-top: 22px; padding: 14px; background: var(--accent);
+    color: #fff; border: none; border-radius: 6px; font-family: inherit;
+    font-size: 17px; cursor: pointer; font-weight: 600; letter-spacing: 0.3px; transition: background 0.15s;
+  }
+  .btn:hover { background: #1750c9; }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .hint { font-size: 13px; color: var(--muted); text-align: center; margin-top: 14px; }
+
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  @media (max-width: 540px) {
+    body { padding: 0; justify-content: flex-start; overflow-y: auto; }
+    .box { max-width: 100%; border-radius: 0; border-left: none; border-right: none; box-shadow: none; }
+    .box-top { padding: 24px 24px 18px; }
+    .box-body { padding: 20px 24px 20px; }
+    .logo { height: 104px; }
+    h1 { font-size: 22px; }
+  }
+  @media screen and (-webkit-min-device-pixel-ratio: 0) { input { font-size: 16px; } }
+  button { touch-action: manipulation; -webkit-appearance: none; appearance: none; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="box-top">
+    <img src="/assets/Enternly_logo.png" alt="Enternly" class="logo">
+    <div class="tagline">Embrace Generations to Next</div>
+  </div>
+  <div class="box-body">
+    <h1>Sign in</h1>
+    <div id="err" class="error-box" style="display:none"></div>
+    <label for="email">Work email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="you@enternly.com">
+    <label for="pw">Password</label>
+    <div class="pw-wrap">
+      <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
+      <button type="button" class="pw-toggle" tabindex="-1" aria-label="Show password" onclick="togglePw('pw', this)">👁</button>
+    </div>
+    <button class="btn" id="btn" onclick="doLogin()">Sign in</button>
+    <p class="hint"><a href="#" onclick="doForgot(event)" style="color:var(--accent);text-decoration:none">Forgot password?</a></p>
+  </div>
+  <div class="powered-footer">
+    <span>Powered by</span>
+    <img src="/assets/enternly-logo.png" alt="EnternsTech">
+  </div>
+</div>
+
+<script>
+// Already logged in? Go straight to dashboard.
+if (localStorage.getItem('enternly_token')) window.location.replace('/');
+
+document.getElementById('email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('pw').focus();
+});
+document.getElementById('pw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function togglePw(id, btn) {
+  const input = document.getElementById(id);
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? '🙈' : '👁';
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+}
+
+async function doForgot(e) {
+  e.preventDefault();
+  const email = prompt('Enter your work email to receive a password reset link:');
+  if (!email) return;
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  try {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      err.style.background = '#fdecea'; err.style.borderColor = '#f3b4ac'; err.style.color = '#a12a1e';
+      err.textContent = data.detail || 'Account does not exist';
+    } else {
+      err.style.background = '#e4f7ea'; err.style.borderColor = '#a8dbb5'; err.style.color = '#1a5c2a';
+      err.textContent = data.message || 'If that account exists, a reset link has been sent.';
+    }
+  } catch {
+    err.style.background = '#fdecea'; err.style.borderColor = '#f3b4ac'; err.style.color = '#a12a1e';
+    err.textContent = 'Something went wrong. Please try again.';
+  }
+  err.style.display = 'block';
+}
+
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const pw    = document.getElementById('pw').value;
+  const err   = document.getElementById('err');
+  const btn   = document.getElementById('btn');
+
+  err.style.display = 'none';
+  if (!email || !pw) {
+    err.textContent = 'Please enter your email and password.';
+    err.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const res  = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pw }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      err.textContent = data.detail || 'Sign in failed.';
+      err.style.display = 'block';
+      return;
+    }
+    localStorage.setItem('enternly_token', data.token);
+    window.location.replace('/');
+  } catch {
+    err.textContent = 'Could not reach the server. Is the backend running?';
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+</script>
+</body>
+</html>

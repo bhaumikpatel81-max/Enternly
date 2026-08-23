@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: oneclickhire
+      POSTGRES_USER: ochuser
+      POSTGRES_PASSWORD: localdev
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d:ro   # runs 01_schema, 02_seed, 03_auth_migration on first start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ochuser -d oneclickhire"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: oneclickhire
+      DB_USER: ochuser
+      DB_PASSWORD: localdev
+      PORT: "8080"
+      FRONTEND_DIR: /app/frontend
+      JWT_SECRET: enternly-local-dev-secret
+      # GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI intentionally NOT set here anymore --
+      # they used to be hardcoded to "placeholder" directly in this block, which
+      # (per Docker Compose precedence: environment: wins over env_file:) silently
+      # shadowed the real values already in .env.prod below, even after they were
+      # filled in. Now inherited from .env.prod like everything else, so dev and
+      # prod share one source of truth. Note: completing the actual Google consent
+      # screen from local dev still won't work end-to-end unless you also register
+      # http://localhost:8080/api/google/callback as a second authorized redirect
+      # URI on the same OAuth client in Google Cloud Console -- today only the
+      # prod one (whatever APP_BASE_URL ends up being + /api/google/callback)
+      # is registered.
+      OAUTHLIB_INSECURE_TRANSPORT: "1"
+      # Avatar provider: orb (default) | sadtalker | wav2lip | vendor
+      # Set SADTALKER_SERVICE_URL / WAV2LIP_SERVICE_URL when GPU box is running
+      AVATAR_PROVIDER: "orb"
+      # NexAI interview mode: scripted | conversational
+      NEXAI_MODE: "conversational"
+      # CV Repository storage paths (inside container)
+      CV_INBOX_DIR: /app/cv_inbox
+      CV_STORE_DIR: /app/cv_store
+      # Requisition JD file storage (inside container)
+      JD_STORE_DIR: /app/jd_store
+    env_file:
+      - .env.prod          # loads GROQ_API_KEY, GROQ_BASE_URL, LLM_MODEL (and other secrets)
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Mount source so changes reflect without full rebuild
+    volumes:
+      - ./backend/app:/app/app
+      - ./frontend:/app/frontend
+      - ./cv_inbox:/app/cv_inbox   # drop CV files here for bulk ingestion
+      - cv_store:/app/cv_store     # persistent CV file storage
+      - jd_store:/app/jd_store     # persistent requisition JD file storage
+    # run as root in dev so --reload file watcher has no permission issues
+    user: root
+    command: ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload"]
+
+volumes:
+  pgdata_dev:
+  cv_store:
+  jd_store:

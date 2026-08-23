@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0A1F44">
+<title>Pick your interview slot — Enternly</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F8FCFE;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+:focus-visible{outline:2px solid #2563EB;outline-offset:2px}
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.10);max-width:560px;width:100%;padding:36px 32px}
+h1{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-bottom:4px;color:#0A1F44}
+.sub{font-size:13px;color:#596A83;margin-bottom:24px}
+.info-box{background:#F8FCFE;border:1px solid #D7E0EC;border-radius:8px;padding:16px;margin-bottom:20px;font-size:13px;line-height:1.7}
+.info-box strong{color:#0A1F44}
+.slot{display:flex;align-items:center;justify-content:space-between;border:1px solid #D7E0EC;border-radius:8px;padding:12px 16px;margin-bottom:10px;cursor:pointer;transition:.15s}
+.slot:hover{border-color:#2563EB;background:#EAF0FF}
+.slot.picked{border-color:#2563EB;background:#EAF0FF}
+.slot .dt{font-size:14px;font-weight:600;color:#0A1F44}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 22px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:.15s;width:100%;margin-top:8px}
+.btn-primary{background:#2563EB;color:#fff}.btn-primary:hover{background:#1D4ED8}.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.status{text-align:center;font-size:13px;color:#596A83;min-height:20px;margin:8px 0}
+.error-box{text-align:center;padding:20px 0}
+.error-box h2{font-size:18px;color:#e2455a;margin-bottom:8px}
+.error-box p{font-size:13px;color:#596A83}
+.success-box{text-align:center;padding:20px 0}
+.success-box h2{font-size:18px;color:#0e9f6e;margin-bottom:8px}
+.success-box p{font-size:13px;color:#596A83}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <h1>Loading…</h1>
+</div>
+<script>
+const _token = new URLSearchParams(location.search).get('token');
+let _slots = [];
+let _picked = null;
+let _lastData = null;
+
+async function apiPublic(path, opts){
+  try{
+    const r = await fetch(path, opts);
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) return {__error: d.detail || `HTTP ${r.status}`};
+    return d;
+  }catch(e){
+    return {__error: 'Network error — please check your connection and retry.'};
+  }
+}
+
+function render(html){ document.getElementById('card').innerHTML = html; }
+
+function fmtIST(iso){
+  return new Date(iso).toLocaleString('en-IN',{dateStyle:'full',timeStyle:'short',timeZone:'Asia/Kolkata'});
+}
+
+async function boot(){
+  if(!_token){
+    render(`<div class="error-box"><h2>Invalid link</h2><p>This scheduling link is missing its token. Please use the link from your email.</p></div>`);
+    return;
+  }
+  const data = await apiPublic(`/api/scheduling/pick/validate?token=${encodeURIComponent(_token)}`);
+  if(data.__error){
+    render(`<div class="error-box"><h2>Something went wrong</h2><p>${data.__error}</p></div>`);
+    return;
+  }
+  if(!data.valid){
+    const msgs = {
+      already_confirmed: 'You have already booked a slot for this interview — check your email for the calendar invite.',
+      expired: 'This scheduling link has expired. Please contact your recruiter for a new one.',
+      not_found: 'This scheduling link is not valid.',
+    };
+    render(`<div class="error-box"><h2>Link no longer active</h2><p>${msgs[data.reason] || 'This scheduling link is no longer active.'}</p></div>`);
+    return;
+  }
+  _lastData = data;
+  _slots = data.slots || [];
+  renderSlots();
+}
+
+function renderSlots(){
+  const rows = _slots.map(s => `
+    <div class="slot ${_picked===s.id?'picked':''}" onclick="pick('${s.id}')">
+      <span class="dt">${fmtIST(s.start_utc)}</span>
+      <span style="font-size:12px;color:#596A83">IST</span>
+    </div>`).join('');
+  render(`
+    <h1>Pick your interview slot</h1>
+    <p class="sub">${_lastData.job_title || 'the role'}${_lastData.company ? ' at ' + _lastData.company : ''} · ${_lastData.duration_min} minutes</p>
+    <div class="info-box">Hi <strong>${_lastData.candidate_name || ''}</strong>, choose whichever time below works for you. All times are shown in IST.</div>
+    ${rows || '<p class="sub">No slots are currently open.</p>'}
+    <button class="btn btn-primary" id="confirm-btn" onclick="confirmPick()" ${_picked?'':'disabled'}>Confirm this slot</button>
+    <div class="status" id="status"></div>
+  `);
+}
+
+function pick(slotId){ _picked = slotId; renderSlots(); }
+
+async function confirmPick(){
+  const btn = document.getElementById('confirm-btn');
+  const statusEl = document.getElementById('status');
+  btn.disabled = true; btn.textContent = 'Booking…';
+  const res = await apiPublic(`/api/scheduling/pick/confirm?token=${encodeURIComponent(_token)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({slot_id: _picked}),
+  });
+  if(res.__error){
+    btn.disabled = false; btn.textContent = 'Confirm this slot';
+    statusEl.textContent = res.__error;
+    statusEl.style.color = '#e2455a';
+    // A 409 usually means the slot list moved — refresh it.
+    boot();
+    return;
+  }
+  render(`<div class="success-box"><h2>You're booked!</h2><p>Your interview is confirmed for <strong>${fmtIST(res.start_utc)}</strong> (IST). A calendar invite is on its way to your email.</p></div>`);
+}
+
+boot();
+</script>
+</body>
+</html>

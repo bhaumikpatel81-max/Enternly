@@ -1,0 +1,2311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0A1F44">
+<title>AI Screening Interview — Enternly</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:focus-visible{outline:2px solid #2563EB;outline-offset:2px}
+body{font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F8FCFE;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.10);max-width:600px;width:100%;padding:36px 32px;position:relative}
+.logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px}
+.logo img{height:36px}
+.logo span{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:#0A1F44}
+h1{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-bottom:4px;color:#0A1F44}
+.sub{font-size:13px;color:#596A83;margin-bottom:24px}
+.info-box{background:#F8FCFE;border:1px solid #D7E0EC;border-radius:8px;padding:16px;margin-bottom:20px;font-size:13px;line-height:1.7}
+.info-box strong{color:#0A1F44}
+.consent-box{background:#fff2d6;border:1px solid #f0c96b;border-radius:8px;padding:16px;margin-bottom:20px;font-size:13px;line-height:1.6}
+.consent-box ul{margin:10px 0 0 18px}
+.consent-box li{margin-bottom:4px}
+.check-row{display:flex;align-items:center;gap:10px;margin-bottom:20px;font-size:13px}
+.check-row input{width:16px;height:16px;cursor:pointer;accent-color:#2563EB}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 22px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:.15s}
+.btn-primary{background:#2563EB;color:#fff}.btn-primary:hover{background:#1D4ED8}.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;color:#0A1F44;border:1px solid #D7E0EC}.btn-ghost:hover{background:#F8FCFE}.btn-ghost:disabled{opacity:.5;cursor:not-allowed}
+.btn-full{width:100%}
+.status{text-align:center;font-size:13px;color:#596A83;min-height:20px;margin:8px 0}
+.question-box{background:#F8FCFE;border-radius:8px;padding:16px;font-size:15px;line-height:1.6;margin:16px 0;min-height:60px;color:#0A1F44}
+.q-num{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#2563EB;margin-bottom:6px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.transcript{font-size:12px;color:#596A83;background:#F8FCFE;border-radius:6px;padding:12px;margin-top:12px;max-height:120px;overflow-y:auto;line-height:1.5;display:none}
+.result-box{text-align:center;padding:24px 0}
+.result-label{font-size:14px;color:#0A1F44;margin-bottom:8px}
+.result-detail{font-size:13px;color:#0A1F44;line-height:1.8;text-align:left;background:#F8FCFE;border-radius:8px;padding:14px;margin-top:16px}
+.error-box{text-align:center;padding:40px 20px}
+.error-box h2{font-size:18px;color:#e2455a;margin-bottom:8px}
+.error-box p{font-size:13px;color:#596A83}
+.orb-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin:16px 0}
+canvas#orb{border-radius:50%}
+#orb-stage{display:flex;flex-direction:column;align-items:center;gap:10px}
+#nexai-video{width:200px;height:140px;border-radius:8px;background:#111;object-fit:cover;display:none}
+#video-play-prompt{display:none;text-align:center;padding:4px 0}
+#nexai-avatar{width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #D7E0EC;transition:border-color .3s,box-shadow .3s}
+#nexai-avatar.speaking{border-color:#2563EB;animation:pulse-speak .8s ease-in-out infinite alternate}
+#nexai-avatar.listening{border-color:#5FB4FF;animation:pulse-listen .6s ease-in-out infinite alternate}
+@keyframes pulse-speak{from{box-shadow:0 0 0 2px rgba(37,99,235,.18)}to{box-shadow:0 0 0 10px rgba(37,99,235,.06)}}
+@keyframes pulse-listen{from{box-shadow:0 0 0 2px rgba(95,180,255,.18)}to{box-shadow:0 0 0 10px rgba(95,180,255,.06)}}
+/* ── Strike warning modal — absolute overlay over the card ─────────────── */
+#strike-modal{display:none;position:absolute;inset:0;background:rgba(10,10,10,.55);border-radius:12px;z-index:200;align-items:center;justify-content:center;padding:20px}
+.strike-inner{background:#fff;border-radius:10px;padding:28px 24px;max-width:400px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.22)}
+.strike-inner h2{font-size:18px;font-weight:700;color:#e2455a;margin-bottom:8px}
+#strike-reason{font-size:13px;color:#596A83;margin:0 0 10px;font-style:italic}
+.strike-msg{font-size:13px;color:#0A1F44;line-height:1.6;margin-bottom:20px}
+
+/* Low-light pause overlay (Phase 2, Part E) — mirrors #strike-modal's shape */
+#lowlight-overlay{display:none;position:absolute;inset:0;background:rgba(10,10,10,.55);border-radius:12px;z-index:200;align-items:center;justify-content:center;padding:20px}
+.lowlight-inner{background:#fff;border-radius:10px;padding:28px 24px;max-width:400px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.22)}
+.lowlight-inner h2{font-size:18px;font-weight:700;color:#8a5a00;margin-bottom:8px}
+.lowlight-msg{font-size:13px;color:#0A1F44;line-height:1.6;margin-bottom:20px}
+
+/* Hidden proctoring capture elements — never visible to the candidate */
+#proctor-webcam,#proctor-snap{position:absolute;left:-9999px;opacity:0;pointer-events:none;width:1px;height:1px}
+/* Permissions blocking screen */
+.perm-block{text-align:center;padding:32px 16px}
+.perm-block h2{font-size:18px;color:#e2455a;margin-bottom:10px}
+.perm-block p{font-size:13px;color:#596A83;line-height:1.6;margin-bottom:10px}
+.perm-block ul{text-align:left;font-size:13px;color:#596A83;margin:8px auto 18px;max-width:400px;padding-left:20px;line-height:1.9}
+.step{display:none}.step.active{display:block}
+
+/* ── Conversational mode UI ───────────────────────────────────────────── */
+#conv-bot-text{font-size:14px;color:#0A1F44;line-height:1.65;padding:12px 16px;background:#F8FCFE;border-radius:8px;border-left:3px solid #2563EB;margin:10px 0;display:none}
+#conv-caption{min-height:22px;font-size:13px;color:#596A83;font-style:italic;text-align:center;padding:4px 8px;margin:4px 0;display:none;word-break:break-word}
+#conv-controls{display:none;justify-content:center;margin:8px 0}
+#conv-text-wrap{display:none;margin:12px 0}
+#conv-text{width:100%;padding:10px;border:1px solid #D7E0EC;border-radius:6px;font-size:14px;resize:vertical;min-height:80px;font-family:inherit}
+#thinking-dot{display:inline-block;animation:blink 1s step-start infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+#proctor-nudge{display:none;text-align:center;font-size:12px;color:#8a5a00;background:#fff7e0;border:1px solid #f0dba0;border-radius:6px;padding:6px 10px;margin:8px 0}
+
+/* ── Candidate live camera ──────────────────────────────────────────── */
+#candidate-live-wrap{display:none;text-align:center;margin:8px 0 14px}
+#candidate-live{width:140px;height:105px;border-radius:8px;object-fit:cover;border:2px solid #D7E0EC;background:#111;display:block;margin:0 auto 4px}
+#candidate-live-label{font-size:10px;color:#aaa;letter-spacing:.3px}
+
+/* ── Real-time conversation transcript ──────────────────────────────── */
+#conv-transcript-wrap{display:none;margin-top:16px;border-top:1px solid #D7E0EC;padding-top:14px}
+.conv-tr-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#596A83;margin-bottom:10px}
+#conv-transcript{max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding-right:2px}
+.ct-turn{display:flex;flex-direction:column;max-width:88%}
+.ct-turn.nexai{align-self:flex-start}
+.ct-turn.candidate{align-self:flex-end;align-items:flex-end}
+.ct-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.ct-turn.nexai .ct-lbl{color:#2563EB}
+.ct-turn.candidate .ct-lbl{color:#5FB4FF}
+.ct-bubble{font-size:13px;line-height:1.55;padding:8px 11px;border-radius:8px;word-break:break-word}
+.ct-turn.nexai .ct-bubble{background:#EAF0FF;border:1px solid #D7E0EC;color:#0A1F44;border-bottom-left-radius:2px}
+.ct-turn.candidate .ct-bubble{background:#EAF0FF;border:1px solid #D7E0EC;color:#0A1F44;border-bottom-right-radius:2px}
+
+/* ── Campus resume upload step ───────────────────────────────────────── */
+#resume-drop-zone{border:2px dashed #D7E0EC;border-radius:8px;padding:32px 20px;text-align:center;cursor:pointer;background:#F8FCFE;transition:border-color .15s}
+#resume-drop-zone:hover,#resume-drop-zone.drag-over{border-color:#2563EB;background:#EAF0FF}
+#resume-file-name{font-size:13px;color:#0A1F44;margin-top:10px;display:none;word-break:break-all}
+#resume-status{font-size:13px;min-height:20px;margin:10px 0 0;text-align:center;color:#596A83}
+
+/* ── Post-interview report (done screen) ─────────────────────────────── */
+#report-transcript{margin-top:20px;text-align:left}
+.rpt-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#596A83;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #D7E0EC}
+.rt-turn{margin-bottom:10px}
+.rt-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.rt-lbl.nexai{color:#2563EB}
+.rt-lbl.candidate{color:#5FB4FF}
+.rt-text{font-size:13px;line-height:1.6;color:#0A1F44;background:#F8FCFE;border-radius:6px;padding:8px 10px}
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Strike warning modal — absolute overlay, shown during proctoring violations -->
+  <div id="strike-modal">
+    <div class="strike-inner">
+      <h2>Warning <span id="strike-num">1</span> of <span id="strike-max">3</span></h2>
+      <p id="strike-reason"></p>
+      <p class="strike-msg">Please remain in front of the camera, alone, with no phone. Continued issues will end your interview.</p>
+      <button class="btn btn-primary" onclick="strikeAcknowledge()">I understand — continue</button>
+    </div>
+  </div>
+
+  <!-- Low-light pause overlay (Phase 2, Part E) — shown after 3 consecutive
+       too-dark-to-judge ticks (~15s). Kept behind PROCTORING_AI_ENABLED like
+       the rest of the vision pipeline, so it never appears while that stays false. -->
+  <div id="lowlight-overlay">
+    <div class="lowlight-inner">
+      <h2>Room too dark</h2>
+      <p class="lowlight-msg">Your room is too dark for us to verify you're present — please add light, then click Continue.</p>
+      <p class="lowlight-msg" id="lowlight-countdown" style="font-weight:700"></p>
+      <button class="btn btn-primary" onclick="lowLightContinue()">Continue</button>
+    </div>
+  </div>
+
+  <div class="logo">
+    <img src="/assets/Enternly_logo.png" onerror="this.style.display='none'" alt="">
+    <span>Enternly</span>
+  </div>
+
+  <!-- Device nudge — page-level, outside the .step containers on purpose, so it
+       stays visible/dismissible across every step (consent, permissions, interview)
+       instead of disappearing the moment the active step changes. -->
+  <div id="device-nudge" style="display:none;position:relative;text-align:left;font-size:13px;color:#8a5a00;background:#fff7e0;border:1px solid #f0dba0;border-radius:6px;padding:10px 34px 10px 14px;margin:0 0 14px">
+    📱 For the best experience, we recommend attending this interview on a laptop or desktop computer.
+    <button type="button" onclick="document.getElementById('device-nudge').style.display='none'"
+            aria-label="Dismiss"
+            style="position:absolute;top:4px;right:8px;background:none;border:none;font-size:18px;line-height:1;cursor:pointer;color:#8a5a00">&times;</button>
+  </div>
+
+  <!-- Step: Loading -->
+  <div class="step active" id="step-loading">
+    <p class="status">Validating your interview link…</p>
+  </div>
+
+  <!-- Step: Error -->
+  <div class="step" id="step-error">
+    <div class="error-box">
+      <h2 id="err-title">Link not valid</h2>
+      <p id="err-reason" style="white-space:pre-line">This interview link is invalid or has expired.</p>
+    </div>
+  </div>
+
+  <!-- Hidden proctoring capture elements (never visible) -->
+  <video id="proctor-webcam" autoplay muted playsinline></video>
+  <canvas id="proctor-snap"></canvas>
+
+  <!-- Step: Permissions blocked -->
+  <div class="step" id="step-permissions">
+    <div class="perm-block">
+      <h2 id="perm-title">Access required</h2>
+      <p id="perm-reason"></p>
+      <ul id="perm-steps"></ul>
+      <button class="btn btn-primary" style="min-width:160px" onclick="retryPermissions()">Try again</button>
+    </div>
+  </div>
+
+  <!-- Step: Consent -->
+  <div class="step" id="step-consent">
+    <h1>AI Screening Interview</h1>
+    <p class="sub" id="consent-sub">You have been invited to an AI screening interview.</p>
+    <div class="info-box">
+      <strong>Position:</strong> <span id="info-job"></span><br>
+      <strong>Company:</strong> <span id="info-company"></span><br>
+      <strong>Candidate:</strong> <span id="info-name"></span>
+    </div>
+    <div class="consent-box">
+      <strong>Before you begin, please read carefully.</strong><br>
+      This AI screening session will:
+      <ul id="consent-list">
+        <li>Ask you questions about your experience and skills</li>
+        <li>Record your webcam video, screen, and microphone audio throughout the session</li>
+        <li>Capture a photo of you at the start for identity purposes</li>
+        <li>Run AI integrity analysis (face and object detection) on your webcam feed</li>
+        <li>Score your responses and share all data with the hiring team for human review</li>
+      </ul>
+      <br>
+      <strong>NexAI never auto-rejects.</strong> All scores are reviewed by a human recruiter before any decision is made.
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="consent-check" onchange="document.getElementById('start-btn').disabled=!this.checked">
+      <label for="consent-check">I have read the above and consent to webcam recording, screen recording, and AI integrity monitoring for this session.</label>
+    </div>
+    <button class="btn btn-primary btn-full" id="start-btn" disabled onclick="startInterview()">Start Interview</button>
+  </div>
+
+  <!-- Step: Resume Upload (campus candidates only — injected before first question) -->
+  <div class="step" id="step-resume">
+    <div style="text-align:center;margin-bottom:18px">
+      <span style="font-size:36px">📄</span>
+      <h1 style="margin-top:8px;font-size:18px">Upload Your Resume</h1>
+    </div>
+    <p style="font-size:13px;color:#596A83;line-height:1.6;margin-bottom:18px">
+      Before we begin, please upload your resume to complete your profile.
+      PDF or Word format accepted (max 5 MB). You can skip this and proceed directly to the interview.
+    </p>
+    <div id="resume-drop-zone"
+         onclick="document.getElementById('campus-resume-input').click()"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="event.preventDefault();this.classList.remove('drag-over');handleResumeFile(event.dataTransfer.files[0])">
+      <input type="file" id="campus-resume-input" accept=".pdf,.docx,.doc" style="display:none"
+             onchange="handleResumeFile(this.files[0])">
+      <p style="font-size:14px;color:#596A83">Drag &amp; drop here or <strong style="color:#2563EB">click to browse</strong></p>
+      <p style="font-size:11px;color:#596A83;margin-top:6px">PDF · DOCX · DOC &nbsp;|&nbsp; Max 5 MB</p>
+      <p id="resume-file-name"></p>
+    </div>
+    <p id="resume-status"></p>
+    <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="resume-upload-btn" onclick="uploadCampusResume()" disabled style="flex:1;min-width:160px">Upload &amp; Continue</button>
+      <button class="btn btn-ghost" onclick="skipCampusResume()" style="flex:1;min-width:140px">Skip — continue without resume</button>
+    </div>
+  </div>
+
+  <!-- Step: Interview -->
+  <div class="step" id="step-interview">
+    <h1>AI Screening Interview</h1>
+    <p class="status" id="nx-status">Preparing your interview…</p>
+    <p id="proctor-nudge"></p>
+
+    <div class="orb-wrap" id="interviewer-stage">
+      <video id="nexai-video" playsinline></video>
+      <div id="video-play-prompt"><button class="btn btn-ghost" onclick="nxVideoPlay()">&#9654; Click to start</button></div>
+      <div id="orb-stage">
+        <img id="nexai-avatar" src="/assets/avatars/nexai-female.png" onerror="this.style.display='none'" alt="NexAI">
+        <canvas id="orb" width="48" height="48"></canvas>
+      </div>
+    </div>
+
+    <!-- Candidate live camera (proctoring transparency) -->
+    <div id="candidate-live-wrap">
+      <video id="candidate-live" autoplay muted playsinline></video>
+      <div id="candidate-live-label">Your Camera &mdash; Proctoring Active</div>
+    </div>
+
+    <!-- Bot spoken text (conversational mode only) -->
+    <div id="conv-bot-text"></div>
+
+    <!-- Live caption of candidate's speech (conversational mode only) -->
+    <div id="conv-caption"></div>
+
+    <!-- Conversational controls: "I'm done" fallback button -->
+    <div class="controls" id="conv-controls">
+      <button class="btn btn-ghost btn-full" id="btn-done" onclick="convDone()">&#10003; I'm done speaking</button>
+    </div>
+
+    <!-- Text input fallback (when SpeechRecognition is unavailable) -->
+    <div id="conv-text-wrap">
+      <textarea id="conv-text" placeholder="Type your answer here, then press Enter or click Submit…"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();convTextSubmit();}"></textarea>
+      <button class="btn btn-primary btn-full" style="margin-top:8px" onclick="convTextSubmit()">Submit answer &#8594;</button>
+    </div>
+
+    <!-- Scripted mode: question box and button controls -->
+    <div id="nx-question-wrap">
+      <div class="q-num" id="nx-qnum"></div>
+      <div class="question-box" id="nx-question">Please wait…</div>
+    </div>
+    <div class="controls" id="nx-controls">
+      <button class="btn btn-primary" id="btn-speak" onclick="nxSpeak()" disabled>&#9654; Hear question</button>
+      <button class="btn btn-ghost" id="btn-listen" onclick="nxListen()" style="display:none">&#127908; Record answer</button>
+      <button class="btn btn-ghost" id="btn-next" onclick="nxNext()" style="display:none">Next &#8594;</button>
+      <button class="btn btn-primary" id="btn-submit" onclick="nxSubmit()" style="display:none">Finish &amp; submit</button>
+    </div>
+    <div class="transcript" id="nx-transcript"></div>
+
+    <!-- Real-time conversation transcript (conversational mode) -->
+    <div id="conv-transcript-wrap">
+      <div class="conv-tr-head">Live Transcript</div>
+      <div id="conv-transcript"></div>
+    </div>
+  </div>
+
+  <!-- Step: Terminated by proctoring -->
+  <div class="step" id="step-terminated">
+    <div class="result-box">
+      <p class="result-label" style="color:#e2455a;font-weight:700;font-size:17px">Interview Ended</p>
+      <p style="font-size:13px;color:#596A83;margin-top:8px;line-height:1.6">Your interview has been ended due to repeated proctoring violations and submitted for review. All responses recorded so far have been saved.</p>
+      <div id="terminated-appeal" style="margin-top:20px;border-top:1px solid #D7E0EC;padding-top:18px;text-align:left">
+        <p style="font-size:14px;font-weight:600;color:#0A1F44;margin-bottom:6px">Submit an Appeal</p>
+        <p style="font-size:12px;color:#596A83;line-height:1.5;margin-bottom:12px">If you believe this was in error — poor lighting, background movement, connectivity issues — explain what happened. The hiring team will review your appeal.</p>
+        <div id="appeal-form">
+          <textarea id="appeal-text" rows="4"
+            placeholder="Describe what happened during your interview…"
+            style="width:100%;border:1px solid #D7E0EC;border-radius:6px;padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.5"
+          ></textarea>
+          <button id="appeal-btn" class="btn btn-primary btn-full" style="margin-top:10px" onclick="submitAppeal()">Submit Appeal</button>
+        </div>
+        <div id="appeal-success" style="display:none;background:#e8f7f0;border-radius:6px;padding:14px 16px;text-align:center">
+          <p style="font-size:14px;font-weight:600;color:#0e9f6e">Appeal submitted</p>
+          <p style="font-size:12px;color:#0e9f6e;margin-top:4px">Your appeal has been submitted. The hiring team will review it and be in touch.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step: Complete -->
+  <div class="step" id="step-done">
+    <div class="result-box">
+      <p class="result-label">Thank you — your interview is complete.</p>
+      <p style="font-size:13px;color:#596A83">Your responses have been submitted to the hiring team. You will be contacted with next steps shortly.</p>
+      <div class="result-detail" id="done-detail"></div>
+      <div id="report-transcript"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONVERSATIONAL MODE — tune these constants to adjust silence sensitivity
+// ═══════════════════════════════════════════════════════════════════════════
+const SILENCE_MS       = 6000;  // ms of continuous quiet after speech → auto-submit (allows thinking pauses)
+const MIN_LISTEN_MS    = 6000;  // minimum ms of open mic before auto-finalize can trigger
+const SPEECH_THRESHOLD = 12;    // mic amplitude (0–128) above which speech is detected
+
+// ── Master kill-switch for ALL proctoring enforcement ──────────────────────
+// Temporarily OFF: the face-detection pipeline is producing false positives
+// that block legitimate candidates. Flip back to true once retuned/verified.
+// This is the single call site that gates _startProcAIAnalysis(), which is
+// where EVERY strike-eligible signal is generated — not just the vision-based
+// ones (no_face/multi_face/face_away/phone_detected/unknown_object). The
+// non-vision signals tab_switch and screen_share_stopped are ALSO only
+// pushed inside that same function's setInterval (see the tick loop below),
+// so this flag disables ALL enforcement, camera-based and not, not just
+// "vision-based flags + strikes" as an earlier version of this comment
+// claimed (see PROCTORING_PHASE_NOTES.txt, Phase 5 Fix 3, for the follow-up
+// if a camera-only toggle is ever wanted).
+// Recording (_startProcRecorders) and the consent/instructions screen are
+// untouched by this flag on purpose — candidates should see no difference.
+const PROCTORING_AI_ENABLED = true;
+
+// ── Proctoring strike enforcement — edit here to tune severity ────────────
+// no_face/face_away need several consecutive bad ticks (5 s each) in a row
+// before they count as a strike, since a single blip (lighting, brief head
+// turn, webcam lag, glancing at notes) is not reliable evidence of cheating.
+// multi_face needs a couple of ticks too, since a photo/poster in the
+// background can cause a one-frame false positive. phone_detected stays at
+// 1 — it's a high-confidence, unambiguous signal and should still strike fast.
+const STRIKE_FLAG_TYPES         = ['no_face','multi_face','face_away','phone_detected','unknown_object','tab_switch','screen_share_stopped'];
+// tab_switch: candidate navigated away from the interview tab/window — needs a
+// few consecutive ticks so a momentary OS notification/permission popup stealing
+// focus doesn't strike. screen_share_stopped: candidate stopped screen sharing —
+// unambiguous and deliberate (browsers require an explicit user click to do this),
+// so it strikes immediately like phone_detected, and has no way to self-recover.
+const STRIKE_PERSIST_DETECTIONS = { no_face: 5, face_away: 4, multi_face: 2, phone_detected: 1, unknown_object: 1, tab_switch: 3, screen_share_stopped: 1 };
+const MAX_STRIKES               = 3;     // total strikes before auto-terminate
+const STRIKE_COOLDOWN_MS        = 15000; // ms after a strike before same flag type can strike again
+// Non-blocking on-screen nudge shown once a flag has persisted this fraction
+// of its required strike threshold — gives the candidate a chance to
+// self-correct (e.g. face the camera again) before it escalates to a strike.
+const STRIKE_NUDGE_FRACTION     = 0.5;
+// Phase 2, Part E: below this average luminance a frame is "too dark to
+// judge" — distinct from the existing isLowLight(<70) brightening-compensation
+// threshold above. Below DARK_THRESHOLD, no amount of gain reliably recovers
+// a face, so the tick must NOT emit no_face (that would punish a candidate
+// for a dark room, not for being absent) — it counts toward a pause instead.
+const DARK_THRESHOLD            = 50;
+
+// ── Phase 7, Fix 2 — phone-aware strike rules (DIVERGENCE 1, RESOLVED) ─────
+// On a phone session, the phone IS the candidate's own test device (visible
+// in-frame by construction), so phone_detected must never count as a strike;
+// a hand-held camera also drifts more than a fixed laptop webcam, so
+// no_face/face_away get longer grace periods. These values MUST match
+// backend/app/services/proctoring_scorer.py's PHONE_EXCLUDED_TYPES /
+// PHONE_STRIKE_OVERRIDES exactly — that file is the source of truth (the
+// server is the authoritative judge); if either side's values change, update
+// both or the browser and server will disagree again. See
+// PROCTORING_PHASE_NOTES.txt, DIVERGENCE 1, for the sync requirement.
+const PHONE_EXCLUDED_TYPES      = ['phone_detected'];
+const PHONE_STRIKE_OVERRIDES    = { no_face: 8, face_away: 7 };
+
+// Returns the STRIKE_FLAG_TYPES/STRIKE_PERSIST_DETECTIONS to actually use this
+// tick, based on the device type detected by _reportDeviceAndNudge(). Laptop
+// (and unclear, which defaults to laptop) sessions get the unmodified
+// originals — this function changes nothing about their behaviour.
+function _effectiveStrikeRules() {
+  if (_procDeviceType !== 'phone') {
+    return { types: STRIKE_FLAG_TYPES, persist: STRIKE_PERSIST_DETECTIONS };
+  }
+  return {
+    types: STRIKE_FLAG_TYPES.filter(t => !PHONE_EXCLUDED_TYPES.includes(t)),
+    persist: { ...STRIKE_PERSIST_DETECTIONS, ...PHONE_STRIKE_OVERRIDES },
+  };
+}
+
+// ── Shared state ──────────────────────────────────────────────────────────
+const _token = new URLSearchParams(location.search).get('token');
+let _sessionId = null, _questions = [], _seq = 0, _transcript = [];
+// Single-flight guard on session start — the ONLY call site is the button's
+// onclick -> startInterview() -> _doStartInterview(). Guards against a second
+// invocation (e.g. a double-click racing btn.disabled) spinning up a second
+// proctoring session / begin() call / greeting in parallel.
+let _startInFlight = false, _sessionStarted = false;
+let _currentBotAudio = null; // currently-playing server-TTS <audio>, if any
+// Campus bulk state
+let _isCampus = false, _campusResumeHandled = false, _campusResumeFile = null;
+let _synth = window.speechSynthesis, _recog = null;
+let _orbRaf = null, _orbPhase = 0, _orbState = 'idle';
+let _questionVideos = {};
+
+// ── Browser TTS voice — force female, Indian-accent to match the NexAI avatar ─
+// speechSynthesis.getVoices() can return [] before the browser has loaded its
+// voice list; wait for 'voiceschanged' (with a timeout fallback) then cache.
+let _femaleIndianVoice = null, _femaleIndianVoiceLoaded = false;
+function _loadSynthVoices() {
+  return new Promise(resolve => {
+    const existing = _synth.getVoices();
+    if (existing.length) { resolve(existing); return; }
+    const onChange = () => { _synth.onvoiceschanged = null; resolve(_synth.getVoices()); };
+    _synth.onvoiceschanged = onChange;
+    setTimeout(() => { _synth.onvoiceschanged = null; resolve(_synth.getVoices()); }, 1000);
+  });
+}
+async function _pickFemaleIndianVoice() {
+  if (_femaleIndianVoiceLoaded) return _femaleIndianVoice;
+  const voices = await _loadSynthVoices();
+  const isIndianEn = v => /^en[-_]in/i.test(v.lang);
+  const isMaleName = v => /\b(ravi|prabhat|praveen|hemant)\b/i.test(v.name);
+  const isFemaleName = v => /\b(heera|neerja|priya|kajal|ananya|isha|lekha|veena|female)\b/i.test(v.name);
+  _femaleIndianVoice =
+    voices.find(v => isIndianEn(v) && isFemaleName(v) && !isMaleName(v)) ||
+    voices.find(v => isIndianEn(v) && !isMaleName(v)) ||
+    voices.find(v => isFemaleName(v) && !isMaleName(v)) ||
+    null;
+  _femaleIndianVoiceLoaded = true;
+  return _femaleIndianVoice;
+}
+function _applyFemaleVoice(utt, voice) {
+  if (voice) utt.voice = voice;
+  utt.lang = 'en-IN';
+}
+
+// ── Conversational state ──────────────────────────────────────────────────
+let _mode = 'scripted';
+let _convBusy  = false;   // true while waiting for bot API response
+let _listening = false;   // true while candidate mic is active
+let _listenText = '';     // accumulated final recognition text
+let _listenInterim = '';  // last non-final chunk — fallback when browser never flags it isFinal
+let _convAnswerSubmitted = false; // guards against onend/timeout double-submitting the same answer
+let _lastAnswerTruncated = false; // true when the last answer ended via the silence auto-timeout
+let _micAmplitude = 0;   // live amplitude fed to orb animation
+let _audioCtx = null, _analyser = null, _micStream = null, _analyserBuf = null;
+// Separate echo-cancelled audio context for conversation silence detection only.
+// _procWebcamStream feeds _audioCtx/_analyser (proctoring — raw, no processing).
+// _convMicStream feeds _convAudioCtx/_convAnalyser (conversation — echo-cancelled).
+// The MediaRecorder always reads from _procWebcamStream so proctoring is unaffected.
+let _convAudioCtx = null, _convAnalyser = null, _convAnalyserBuf = null, _convMicStream = null;
+let _listenStartTime = 0; // timestamp when answer-capture opened (for MIN_LISTEN_MS guard)
+let _convTranscript = []; // [{speaker:'nexai'|'candidate', text:str}, ...]
+
+// ── Strike enforcement state ──────────────────────────────────────────────────
+let _strikes           = 0;    // cumulative strike count for this session
+let _strikeConsecutive = {};   // {flagType: consecutiveTick count} — resets if absent
+let _strikeCooldowns   = {};   // {flagType: lastStrikeTimestampMs}
+let _nudgeShownFor     = {};   // {flagType: true} once nudged for the current streak
+let _nudgeHideTimer    = null;
+let _interviewPaused   = false; // true while warning modal is showing
+let _terminated        = false; // true after auto-terminate; blocks all further interview logic
+
+// ── Proctoring state ──────────────────────────────────────────────────────────
+let _procSessId = null, _procSecret = null, _procWebcamStream = null, _procScreenStream = null;
+let _procWebcamRec = null, _procScreenRec = null;
+let _procFlags = [], _procFlagInterval = null, _procTFModels = null;
+let _procFlushTimer = null; // periodic flag flush timer (FIX #3)
+let _procWcIdx = 0, _procScIdx = 0;
+let _tabAway = false;           // true while the interview tab/window is hidden or unfocused
+let _screenShareStopped = false; // true once the candidate stops screen sharing (no self-recovery)
+// ── Low-light pause state (Phase 2, Part E) ────────────────────────────────
+let _procDarkConsecutive = 0;   // consecutive too-dark-to-judge ticks
+let _lowLightPaused      = false; // true while the "room too dark" overlay is showing
+let _procPauseId         = null;  // proctoring_pause_event.id for the active pause, from /pause
+let _procLowLightDeadlineMs   = null; // Phase 3, Part C — local monotonic deadline derived from server's remaining_seconds
+let _procLowLightCountdownTimer = null; // setInterval handle for the 1s overlay countdown tick
+let _procHeartbeatTimer = null; // Phase 3, Part D — "still watching" signal, tied to the same lifecycle as _procFlagInterval
+let _procDeviceType = 'laptop'; // Phase 7, Fix 2 — set by _reportDeviceAndNudge(); read by _evalStrikeTick's phone-aware rules
+let _procTickIndex       = 0;     // monotonic per-tick counter — sent to /flag and used as its dedup key
+
+// ── Steps ─────────────────────────────────────────────────────────────────
+function showStep(id) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── Reliable fire-and-forget POST for the termination call ─────────────────
+// Proctoring strikes often fire at the exact moment a candidate switches tabs
+// or loses focus, which is also when a plain fetch is most likely to be
+// throttled or dropped by the browser. Retry a few times, then fall back to
+// navigator.sendBeacon, which is designed to survive a backgrounded/unloading
+// page — without this, a termination can be shown to the candidate locally
+// while the backend never learns about it, leaving the session stuck at
+// 'in_progress' forever.
+async function _postReliable(url, payload, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    const res = await apiPublic(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res._err) return res;
+    if (i < attempts - 1) await new Promise(r => setTimeout(r, 500 * (i + 1)));
+  }
+  try {
+    navigator.sendBeacon(url, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+  } catch (e) { /* best-effort only */ }
+  return { _err: 'failed_after_retries' };
+}
+
+// Same reliability treatment as _postReliable, but for FormData media chunks
+// (sendBeacon accepts Blob/FormData directly, no JSON.stringify needed).
+// On total failure, the caller pushes a gap marker into the flag buffer so
+// the missing chunk is at least visible to a reviewer instead of silently
+// vanishing (apiPublic() catches all fetch errors internally and returns
+// {_err} rather than throwing, so a bare un-awaited call here previously
+// had no way to notice or retry a drop at all).
+async function _postChunkReliable(url, formData, attempts = 2) {
+  for (let i = 0; i < attempts; i++) {
+    const res = await apiPublic(url, { method: 'POST', body: formData });
+    if (!res._err) return res;
+    if (i < attempts - 1) await new Promise(r => setTimeout(r, 400 * (i + 1)));
+  }
+  try { navigator.sendBeacon(url, formData); } catch (e) { /* best-effort only */ }
+  return { _err: 'failed_after_retries' };
+}
+
+// ── API helper ────────────────────────────────────────────────────────────
+async function apiPublic(path, opts={}) {
+  try {
+    const r = await fetch(path, opts);
+    if (!r.ok) {
+      let d = 'Server error';
+      try { const j = await r.json(); d = j.detail || d; } catch {}
+      return { _err: d };
+    }
+    return r.json();
+  } catch(e) {
+    if (e.message && (e.message.includes('Failed to fetch') || e.message.includes('NetworkError') || e.message.includes('fetch'))) {
+      return { _err: 'server_down' };
+    }
+    return { _err: 'Network error: ' + e.message };
+  }
+}
+
+// ── Device detection + nudge (Phase 2, Part D) — independent of
+// PROCTORING_AI_ENABLED; this is device/UX guidance, not strike/vision logic. ──
+function _detectDeviceType() {
+  const ua = navigator.userAgent || '';
+  const isPhoneUA = /iPhone|Android.*Mobile|Windows Phone/i.test(ua);
+  const hasTouch = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+  const smallScreen = Math.min(window.screen.width || 0, window.screen.height || 0) < 500;
+  if (isPhoneUA || (hasTouch && smallScreen)) return 'phone';
+  return 'laptop'; // desktop/laptop, and unclear cases, both default to 'laptop'
+}
+
+async function _reportDeviceAndNudge() {
+  if (!_procSessId || !_procSecret) return; // nothing to report against — fail silently, non-blocking
+  const deviceType = _detectDeviceType();
+  _procDeviceType = deviceType; // Phase 7, Fix 2 — strike logic reads this
+  const res = await apiPublic(`/api/proctoring/session/${_procSessId}/device`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_type: deviceType, session_secret: _procSecret }),
+  });
+  if (res._err) console.warn('[Proctor] device report failed (non-fatal):', res._err);
+  if (deviceType === 'phone') {
+    const el = document.getElementById('device-nudge');
+    if (el) el.style.display = 'block';
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+(async function init() {
+  if (!_token) { showErr('No interview token found in the link.'); return; }
+  const res = await apiPublic(`/api/nexai/invite/validate?token=${encodeURIComponent(_token)}`);
+  if (res._err === 'server_down') {
+    showErr(
+      'The interview server is not reachable right now.\n\n' +
+      'Please ask the hiring team to check that their Enternly server is running, then try opening this link again.'
+    );
+    return;
+  }
+  if (res._err || !res.valid) {
+    if (res.reason === 'terminated_proctoring') {
+      showStep('step-terminated');
+    } else if (res.reason === 'already_completed') {
+      showErr(
+        'If this is an error, please contact your recruiter to have a new link issued.',
+        "You've already completed this interview."
+      );
+    } else {
+      showErr(res.reason || res._err || 'Invalid link');
+    }
+    return;
+  }
+
+  document.getElementById('info-job').textContent     = res.job_title       || '—';
+  document.getElementById('info-company').textContent = res.company         || '—';
+  document.getElementById('info-name').textContent    = res.candidate_name  || '—';
+  document.getElementById('consent-sub').textContent  =
+    `Hi ${res.candidate_name || 'there'} — you have been invited to an AI screening interview.`;
+
+  // Campus bulk flag — drives resume upload step before first question
+  _isCampus = res.is_campus === true;
+
+  // Store and apply mode
+  _mode = (res.mode || 'scripted').toLowerCase();
+  if (_mode === 'conversational') {
+    // Update consent bullet points to describe the live-conversation format
+    document.getElementById('consent-list').innerHTML =
+      '<li>Hold a natural spoken conversation about your experience and skills</li>' +
+      '<li>Record your webcam video, screen, and microphone audio throughout the session</li>' +
+      '<li>Capture a photo of you at the start for identity purposes</li>' +
+      '<li>Run AI integrity analysis (face and object detection) on your webcam feed</li>' +
+      '<li>Score the conversation and share all data with the hiring team for human review</li>';
+  }
+
+  showStep('step-consent');
+})();
+
+function showErr(reason, title) {
+  document.getElementById('err-title').textContent  = title  || 'Cannot load interview';
+  document.getElementById('err-reason').textContent = reason;
+  showStep('step-error');
+}
+
+// ── Campus resume upload helpers ─────────────────────────────────────────────
+function handleResumeFile(f) {
+  if (!f) return;
+  const maxMB = 5 * 1024 * 1024;
+  if (f.size > maxMB) {
+    document.getElementById('resume-status').textContent = 'File too large — maximum 5 MB.';
+    return;
+  }
+  if (!/\.(pdf|docx|doc)$/i.test(f.name)) {
+    document.getElementById('resume-status').textContent = 'Only PDF or Word files are accepted.';
+    return;
+  }
+  _campusResumeFile = f;
+  const nameEl = document.getElementById('resume-file-name');
+  nameEl.textContent = '📎 ' + f.name;
+  nameEl.style.display = 'block';
+  document.getElementById('resume-status').textContent = '';
+  document.getElementById('resume-upload-btn').disabled = false;
+}
+
+async function uploadCampusResume() {
+  if (!_campusResumeFile) return;
+  const btn = document.getElementById('resume-upload-btn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  document.getElementById('resume-status').textContent = 'Uploading your resume…';
+  const fd = new FormData();
+  fd.append('file', _campusResumeFile);
+  try {
+    const r = await fetch(`/api/campus/session/${encodeURIComponent(_token)}/resume`, {
+      method: 'POST', body: fd,
+    });
+    if (r.ok) {
+      document.getElementById('resume-status').textContent = '✅ Resume uploaded successfully.';
+    } else {
+      const j = await r.json().catch(() => ({}));
+      document.getElementById('resume-status').textContent =
+        '⚠️ Upload failed: ' + (j.detail || r.status) + '. You can still continue.';
+    }
+  } catch (e) {
+    document.getElementById('resume-status').textContent =
+      '⚠️ Upload failed: ' + e.message + '. You can still continue.';
+  }
+  // Always proceed to interview regardless of upload success/failure
+  _campusResumeHandled = true;
+  await _doStartInterview();
+}
+
+async function skipCampusResume() {
+  _campusResumeHandled = true;
+  await _doStartInterview();
+}
+
+// ── Start interview — proctoring setup then interview (both modes) ───────────
+async function startInterview() {
+  // Campus candidates see resume upload step first (before proctoring setup)
+  if (_isCampus && !_campusResumeHandled) {
+    showStep('step-resume');
+    return;
+  }
+  await _doStartInterview();
+}
+
+async function _doStartInterview() {
+  if (_startInFlight || _sessionStarted) return; // single-flight guard — see FIX 2
+  _startInFlight = true;
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+
+  // Guard: camera/mic APIs are hidden by browsers on non-secure origins (plain HTTP)
+  if (!window.isSecureContext) {
+    showErr(
+      'Camera access requires a secure connection (HTTPS).\n\n' +
+      'This page is loaded over plain HTTP. Browsers block camera and microphone access\n' +
+      'on non-HTTPS pages. Please ask the hiring team to provide an HTTPS link.\n\n' +
+      'Exception: localhost and 127.0.0.1 are treated as secure by browsers.\n' +
+      'Current origin: ' + window.location.origin
+    );
+    btn.disabled = false; btn.textContent = 'Start Interview';
+    _startInFlight = false;
+    return;
+  }
+
+  // Guard: require modern browser with camera + screen-share support
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !navigator.mediaDevices.getDisplayMedia) {
+    showErr(
+      'Your browser does not support the features required for this interview.\n\n' +
+      'Please use a recent version of Chrome or Edge on a desktop or laptop.'
+    );
+    btn.disabled = false; btn.textContent = 'Start Interview';
+    _startInFlight = false;
+    return;
+  }
+
+  // ── P1: Create proctoring session + record consent ────────────────────────
+  btn.textContent = 'Setting up…';
+  const pInit = await apiPublic(
+    `/api/proctoring/candidate/init?token=${encodeURIComponent(_token)}`,
+    { method: 'POST' }
+  );
+  if (pInit._err) {
+    btn.disabled = false; btn.textContent = 'Start Interview';
+    _startInFlight = false;
+    showErr('Could not initialise proctoring session: ' + pInit._err);
+    return;
+  }
+  _procSessId = pInit.proctoring_session_id;
+  if (!_procSessId) {
+    btn.disabled = false; btn.textContent = 'Start Interview';
+    _startInFlight = false;
+    showErr('Proctoring session could not be created. Please try again.');
+    return;
+  }
+  console.log('[Proctor] session created:', _procSessId);
+  _procSecret = pInit.session_secret || null;
+
+  // ── P1b: device detection + report (runs regardless of PROCTORING_AI_ENABLED —
+  // this is a device nudge, not strike/vision logic) ────────────────────────
+  await _reportDeviceAndNudge();
+
+  await apiPublic(
+    `/api/proctoring/candidate/${_procSessId}/consent?token=${encodeURIComponent(_token)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ granted: true }),
+    }
+  );
+
+  // ── P2: Camera permission — HARD BLOCK if denied ──────────────────────────
+  btn.textContent = 'Requesting camera…';
+  try {
+    _procWebcamStream = await navigator.mediaDevices.getUserMedia({
+      // ideal (not exact) hints — most webcam drivers pick a better auto-exposure
+      // curve at these resolutions than at their lowest default, which helps a lot
+      // in dim rooms. Falls back gracefully on cameras that can't meet them.
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15, max: 30 } },
+      audio: true,
+    });
+  } catch (e) {
+    console.error('[NexAI] getUserMedia failed — name:', e.name, '| message:', e.message, e);
+    let _camReason;
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      _camReason = 'Permission denied (' + e.name + '). Your browser blocked the camera — it may have remembered a previous denial. Check the address-bar lock icon.';
+    } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+      _camReason = 'No camera or microphone found (' + e.name + '). Check that a webcam is connected and not disabled.';
+    } else if (e.name === 'NotReadableError' || e.name === 'TrackStartError') {
+      _camReason = 'Camera is already in use by another application (' + e.name + '). Close other apps using the camera and try again.';
+    } else if (e.name === 'SecurityError') {
+      _camReason = 'Blocked for security reasons (' + e.name + '). This page may not be served over HTTPS.';
+    } else {
+      _camReason = 'Camera/mic access failed — ' + e.name + ': ' + e.message;
+    }
+    _showPermBlock(
+      'Camera and microphone access required',
+      _camReason,
+      [
+        'Check the browser console (F12 → Console) for the full error.',
+        'Click the lock or camera icon in your browser\'s address bar.',
+        'Set Camera and Microphone to "Allow".',
+        'Reload the page if the setting does not take effect immediately.',
+        'Then click "Try again" below.',
+      ]
+    );
+    _startInFlight = false;
+    return;
+  }
+
+  // ── P3: Screen-share permission — HARD BLOCK if denied ───────────────────
+  btn.textContent = 'Requesting screen share…';
+  try {
+    _procScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    // Fires if the candidate clicks the browser's native "Stop sharing" control
+    // mid-interview — an unambiguous, deliberate exit from proctoring with no
+    // way to silently re-request it (getDisplayMedia needs a fresh user gesture).
+    _procScreenStream.getVideoTracks()[0].onended = () => { _screenShareStopped = true; };
+  } catch (e) {
+    console.error('[NexAI] getDisplayMedia failed — name:', e.name, '| message:', e.message, e);
+    // Close AudioContext BEFORE stopping tracks so the audio device is fully released.
+    // Keeping an active AudioContext connected to a stopped stream holds the mic hardware
+    // on Windows/Chrome and causes NotFoundError on the next getUserMedia attempt.
+    if (_audioCtx) {
+      try { _audioCtx.close(); } catch(_) {}
+      _audioCtx = null; _analyser = null; _analyserBuf = null; _micStream = null;
+    }
+    _procWebcamStream.getTracks().forEach(t => t.stop());
+    _procWebcamStream = null;
+    let _screenReason;
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      _screenReason = 'Screen share was cancelled or denied (' + e.name + '). You must select a screen to share to continue.';
+    } else {
+      _screenReason = 'Screen share failed — ' + e.name + ': ' + e.message;
+    }
+    _showPermBlock(
+      'Screen sharing required',
+      _screenReason,
+      [
+        'Check the browser console (F12 → Console) for the full error.',
+        'A dialog will appear asking which screen or window to share.',
+        'Select your entire screen and click Share.',
+        'If you dismissed the dialog, click "Try again" below.',
+      ]
+    );
+    _startInFlight = false;
+    return;
+  }
+
+  // ── All permissions granted — proceed ─────────────────────────────────────
+  btn.textContent = 'Starting…';
+
+  // Wire webcam stream audio into the AudioContext so _setupMic() (conversational
+  // mode) reuses it without opening a second mic stream.
+  if (!_audioCtx) {
+    try {
+      _audioCtx    = new (window.AudioContext || window.webkitAudioContext)();
+      _analyser    = _audioCtx.createAnalyser();
+      _analyser.fftSize = 256;
+      _analyserBuf = new Uint8Array(_analyser.frequencyBinCount);
+      _micStream   = _procWebcamStream;
+      _audioCtx.createMediaStreamSource(_procWebcamStream).connect(_analyser);
+    } catch (e) { /* non-fatal — silence detection falls back gracefully */ }
+  }
+
+  // Attach webcam to hidden video element for TF.js analysis + identity snapshot
+  const wv = document.getElementById('proctor-webcam');
+  wv.srcObject = _procWebcamStream;
+  await new Promise(r => { wv.onloadedmetadata = r; setTimeout(r, 2000); });
+
+  // Show live candidate video so candidate can see what's being recorded
+  const clv = document.getElementById('candidate-live');
+  if (clv) { clv.srcObject = _procWebcamStream; document.getElementById('candidate-live-wrap').style.display = 'block'; }
+
+  // ── Begin NexAI session (both modes call /invite/begin) ───────────────────
+  const res = await apiPublic(
+    `/api/nexai/invite/begin?token=${encodeURIComponent(_token)}`,
+    { method: 'POST' }
+  );
+  if (res._err) {
+    _cleanupProctoring();
+    btn.disabled = false; btn.textContent = 'Start Interview';
+    _startInFlight = false;
+    showErr(res._err);
+    return;
+  }
+  _sessionId = res.session_id;
+  _questions = res.questions || [];
+  _seq = 0; _transcript = [];
+
+  // ── Link proctoring_session → nexai_session (fire-and-forget) ────────────
+  apiPublic(
+    `/api/proctoring/candidate/${_procSessId}/link?token=${encodeURIComponent(_token)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nexai_session_id: _sessionId }),
+    }
+  );
+
+  // ── P2: Identity snapshot after 1.5 s (camera warm-up) ───────────────────
+  setTimeout(_captureProctorSnapshot, 1500);
+
+  // ── P3/P4: Start webcam + screen recorders ────────────────────────────────
+  _startProcRecorders();
+  console.log('[Proctor] recorders started');
+  // Phase 5, Fix 4 — distinct from consent_granted (recorded before this
+  // point, before permissions were even requested): this call only fires
+  // once camera+screen permissions were genuinely granted and recorders are
+  // actually running. Not strike/vision logic — runs regardless of
+  // PROCTORING_AI_ENABLED, same as device/heartbeat reporting.
+  apiPublic(`/api/proctoring/candidate/${_procSessId}/recording-started?token=${encodeURIComponent(_token)}`, { method: 'POST' });
+
+  // ── P6: Lazy-load TF.js and start AI flag analysis ───────────────────────
+  if (PROCTORING_AI_ENABLED) _startProcAIAnalysis();
+
+  // ── Enter interview screen ────────────────────────────────────────────────
+  _sessionStarted = true; // session is genuinely live now — blocks any re-entry
+  showStep('step-interview');
+  _startOrb();
+
+  if (_mode === 'conversational') {
+    _startConversationalInterview();
+  } else {
+    document.getElementById('nx-status').textContent = 'Preparing your interview…';
+    document.getElementById('btn-speak').disabled = true;
+    await pollRenderStatus();
+    loadQuestion();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROCTORING LAYER — wraps both scripted and conversational modes
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _showPermBlock(title, reason, steps) {
+  document.getElementById('perm-title').textContent  = title;
+  document.getElementById('perm-reason').textContent = reason;
+  document.getElementById('perm-steps').innerHTML    = steps.map(s => `<li>${s}</li>`).join('');
+  showStep('step-permissions');
+}
+
+function retryPermissions() {
+  const btn = document.getElementById('start-btn');
+  btn.disabled    = false;
+  btn.textContent = 'Start Interview';
+  _startInFlight  = false;
+  // Fully release audio device so the next getUserMedia({video,audio}) can acquire it.
+  if (_audioCtx) {
+    try { _audioCtx.close(); } catch(_) {}
+    _audioCtx = null; _analyser = null; _analyserBuf = null; _micStream = null;
+  }
+  // Stop any partially-acquired streams from the failed attempt.
+  if (_procWebcamStream) {
+    _procWebcamStream.getTracks().forEach(t => t.stop());
+    _procWebcamStream = null;
+  }
+  showStep('step-consent');
+}
+
+async function _captureProctorSnapshot() {
+  if (!_procWebcamStream || !_procSessId) return;
+  const vid = document.getElementById('proctor-webcam');
+  const cvs = document.getElementById('proctor-snap');
+  cvs.width  = vid.videoWidth  || 640;
+  cvs.height = vid.videoHeight || 480;
+  cvs.getContext('2d').drawImage(vid, 0, 0);
+  cvs.toBlob(async blob => {
+    if (!blob) return;
+    const fd = new FormData();
+    fd.append('snapshot', blob, 'identity.jpg');
+    apiPublic(
+      `/api/proctoring/candidate/${_procSessId}/identity?token=${encodeURIComponent(_token)}`,
+      { method: 'POST', body: fd }
+    );
+  }, 'image/jpeg', 0.85);
+}
+
+function _startProcRecorders() {
+  _procWcIdx = 0; _procScIdx = 0;
+
+  // Flush flags to backend every 90 s so they survive a browser crash
+  if (_procFlushTimer) clearInterval(_procFlushTimer);
+  _procFlushTimer = setInterval(_periodicFlagFlush, 90000);
+
+  // Webcam recorder (video + audio)
+  const wcMime = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus'))
+    ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+  try { _procWebcamRec = new MediaRecorder(_procWebcamStream, { mimeType: wcMime }); }
+  catch (e) { _procWebcamRec = new MediaRecorder(_procWebcamStream); }
+  _procWebcamRec.ondataavailable = async e => {
+    if (e.data.size > 0 && _procSessId) {
+      const idx = _procWcIdx++;
+      const fd = new FormData();
+      fd.append('media_type', 'webcam');
+      fd.append('chunk_index', String(idx));
+      fd.append('chunk', e.data, `chunk_${idx}.webm`);
+      const res = await _postChunkReliable(
+        `/api/proctoring/candidate/${_procSessId}/media-chunk?token=${encodeURIComponent(_token)}`,
+        fd
+      );
+      if (res._err) {
+        _procFlags.push({ ts_ms: Date.now(), type: 'media_chunk_gap', detail: `webcam chunk ${idx} lost` });
+      }
+    }
+  };
+  _procWebcamRec.start(10000); // 10-second chunks
+
+  // Screen recorder
+  const scMime = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm;codecs=vp8'))
+    ? 'video/webm;codecs=vp8' : 'video/webm';
+  try { _procScreenRec = new MediaRecorder(_procScreenStream, { mimeType: scMime }); }
+  catch (e) { _procScreenRec = new MediaRecorder(_procScreenStream); }
+  _procScreenRec.ondataavailable = async e => {
+    if (e.data.size > 0 && _procSessId) {
+      const idx = _procScIdx++;
+      const fd = new FormData();
+      fd.append('media_type', 'screen');
+      fd.append('chunk_index', String(idx));
+      fd.append('chunk', e.data, `chunk_${idx}.webm`);
+      const res = await _postChunkReliable(
+        `/api/proctoring/candidate/${_procSessId}/media-chunk?token=${encodeURIComponent(_token)}`,
+        fd
+      );
+      if (res._err) {
+        _procFlags.push({ ts_ms: Date.now(), type: 'media_chunk_gap', detail: `screen chunk ${idx} lost` });
+      }
+    }
+  };
+  _procScreenRec.start(10000);
+}
+
+function _loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.crossOrigin = 'anonymous';
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function _procAvgLuminance(ctx, w, h) {
+  // Sparse-sampled luminance estimate — cheap enough to run every 5 s tick.
+  const { data } = ctx.getImageData(0, 0, w, h);
+  let sum = 0, n = 0;
+  const stride = 4 * 97; // prime-ish stride spreads the sample across the whole frame
+  for (let i = 0; i < data.length; i += stride) {
+    sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    n++;
+  }
+  return n ? sum / n : 128;
+}
+
+function _procIsLookingAway(face) {
+  // A face box's distance from the frame edge is not a gaze signal — a face
+  // that fills most of the frame (candidate sitting close to the webcam)
+  // touches the top edge even when looking straight at the camera. Use the
+  // BlazeFace eye/nose landmarks instead: on a straight-on face the nose sits
+  // roughly midway between the eyes; a large horizontal offset means the
+  // head is turned to the side.
+  const lm = face.landmarks;
+  if (!lm || lm.length < 3) return false;
+  const [rightEye, leftEye, nose] = lm;
+  const eyeMidX = (rightEye[0] + leftEye[0]) / 2;
+  const eyeDist = Math.abs(leftEye[0] - rightEye[0]) || 1;
+  return Math.abs(nose[0] - eyeMidX) / eyeDist > 0.55;
+}
+
+async function _startProcAIAnalysis() {
+  try {
+    await _loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js');
+    await _loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js');
+    await _loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js');
+    // scoreThreshold defaults to 0.75 in this model version, which is tuned
+    // for clean, well-centered, front-lit faces; interview webcams are often
+    // low-end laptop cams at odd angles, so the default rejects legitimate
+    // faces more often than it should. 0.5 still keeps false-accepts (mistaking
+    // background objects for a face) effectively at zero for this use case.
+    const [blaze, coco] = await Promise.all([
+      window.blazeface.load({ scoreThreshold: 0.5 }),
+      window.cocoSsd.load(),
+    ]);
+    _procTFModels = { blaze, coco };
+    console.log('[Proctor] AI models loaded OK');
+    // Offscreen canvas used to measure and brighten frames before detection —
+    // raw webcam frames from dim/low-light rooms are often too dark for
+    // BlazeFace to reliably locate a face, causing false "no_face" flags for
+    // candidates who are visible but under-lit. Gain is computed per-tick from
+    // the frame's actual measured brightness (not a fixed multiplier), so very
+    // dark rooms get boosted harder than mildly dim ones.
+    const _procCanvas = document.createElement('canvas');
+    const _procCtx    = _procCanvas.getContext('2d');
+
+    // Phase 3, Part D — "still watching" heartbeat, tied to the same
+    // gated lifecycle as the detection loop below (starts/stops together;
+    // see the four clearInterval(_procFlagInterval) sites for cleanup).
+    // Only sent while genuinely active — not during a strike-warning pause,
+    // a low-light pause, or after termination — so a real gap in heartbeats
+    // reflects an actual monitoring interruption, not an expected pause.
+    _procHeartbeatTimer = setInterval(() => {
+      if (_interviewPaused || _lowLightPaused || _terminated) return;
+      if (!_procSessId || !_procSecret) return;
+      apiPublic(`/api/proctoring/session/${_procSessId}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_secret: _procSecret }),
+      });
+    }, 10000);
+
+    _procFlagInterval = setInterval(async () => {
+      const vid = document.getElementById('proctor-webcam');
+      if (!vid || !vid.videoWidth) return;
+      const now = Date.now();
+      const tickIndex  = _procTickIndex++; // monotonic — shared by every flag_type posted to /flag this tick
+      const _tickStart = _procFlags.length; // mark position before this tick's flags
+
+      // Freeze the ENTIRE tick while a low-light pause is active (from a prior
+      // tick) — no flags, no strike accumulation, no ledger posts, until the
+      // candidate clicks Continue. This is a harder freeze than the existing
+      // strike-warning-modal pause below (which still logs informational
+      // flags) because the interview is genuinely halted, not just paused
+      // mid-read of a warning.
+      if (_lowLightPaused) return;
+
+      // Non-vision proctoring signals — same tick, same _evalStrikeTick call,
+      // so their consecutive-tick counters stay in sync with the AI flags below.
+      if (_tabAway) {
+        _procFlags.push({ ts_ms: now, type: 'tab_switch', confidence: 1.0, detail: 'Candidate switched away from the interview tab/window' });
+      }
+      if (_screenShareStopped) {
+        _procFlags.push({ ts_ms: now, type: 'screen_share_stopped', confidence: 1.0, detail: 'Candidate stopped screen sharing' });
+      }
+
+      try {
+        _procCanvas.width  = vid.videoWidth;
+        _procCanvas.height = vid.videoHeight;
+        _procCtx.filter = 'none';
+        _procCtx.drawImage(vid, 0, 0, _procCanvas.width, _procCanvas.height);
+
+        const avgLum = _procAvgLuminance(_procCtx, _procCanvas.width, _procCanvas.height);
+
+        // ── THREE-way per-tick outcome (Phase 2, Part E) ──────────────────────
+        // (1) face present -> ok (inside the "bright enough" branch below)
+        // (2) bright enough AND no face -> real no_face flag (unchanged logic)
+        // (3) too dark to judge -> NEVER no_face; count consecutive darkness
+        //     instead, and pause the interview once it's persisted, rather
+        //     than penalising a candidate for a room the AI simply can't read.
+        if (avgLum < DARK_THRESHOLD) {
+          _procDarkConsecutive++;
+          if (_procDarkConsecutive >= 3 && !_lowLightPaused) {
+            _pauseForLowLight(); // async — sets _lowLightPaused, shows overlay, posts /pause
+          }
+        } else {
+          _procDarkConsecutive = 0; // any bright-enough tick resets the streak
+
+          const isLowLight     = avgLum < 70;
+          // Backlit/overexposed setups (bright window or light behind the
+          // candidate) read as a normal-to-bright FRAME AVERAGE even though the
+          // candidate's own face is underexposed and effectively silhouetted —
+          // BlazeFace then fails on every tick despite the room "looking fine"
+          // to the candidate. Compensate the same way as low-light, in reverse.
+          const isOverexposed  = avgLum > 190;
+          if ((isLowLight || isOverexposed) && _procCtx.filter !== undefined) {
+            const gain = isLowLight
+              ? Math.min(2.8, Math.max(1.3, 110 / Math.max(avgLum, 15)))
+              : Math.max(0.45, Math.min(0.8, 140 / avgLum));
+            _procCtx.filter = `brightness(${gain.toFixed(2)}) contrast(1.2)`;
+            _procCtx.drawImage(vid, 0, 0, _procCanvas.width, _procCanvas.height);
+            _procFlags.push({
+              ts_ms: now,
+              type: 'low_light',
+              confidence: 1.0,
+              detail: isLowLight
+                ? `Low-light room (avg brightness ${Math.round(avgLum)}/255) — frame auto-brightened for analysis`
+                : `Overexposed/backlit frame (avg brightness ${Math.round(avgLum)}/255) — frame auto-darkened for analysis`,
+            });
+          }
+
+          let faces = await _procTFModels.blaze.estimateFaces(_procCanvas, false);
+          if (faces.length === 0 && _procCtx.filter === 'none') {
+            // First attempt used the raw, un-corrected frame and found nothing.
+            // Retry once with a mild auto-exposure normalization before treating
+            // this tick as a genuine no_face — a single frame can be transiently
+            // blurry/motion-affected even when a face is clearly present.
+            _procCtx.filter = 'brightness(1.15) contrast(1.15)';
+            _procCtx.drawImage(vid, 0, 0, _procCanvas.width, _procCanvas.height);
+            faces = await _procTFModels.blaze.estimateFaces(_procCanvas, false);
+          }
+          if (faces.length === 0) {
+            _procFlags.push({ ts_ms: now, type: 'no_face',    confidence: 0.9,  detail: 'No face detected in frame' });
+          } else if (faces.length > 1) {
+            _procFlags.push({ ts_ms: now, type: 'multi_face', confidence: 0.95, detail: `${faces.length} faces detected` });
+          } else if (_procIsLookingAway(faces[0])) {
+            _procFlags.push({ ts_ms: now, type: 'face_away', confidence: 0.7, detail: 'Candidate may be looking away' });
+          }
+          const objects = await _procTFModels.coco.detect(_procCanvas);
+          const phones = objects.filter(o => o.class === 'cell phone' && o.score > 0.55);
+          if (phones.length) _procFlags.push({ ts_ms: now, type: 'phone_detected', confidence: phones[0].score, detail: 'Mobile phone detected in frame' });
+        }
+      } catch (e) { /* ignore individual frame errors */ }
+
+      // The dark-streak check above may have JUST triggered a pause on this
+      // very tick — freeze strike-eval/ledger-posting for it too, same as above.
+      if (_lowLightPaused) return;
+
+      // Pass only the flags produced in this tick to the strike evaluator.
+      // _evalStrikeTick returns the flag_type that struck this tick (or null),
+      // straight from its existing decision logic — used below as the
+      // counts_as_strike value for the live ledger mirror.
+      const tickFlags  = _procFlags.slice(_tickStart);
+      const struckType = _evalStrikeTick(tickFlags);
+
+      // Live server-side ledger mirror (Phase 2, Part B endpoint) — record-only
+      // on the server; does not compute strikes there. Additive to, and does
+      // not replace, the existing /candidate/{id}/flags posting inside
+      // _evalStrikeTick/_startProcRecorders above.
+      if (_procSessId && _procSecret) {
+        for (const f of tickFlags) {
+          if (!STRIKE_FLAG_TYPES.includes(f.type)) continue;
+          apiPublic(`/api/proctoring/session/${_procSessId}/flag`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              flag_type: f.type,
+              tick_index: tickIndex,
+              client_timestamp: new Date(f.ts_ms).toISOString(),
+              counts_as_strike: f.type === struckType,
+              session_secret: _procSecret,
+            }),
+          });
+        }
+      }
+    }, 5000);
+  } catch (e) {
+    console.error('[Proctor] AI models FAILED to load — AI flag analysis disabled. Recording continues normally.', e);
+    if (_procSessId) {
+      apiPublic(
+        `/api/proctoring/candidate/${_procSessId}/flags?token=${encodeURIComponent(_token)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            flags: [{
+              ts_ms: Date.now(),
+              type: 'ai_analysis_unavailable',
+              confidence: 1.0,
+              detail: 'TF.js / BlazeFace / COCO-SSD models failed to load (CDN blocked or network error): ' + e.message,
+            }],
+          }),
+        }
+      );
+    }
+  }
+}
+
+// ── Low-light pause (Phase 2, Part E) ─────────────────────────────────────
+// Triggered from inside the detection tick above once 3 consecutive
+// too-dark-to-judge ticks have elapsed (~15s). Distinct from the existing
+// strike-warning-modal pause (_interviewPaused/_showStrikeWarning) — this one
+// is not tied to any flag/strike, just "we genuinely can't see you."
+async function _pauseForLowLight() {
+  _lowLightPaused = true;
+  const el = document.getElementById('lowlight-overlay');
+  if (el) el.style.display = 'flex';
+  if (_procSessId && _procSecret) {
+    const res = await apiPublic(`/api/proctoring/session/${_procSessId}/pause`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pause_reason: 'low_light', session_secret: _procSecret }),
+    });
+    if (!res._err) {
+      _procPauseId = res.pause_id;
+      // Phase 3, Part C — server is the authority on the deadline (avoids
+      // client clock drift): convert its remaining_seconds into a local
+      // monotonic deadline and start a 1s countdown against it.
+      const remainingMs = Math.max(0, (res.remaining_seconds || 0) * 1000);
+      _procLowLightDeadlineMs = Date.now() + remainingMs;
+      _startLowLightCountdown();
+    }
+  }
+}
+
+function _startLowLightCountdown() {
+  _stopLowLightCountdown();
+  const el = document.getElementById('lowlight-countdown');
+  const tick = () => {
+    if (_procLowLightDeadlineMs == null) return;
+    const remainingSec = Math.max(0, Math.round((_procLowLightDeadlineMs - Date.now()) / 1000));
+    if (el) {
+      const m = Math.floor(remainingSec / 60), s = remainingSec % 60;
+      el.textContent = `This interview will end automatically in ${m}:${String(s).padStart(2, '0')} if unresolved.`;
+    }
+    if (remainingSec <= 0) {
+      _stopLowLightCountdown();
+      _endInterviewLowLight();
+    }
+  };
+  tick();
+  _procLowLightCountdownTimer = setInterval(tick, 1000);
+}
+
+function _stopLowLightCountdown() {
+  if (_procLowLightCountdownTimer) { clearInterval(_procLowLightCountdownTimer); _procLowLightCountdownTimer = null; }
+}
+
+async function _endInterviewLowLight() {
+  // Gracefully end the interview for a NEUTRAL reason (room stayed too dark
+  // for the full 5-minute grace period) — distinct from a cheating-based
+  // _autoTerminate(). Mirrors _autoTerminate()'s exact shutdown sequence
+  // (same terminate call, same flush/UI transition) rather than inventing a
+  // new pathway; only the status text and reason differ. Phase 3, Part E is
+  // what teaches the SERVER to treat this reason as neutral, not a strike.
+  if (_terminated) return;
+  _terminated      = true;
+  _interviewPaused = true;
+  _lowLightPaused  = true;
+
+  if (_synth) _synth.cancel();
+  if (_currentBotAudio) { try { _currentBotAudio.pause(); } catch(e) {} _currentBotAudio = null; }
+  if (_listening) {
+    _listening = false;
+    if (_recog) { try { _recog.stop(); } catch(e) {} _recog = null; }
+  }
+  if (_procFlagInterval) { clearInterval(_procFlagInterval); _procFlagInterval = null; }
+  if (_procHeartbeatTimer) { clearInterval(_procHeartbeatTimer); _procHeartbeatTimer = null; }
+
+  const overlayEl = document.getElementById('lowlight-overlay');
+  if (overlayEl) overlayEl.style.display = 'none';
+  document.getElementById('nx-status').textContent = 'Interview ended — room remained too dark for too long.';
+
+  if (_sessionId) {
+    await _postReliable(
+      `/api/nexai/invite/terminate?token=${encodeURIComponent(_token)}`,
+      {
+        strike_count: _strikes,
+        reason: 'ended_low_light: room remained too dark for over 5 minutes without resolution',
+      }
+    );
+  }
+
+  await _flushProctoringAndClose();
+  _stopOrb();
+  showStep('step-terminated');
+}
+
+async function lowLightContinue() {
+  _stopLowLightCountdown();
+  _procLowLightDeadlineMs = null;
+  const el = document.getElementById('lowlight-overlay');
+  if (el) el.style.display = 'none';
+  _procDarkConsecutive = 0; // fresh streak on resume — a single dark tick must not re-pause immediately
+  _lowLightPaused = false;
+  if (_procSessId && _procSecret && _procPauseId) {
+    await apiPublic(`/api/proctoring/session/${_procSessId}/resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pause_id: _procPauseId, session_secret: _procSecret }),
+    });
+  }
+  _procPauseId = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROCTORING STRIKE ENFORCEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _evalStrikeTick(tickFlags) {
+  // Returns the flag_type that struck THIS tick, or null if none did — used
+  // by the caller (Phase 2, Part E) as the counts_as_strike value it posts to
+  // the server-side ledger, sourced directly from this existing decision
+  // logic rather than re-implemented at the call site.
+
+  // Do not accumulate or count anything while the warning modal is showing or
+  // after termination — the candidate isn't expected to be head-on to the
+  // camera while reading/dismissing a modal, so ticks during that window are
+  // not evidence of anything. This check must run BEFORE the consecutive-tick
+  // counters below; otherwise a candidate can accumulate a full streak while
+  // paused and get struck again within one tick of clicking "continue".
+  if (_interviewPaused || _terminated) return null;
+
+  // Phone-aware rules (Phase 7, Fix 2) — laptop/unclear sessions get back the
+  // exact original STRIKE_FLAG_TYPES/STRIKE_PERSIST_DETECTIONS unchanged.
+  const { types: _flagTypes, persist: _persist } = _effectiveStrikeRules();
+
+  // Accumulate or reset consecutive-tick counters for every tracked type.
+  // A type absent from this tick resets its counter to 0 (and its nudge, so a
+  // brief recovery lets the same flag type nudge again next time it recurs).
+  for (const t of _flagTypes) {
+    const seen = tickFlags.some(f => f.type === t);
+    _strikeConsecutive[t] = seen ? (_strikeConsecutive[t] || 0) + 1 : 0;
+    if (!seen) delete _nudgeShownFor[t];
+  }
+
+  // Soft, non-blocking nudge once a flag has persisted halfway to a strike —
+  // gives the candidate a chance to self-correct before it escalates.
+  for (const t of _flagTypes) {
+    const persistRequired = _persist[t] || 1;
+    if (persistRequired <= 1 || !_strikeConsecutive[t]) continue;
+    if (!_nudgeShownFor[t] && _strikeConsecutive[t] >= Math.ceil(persistRequired * STRIKE_NUDGE_FRACTION)) {
+      _nudgeShownFor[t] = true;
+      _showProctorNudge(_STRIKE_NUDGE_LABELS[t] || 'Please stay in frame and face the camera.');
+    }
+  }
+
+  for (const t of _flagTypes) {
+    const persistRequired = _persist[t] || 1;
+    if (_strikeConsecutive[t] < persistRequired) continue;
+    const lastStrike = _strikeCooldowns[t] || 0;
+    if (Date.now() - lastStrike < STRIKE_COOLDOWN_MS) continue;
+
+    // Qualifies — count one strike
+    _strikeConsecutive[t] = 0;
+    _strikeCooldowns[t]   = Date.now();
+    _strikes++;
+
+    const flag = tickFlags.find(f => f.type === t) || { type: t, detail: t };
+    console.warn(`[Strike] ${_strikes}/${MAX_STRIKES} — ${flag.type}: ${flag.detail}`);
+
+    // Post a 'strike' event so the recruiter sees the history in the flags list
+    if (_procSessId) {
+      apiPublic(
+        `/api/proctoring/candidate/${_procSessId}/flags?token=${encodeURIComponent(_token)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            flags: [{
+              ts_ms: Date.now(),
+              type: 'strike',
+              confidence: 1.0,
+              detail: `Strike ${_strikes}/${MAX_STRIKES}: ${flag.detail || flag.type}`,
+            }],
+          }),
+        }
+      );
+    }
+
+    if (_strikes >= MAX_STRIKES) {
+      _autoTerminate(flag);
+    } else {
+      _showStrikeWarning(flag);
+    }
+    return t; // process at most one strike per 5 s tick
+  }
+  return null; // no flag type reached its strike threshold this tick
+}
+
+const _STRIKE_LABELS = {
+  no_face:       'No face was detected in the camera frame.',
+  multi_face:    'Multiple faces were detected.',
+  face_away:     'You appear to be looking away from the camera.',
+  phone_detected:'A mobile phone was detected.',
+  unknown_object:'An unrecognised object was detected.',
+  tab_switch:    'You switched away from the interview tab or window.',
+  screen_share_stopped: 'Screen sharing was stopped.',
+};
+
+const _STRIKE_NUDGE_LABELS = {
+  no_face:    'We can’t see your face — please make sure you’re centred in the camera.',
+  multi_face: 'Please make sure only you are visible in the camera frame.',
+  face_away:  'Please face the screen.',
+  tab_switch: 'Please stay on this tab for the rest of the interview.',
+};
+
+function _showProctorNudge(msg) {
+  const el = document.getElementById('proctor-nudge');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  if (_nudgeHideTimer) clearTimeout(_nudgeHideTimer);
+  _nudgeHideTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function _showStrikeWarning(flag) {
+  _interviewPaused = true;
+
+  // Pause TTS — MediaRecorder is NOT stopped, recording continues.
+  // Stopping _currentBotAudio too (not just browser _synth) prevents the
+  // server-rendered voice from continuing to play under the warning modal
+  // and overlapping with whatever speaks next once acknowledged.
+  if (_synth) _synth.cancel();
+  if (_currentBotAudio) { try { _currentBotAudio.pause(); } catch(e) {} _currentBotAudio = null; }
+
+  // Stop answer-capture so echoed speaker audio is not captured as a response
+  if (_listening) {
+    _listening = false;
+    if (_recog) { try { _recog.stop(); } catch(e) {} _recog = null; }
+  }
+
+  document.getElementById('strike-num').textContent    = _strikes;
+  document.getElementById('strike-max').textContent    = MAX_STRIKES;
+  document.getElementById('strike-reason').textContent =
+    _STRIKE_LABELS[flag.type] || flag.detail || 'A proctoring violation was detected.';
+  document.getElementById('strike-modal').style.display = 'flex';
+}
+
+function strikeAcknowledge() {
+  document.getElementById('strike-modal').style.display = 'none';
+  // Clear consecutive-tick counters so the candidate gets a fresh streak on
+  // resume rather than potentially restarting already close to the next strike.
+  _strikeConsecutive = {};
+  _nudgeShownFor      = {};
+  _interviewPaused = false;
+  // If the API is still in-flight (_convBusy), convTurn() will reach
+  // _convStartListening() naturally once the response arrives.
+  // If idle, restart listening for the bot's already-spoken question.
+  if (_mode === 'conversational' && !_convBusy && !_terminated) {
+    _convStartListening();
+  }
+}
+
+async function _autoTerminate(flag) {
+  if (_terminated) return; // guard against double-trigger from rapid ticks
+  _terminated      = true;
+  _interviewPaused = true;
+
+  // Stop TTS and answer-capture
+  if (_synth) _synth.cancel();
+  if (_currentBotAudio) { try { _currentBotAudio.pause(); } catch(e) {} _currentBotAudio = null; }
+  if (_listening) {
+    _listening = false;
+    if (_recog) { try { _recog.stop(); } catch(e) {} _recog = null; }
+  }
+
+  // Stop AI detection interval (recorder keeps running until _flushProctoringAndClose)
+  if (_procFlagInterval) { clearInterval(_procFlagInterval); _procFlagInterval = null; }
+  if (_procHeartbeatTimer) { clearInterval(_procHeartbeatTimer); _procHeartbeatTimer = null; }
+
+  document.getElementById('nx-status').textContent = 'Interview ended due to proctoring violations.';
+
+  // Score partial transcript and mark session terminated on backend
+  if (_sessionId) {
+    await _postReliable(
+      `/api/nexai/invite/terminate?token=${encodeURIComponent(_token)}`,
+      {
+        strike_count: _strikes,
+        reason: flag?.detail || flag?.type || 'proctoring_violation',
+      }
+    );
+  }
+
+  // Flush proctoring: stops recorders, submits remaining flags, marks proctoring complete
+  await _flushProctoringAndClose();
+  _stopOrb();
+  showStep('step-terminated');
+}
+
+async function submitAppeal() {
+  const explanation = (document.getElementById('appeal-text').value || '').trim();
+  if (!explanation) {
+    const ta = document.getElementById('appeal-text');
+    ta.style.borderColor = '#e2455a';
+    ta.focus();
+    return;
+  }
+  const btn = document.getElementById('appeal-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+  try {
+    const res = await fetch(`/api/nexai/invite/appeal?token=${encodeURIComponent(_token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ explanation }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.detail || 'Could not submit appeal. Please contact the hiring team directly.');
+      btn.disabled = false;
+      btn.textContent = 'Submit Appeal';
+      return;
+    }
+    document.getElementById('appeal-form').style.display    = 'none';
+    document.getElementById('appeal-success').style.display = 'block';
+  } catch(e) {
+    alert('Network error. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Submit Appeal';
+  }
+}
+
+function _stopRecorder(rec) {
+  if (!rec || rec.state === 'inactive') return Promise.resolve();
+  return new Promise(resolve => {
+    rec.onstop = resolve;
+    rec.stop();
+    setTimeout(resolve, 3000); // safety timeout in case onstop never fires
+  });
+}
+
+async function _flushProctoringAndClose() {
+  if (!_procSessId) return;
+  if (_procFlagInterval) { clearInterval(_procFlagInterval); _procFlagInterval = null; }
+  if (_procHeartbeatTimer) { clearInterval(_procHeartbeatTimer); _procHeartbeatTimer = null; }
+  if (_procFlushTimer)   { clearInterval(_procFlushTimer);   _procFlushTimer   = null; }
+  // Stop recorders and wait for final ondataavailable flush
+  await Promise.all([_stopRecorder(_procWebcamRec), _stopRecorder(_procScreenRec)]);
+  _procWebcamRec = null; _procScreenRec = null;
+  // Submit all accumulated AI flags -- retried + sendBeacon-backstopped, since
+  // this is the LAST chance to save this batch (session closes right after).
+  // Previously a single unchecked apiPublic() call meant a failure here just
+  // silently dropped the final flags with no retry and no record, while
+  // /complete still ran unconditionally as if nothing was lost.
+  let finalFlushOk = true;
+  if (_procFlags.length) {
+    const res = await _postReliable(
+      `/api/proctoring/candidate/${_procSessId}/flags?token=${encodeURIComponent(_token)}`,
+      { flags: _procFlags }
+    );
+    finalFlushOk = !res._err;
+  }
+  // Mark session complete regardless (the session must end either way) --
+  // but flag it when the final flush didn't confirm, so a reviewer can tell
+  // "flags may be incomplete" apart from a normal clean close.
+  await apiPublic(
+    `/api/proctoring/candidate/${_procSessId}/complete?token=${encodeURIComponent(_token)}`,
+    {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ final_flush_ok: finalFlushOk }),
+    }
+  );
+  // Release all media tracks
+  if (_procWebcamStream) { _procWebcamStream.getTracks().forEach(t => t.stop()); _procWebcamStream = null; }
+  if (_procScreenStream) { _procScreenStream.getTracks().forEach(t => t.stop()); _procScreenStream = null; }
+  if (_convMicStream)    { _convMicStream.getTracks().forEach(t => t.stop()); _convMicStream = null; }
+  if (_convAudioCtx)     { try { _convAudioCtx.close(); } catch(e) {} _convAudioCtx = null; }
+  const wv = document.getElementById('proctor-webcam');
+  if (wv) wv.srcObject = null;
+  const clv = document.getElementById('candidate-live');
+  if (clv) { clv.srcObject = null; document.getElementById('candidate-live-wrap').style.display = 'none'; }
+}
+
+function _cleanupProctoring() {
+  // Synchronous best-effort cleanup (used on error path and beforeunload)
+  if (_procFlagInterval) { clearInterval(_procFlagInterval); _procFlagInterval = null; }
+  if (_procHeartbeatTimer) { clearInterval(_procHeartbeatTimer); _procHeartbeatTimer = null; }
+  if (_procFlushTimer)   { clearInterval(_procFlushTimer);   _procFlushTimer   = null; }
+  if (_procWebcamRec && _procWebcamRec.state !== 'inactive') try { _procWebcamRec.stop(); } catch(e) {}
+  if (_procScreenRec && _procScreenRec.state !== 'inactive') try { _procScreenRec.stop(); } catch(e) {}
+  if (_procWebcamStream) { _procWebcamStream.getTracks().forEach(t => t.stop()); _procWebcamStream = null; }
+  if (_procScreenStream) { _procScreenStream.getTracks().forEach(t => t.stop()); _procScreenStream = null; }
+  if (_convMicStream)    { _convMicStream.getTracks().forEach(t => t.stop()); _convMicStream = null; }
+  const clv2 = document.getElementById('candidate-live');
+  if (clv2) clv2.srcObject = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONVERSATIONAL MODE
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function _startConversationalInterview() {
+  // Hide scripted UI, show conversational UI
+  document.getElementById('nx-question-wrap').style.display = 'none';
+  document.getElementById('nx-controls').style.display      = 'none';
+  document.getElementById('nx-transcript').style.display    = 'none';
+  document.getElementById('conv-bot-text').style.display    = '';
+  document.getElementById('conv-caption').style.display     = '';
+  document.getElementById('conv-controls').style.display    = 'none'; // shown only while listening
+  document.getElementById('conv-text-wrap').style.display   = 'none';
+  document.getElementById('conv-transcript-wrap').style.display = '';
+
+  // Request mic now (user just clicked a button, so permission prompt is allowed)
+  const micOk = await _setupMic();
+  if (!micOk) {
+    document.getElementById('nx-status').textContent =
+      'Microphone access denied — you can type your answers instead.';
+  }
+
+  // Open the conversation — empty text triggers the bot's opening line
+  await convTurn('');
+}
+
+// ── One full turn: send candidate text → receive bot reply → speak → listen ─
+async function convTurn(candidateText, possiblyTruncated) {
+  if (_convBusy) return;
+  _convBusy = true;
+
+  // Thinking indicator
+  _orbSetState('idle');
+  document.getElementById('conv-controls').style.display = 'none';
+  document.getElementById('conv-text-wrap').style.display = 'none';
+  document.getElementById('conv-caption').textContent = '';
+  document.getElementById('conv-bot-text').textContent = '';
+  document.getElementById('nx-status').innerHTML =
+    'NexAI is thinking<span id="thinking-dot">…</span>';
+
+  let res = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    res = await apiPublic(
+      `/api/nexai/invite/converse?token=${encodeURIComponent(_token)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_text: candidateText, possibly_truncated: !!possiblyTruncated }),
+      }
+    );
+    if (!res._err) break;
+    if (attempt === 0) {
+      document.getElementById('nx-status').textContent = 'Connection issue, retrying…';
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+
+  _convBusy = false;
+
+  if (res._err) {
+    document.getElementById('nx-status').textContent =
+      'Connection error. Please refresh the page and try again.';
+    return;
+  }
+
+  const { reply, is_complete, audio_b64 } = res;
+
+  // Push NexAI turn to live transcript
+  _convTranscript.push({ speaker: 'nexai', text: reply });
+  _appendConvTurn('nexai', 'NexAI', reply);
+
+  // Show bot's text on screen while it speaks
+  document.getElementById('conv-bot-text').textContent = reply;
+
+  // Speak the bot's reply — wait until speech ends before listening.
+  // Prefers the server-rendered en-IN neural voice (audio_b64) so the accent
+  // is guaranteed regardless of the candidate's browser/OS voice packs; only
+  // falls back to browser speechSynthesis if server audio wasn't returned.
+  await _convSpeak(reply, audio_b64);
+
+  // 400 ms guard: let speaker audio decay before opening answer-capture so
+  // the bot's voice cannot be picked up by the mic as the candidate's answer.
+  await new Promise(r => setTimeout(r, 400));
+
+  // Clear bot text after speaking
+  document.getElementById('conv-bot-text').textContent = '';
+
+  if (_terminated) return; // auto-terminated while API was in-flight
+
+  if (is_complete) {
+    _orbSetState('done');
+    document.getElementById('nx-status').textContent = 'Interview complete. Thank you!';
+    document.getElementById('done-detail').innerHTML = '';
+    _buildDoneReport();
+    _stopOrb();
+    // Flush proctoring data; run in parallel with a 1.2 s pause so both finish before transitioning
+    await Promise.all([_flushProctoringAndClose(), new Promise(r => setTimeout(r, 1200))]);
+    showStep('step-done');
+    return;
+  }
+
+  // Start listening for the candidate's response
+  _convStartListening();
+}
+
+// ── Speak (Promise resolves when audio/speech synthesis finishes) ──────────
+// audioB64: server-rendered en-IN neural voice (edge-tts Neerja) from /invite/converse.
+// Always preferred when present — guarantees the real Indian accent regardless
+// of the candidate's browser/OS voice packs. Browser speechSynthesis is only a
+// fallback for when server TTS failed (audioB64 is null).
+async function _convSpeak(text, audioB64) {
+  _orbSetState('speaking');
+  document.getElementById('nx-status').textContent = 'NexAI is speaking…';
+
+  if (audioB64) {
+    return new Promise(resolve => {
+      const audio = new Audio('data:audio/mpeg;base64,' + audioB64);
+      _currentBotAudio = audio;
+      const done = () => { if (_currentBotAudio === audio) _currentBotAudio = null; _orbSetState('idle'); resolve(); };
+      audio.onended = done;
+      audio.onerror = done;
+      audio.play().catch(done);
+      // Safety: resolve after 30 s max in case 'ended' never fires
+      setTimeout(resolve, 30000);
+    });
+  }
+
+  const utt = new SpeechSynthesisUtterance(text);
+  _applyFemaleVoice(utt, await _pickFemaleIndianVoice());
+  utt.rate = 0.82; utt.pitch = 1;
+  return new Promise(resolve => {
+    utt.onend   = () => { _orbSetState('idle'); resolve(); };
+    utt.onerror = () => { _orbSetState('idle'); resolve(); };
+    _synth.cancel();
+    _synth.speak(utt);
+    // Safety: resolve after 15 s max in case onend never fires (rare mobile bug)
+    setTimeout(resolve, 15000);
+  });
+}
+
+// ── Conversation mic setup — echo-cancelled stream for silence detection only ─
+// Opens a separate getUserMedia with echo-cancellation so _convAnalyser reads
+// candidate speech and NOT the bot's speaker output.
+// Never touches _procWebcamStream, _audioCtx, or _analyser — those stay raw
+// so the proctoring MediaRecorder captures every ambient sound unfiltered.
+async function _setupMic() {
+  if (_convAudioCtx) return true;
+  try {
+    _convMicStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false,
+    });
+    _convAudioCtx    = new (window.AudioContext || window.webkitAudioContext)();
+    _convAnalyser    = _convAudioCtx.createAnalyser();
+    _convAnalyser.fftSize = 256;
+    _convAnalyserBuf = new Uint8Array(_convAnalyser.frequencyBinCount);
+    _convAudioCtx.createMediaStreamSource(_convMicStream).connect(_convAnalyser);
+    return true;
+  } catch(e) {
+    console.warn('[NexAI] Conv mic setup failed — falling back to raw analyser:', e.message);
+    return false;
+  }
+}
+
+function _readAmplitude() {
+  // Use the echo-cancelled conversation analyser when available; fall back to
+  // the raw proctoring analyser so the orb still animates if conv mic failed.
+  const a   = _convAnalyser   || _analyser;
+  const buf = _convAnalyserBuf || _analyserBuf;
+  if (!a || !buf) return 0;
+  a.getByteTimeDomainData(buf);
+  let peak = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const v = Math.abs(buf[i] - 128);
+    if (v > peak) peak = v;
+  }
+  return peak;
+}
+
+// ── Start listening for candidate answer ───────────────────────────────────
+function _convStartListening() {
+  if (_interviewPaused || _terminated) return; // blocked during warning / after termination
+  if (_listening) return; // already listening — never open a second capture in parallel
+  _listening          = true;
+  _listenText         = '';
+  _listenInterim      = '';
+  _convAnswerSubmitted = false;
+  _micAmplitude       = 0;
+  _listenStartTime    = Date.now();
+
+  _orbSetState('listening');
+  document.getElementById('nx-status').textContent = 'Your turn — speak now…';
+  document.getElementById('conv-caption').textContent = '';
+  document.getElementById('conv-controls').style.display = 'flex';
+  document.getElementById('btn-done').disabled = false;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SR) {
+    // Text-input fallback
+    document.getElementById('conv-text-wrap').style.display = '';
+    document.getElementById('conv-text').value = '';
+    document.getElementById('conv-text').focus();
+    document.getElementById('conv-controls').style.display = 'none'; // hide "I'm done" — enter key submits
+    return;
+  }
+
+  _recog = new SR();
+  _recog.lang = 'en-IN';
+  _recog.continuous     = true;
+  _recog.interimResults = true;
+
+  _recog.onresult = (e) => {
+    let final = '', interim = '';
+    for (let i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) final   += e.results[i][0].transcript + ' ';
+      else                      interim += e.results[i][0].transcript;
+    }
+    _listenText    = final;
+    _listenInterim = interim;
+    document.getElementById('conv-caption').textContent = (final + interim).trim();
+  };
+
+  _recog.onerror = () => {
+    // Recognition error — treat what we have as the answer
+    _convFinishListening();
+  };
+
+  _recog.onend = () => {
+    // Fires once the engine has fully finalized — including flushing any
+    // isFinal result still pending after stop() was called. Reading the
+    // transcript here (not synchronously right after stop()) avoids racing
+    // that finalization and losing the tail of the candidate's answer.
+    _convSubmitAnswer();
+  };
+
+  _recog.start();
+  _convSilenceMonitor();
+}
+
+// ── Silence detection loop — runs every 80 ms while listening ──────────────
+function _convSilenceMonitor() {
+  let hadSpeech = false;
+  let silStart  = null;
+
+  function tick() {
+    if (!_listening) return; // stopped by _convFinishListening
+
+    const amp = _readAmplitude();
+    _micAmplitude = amp; // used by orb animation
+
+    const listenedMs = Date.now() - _listenStartTime;
+
+    if (amp > SPEECH_THRESHOLD) {
+      hadSpeech = true;
+      silStart  = null;
+    } else if (hadSpeech && listenedMs >= MIN_LISTEN_MS) {
+      // Only begin the silence countdown after MIN_LISTEN_MS has elapsed so
+      // a very quick answer is never cut off before the candidate finishes.
+      if (!silStart) {
+        silStart = Date.now();
+      } else {
+        const elapsed = Date.now() - silStart;
+        if (elapsed >= SILENCE_MS) {
+          // Silence long enough — submit (auto-timeout, may have cut the candidate off mid-thought)
+          _convFinishListening(true);
+          return;
+        }
+        // Show countdown so candidate knows what's happening
+        const sec = Math.ceil((SILENCE_MS - elapsed) / 1000);
+        document.getElementById('nx-status').textContent =
+          sec > 1 ? `Listening… (${sec}s of quiet, then submitting)` : 'Submitting…';
+      }
+    } else {
+      document.getElementById('nx-status').textContent = 'Your turn — speak now…';
+    }
+
+    setTimeout(tick, 80);
+  }
+
+  tick();
+}
+
+// ── Finish listening (called by silence detection, recog.onerror, or "I'm done" button) ─
+// Stops recognition and lets it finalize asynchronously — the actual answer
+// is read/submitted in _convSubmitAnswer(), triggered by recog.onend (or the
+// safety-net timeout below if a browser never fires onend after stop()).
+function _convFinishListening(isTimeout) {
+  if (!_listening) return; // guard against double-firing
+  _listening = false;
+  _micAmplitude = 0;
+  _lastAnswerTruncated = !!isTimeout;
+
+  document.getElementById('conv-controls').style.display = 'none';
+  document.getElementById('btn-done').disabled = true;
+  _orbSetState('idle');
+
+  if (_recog) {
+    try { _recog.stop(); } catch(e) { _convSubmitAnswer(); }
+    setTimeout(_convSubmitAnswer, 800); // safety net if onend never fires
+  } else {
+    _convSubmitAnswer();
+  }
+}
+
+// ── Read the finalized transcript and send it — runs once per answer ──────
+function _convSubmitAnswer() {
+  if (_convAnswerSubmitted) return; // already handled via onend or the safety-net timeout
+  _convAnswerSubmitted = true;
+  _recog = null;
+
+  // Fall back to the last interim chunk if the browser never flagged a
+  // trailing segment as isFinal — it was already shown live in the caption,
+  // so treating it as the answer matches what the candidate saw on screen.
+  const answer = (_listenText + ' ' + _listenInterim).trim();
+  document.getElementById('conv-caption').textContent = answer || '';
+  if (answer) { _convTranscript.push({ speaker: 'candidate', text: answer }); _appendConvTurn('candidate', 'You', answer); }
+  convTurn(answer, _lastAnswerTruncated);
+}
+
+// ── "I'm done speaking" button ─────────────────────────────────────────────
+function convDone() {
+  _convFinishListening(false);
+}
+
+// ── Text-input fallback submit ─────────────────────────────────────────────
+function convTextSubmit() {
+  const text = (document.getElementById('conv-text').value || '').trim();
+  document.getElementById('conv-text-wrap').style.display = 'none';
+  _listening = false; // ensure silence monitor doesn't fire
+  _orbSetState('idle');
+  if (text) { _convTranscript.push({ speaker: 'candidate', text }); _appendConvTurn('candidate', 'You', text); }
+  convTurn(text, false);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCRIPTED MODE — original flow, unchanged
+// ═══════════════════════════════════════════════════════════════════════════
+
+function loadQuestion() {
+  if (_seq >= _questions.length) { showFinishBtn(); return; }
+  const q = _questions[_seq];
+  const total = _questions.length;
+  document.getElementById('nx-qnum').textContent    = `Question ${_seq + 1} of ${total}`;
+  document.getElementById('nx-question').textContent = q.text;
+  document.getElementById('btn-listen').style.display = 'none';
+  document.getElementById('btn-next').style.display   = 'none';
+  document.getElementById('btn-submit').style.display = 'none';
+  const vEntry = _questionVideos[q.seq];
+  if (vEntry && vEntry.status === 'ready' && vEntry.video_url) {
+    _showVideoStage(vEntry.video_url);
+  } else {
+    _showOrbStage();
+    document.getElementById('nx-status').textContent = 'Click "Hear question" to listen, then record your answer.';
+  }
+}
+
+function showFinishBtn() {
+  document.getElementById('btn-speak').style.display   = 'none';
+  document.getElementById('btn-listen').style.display  = 'none';
+  document.getElementById('btn-next').style.display    = 'none';
+  document.getElementById('btn-submit').style.display  = '';
+  document.getElementById('nx-qnum').textContent       = '';
+  document.getElementById('nx-question').textContent   = 'All questions answered. Click "Finish & submit" to complete your interview.';
+  document.getElementById('nx-status').textContent     = 'Ready to submit.';
+  _orbSetState('idle');
+}
+
+async function pollRenderStatus() {
+  const start = Date.now();
+  const MAX_MS = 90000, POLL_MS = 3000;
+  while (Date.now() - start < MAX_MS) {
+    const res = await apiPublic(`/api/nexai/invite/render-status?token=${encodeURIComponent(_token)}`);
+    if (!res._err && Array.isArray(res.question_videos)) {
+      for (const v of res.question_videos) _questionVideos[v.seq] = v;
+    }
+    if (res._err) break;
+    const s = res.render_status;
+    if (s !== 'pending' && s !== 'rendering') break;
+    await new Promise(r => setTimeout(r, POLL_MS));
+  }
+}
+
+function _showVideoStage(url) {
+  const vid    = document.getElementById('nexai-video');
+  const stage  = document.getElementById('orb-stage');
+  const playBtn = document.getElementById('video-play-prompt');
+  vid.onerror = null; vid.onended = null;
+  stage.style.display   = 'none';
+  playBtn.style.display = 'none';
+  vid.style.display     = '';
+  document.getElementById('btn-speak').style.display = 'none';
+  document.getElementById('nx-status').textContent   = 'Watch the question, then record your answer.';
+  vid.onerror = () => _fallbackOrbForQuestion();
+  vid.onended = () => {
+    _orbSetState('idle');
+    document.getElementById('btn-listen').style.display = '';
+    document.getElementById('nx-status').textContent    = 'Click "Record answer" to speak your response.';
+  };
+  vid.src = url;
+  const p = vid.play();
+  if (p !== undefined) {
+    p.catch(() => {
+      playBtn.style.display = '';
+      document.getElementById('nx-status').textContent = 'Click to start the question.';
+    });
+  }
+}
+
+function _showOrbStage() {
+  const vid    = document.getElementById('nexai-video');
+  const stage  = document.getElementById('orb-stage');
+  const playBtn = document.getElementById('video-play-prompt');
+  vid.onerror = null; vid.onended = null;
+  try { vid.pause(); } catch(e) {}
+  vid.removeAttribute('src'); vid.load();
+  vid.style.display     = 'none';
+  playBtn.style.display = 'none';
+  stage.style.display   = '';
+  document.getElementById('btn-speak').style.display  = '';
+  document.getElementById('btn-speak').disabled       = false;
+}
+
+function nxVideoPlay() {
+  document.getElementById('video-play-prompt').style.display = 'none';
+  document.getElementById('nx-status').textContent = 'Watch the question, then record your answer.';
+  document.getElementById('nexai-video').play();
+}
+
+function _fallbackOrbForQuestion() {
+  _showOrbStage();
+  document.getElementById('btn-listen').style.display = 'none';
+  document.getElementById('btn-next').style.display   = 'none';
+  document.getElementById('nx-status').textContent    = 'Click "Hear question" to listen, then record your answer.';
+}
+
+async function nxSpeak() {
+  const q = _questions[_seq];
+  if (!q) return;
+  _orbSetState('speaking');
+  document.getElementById('btn-speak').disabled       = true;
+  document.getElementById('nx-status').textContent    = 'Speaking…';
+  const utt = new SpeechSynthesisUtterance(q.text);
+  _applyFemaleVoice(utt, await _pickFemaleIndianVoice());
+  utt.rate = 0.82; utt.pitch = 1;
+  utt.onend = () => {
+    _orbSetState('idle');
+    document.getElementById('btn-listen').style.display = '';
+    document.getElementById('nx-status').textContent    = 'Click "Record answer" to speak your response.';
+  };
+  _synth.cancel();
+  _synth.speak(utt);
+}
+
+function nxListen() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    const ans = prompt('Speech recognition not available in this browser. Please type your answer:') || '';
+    _saveAnswer(ans); return;
+  }
+  _recog = new SR();
+  _recog.lang = 'en-IN';
+  _recog.continuous     = true;
+  _recog.interimResults = false;
+  _orbSetState('listening');
+  document.getElementById('btn-listen').disabled    = true;
+  document.getElementById('nx-status').textContent  = 'Recording… speak now. Click "Stop" when done.';
+  document.getElementById('btn-listen').textContent = '&#9209; Stop recording';
+  document.getElementById('btn-listen').disabled    = false;
+  document.getElementById('btn-listen').onclick     = nxStopListen;
+  let full = '';
+  _recog.onresult = e => { for (let i=e.resultIndex;i<e.results.length;i++) full+=e.results[i][0].transcript+' '; };
+  _recog.onerror  = () => { _orbSetState('idle'); _saveAnswer(full); };
+  _recog.onend    = () => { _orbSetState('idle'); _saveAnswer(full); };
+  _recog.start();
+}
+
+function nxStopListen() {
+  if (_recog) { _recog.stop(); _recog = null; }
+}
+
+function _saveAnswer(text) {
+  const q = _questions[_seq];
+  const trimmed = text.trim();
+  _transcript.push({ seq: q.seq, question: q.text, answer: trimmed });
+  const tEl = document.getElementById('nx-transcript');
+  tEl.style.display = 'block';
+  tEl.innerHTML += `<strong>Q${_seq+1}:</strong> ${trimmed || '<em>No answer recorded</em>'}<br>`;
+  tEl.scrollTop = tEl.scrollHeight;
+  document.getElementById('nx-status').textContent   = trimmed ? 'Answer recorded.' : 'No answer recorded.';
+  document.getElementById('btn-listen').textContent  = '&#127908; Record answer';
+  document.getElementById('btn-listen').onclick      = nxListen;
+  document.getElementById('btn-listen').style.display = 'none';
+  _seq++;
+  if (_seq < _questions.length) {
+    document.getElementById('btn-next').style.display = '';
+  } else {
+    showFinishBtn();
+  }
+}
+
+function nxNext() { loadQuestion(); }
+
+async function nxSubmit() {
+  document.getElementById('btn-submit').disabled    = true;
+  document.getElementById('btn-submit').textContent = 'Submitting…';
+  document.getElementById('nx-status').textContent  = 'Sending your responses…';
+  _orbSetState('idle');
+  const res = await apiPublic(
+    `/api/nexai/invite/submit/${_sessionId}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: _transcript }),
+    }
+  );
+  if (res._err) {
+    document.getElementById('nx-status').textContent  = 'Error submitting: ' + res._err;
+    document.getElementById('btn-submit').disabled    = false;
+    document.getElementById('btn-submit').textContent = 'Retry submit';
+    return;
+  }
+  const detail = res.score_detail || {};
+  const qa = detail.questions_answered ?? '—';
+  const qt = detail.total_questions    ?? '—';
+  document.getElementById('done-detail').innerHTML =
+    `Questions answered: <strong>${qa} / ${qt}</strong>`;
+  _stopOrb();
+  await _flushProctoringAndClose();
+  showStep('step-done');
+}
+
+// ── Append a turn bubble to the live transcript panel ─────────────────────
+function _appendConvTurn(cls, label, text) {
+  const wrap = document.getElementById('conv-transcript');
+  if (!wrap) return;
+  const turn = document.createElement('div');
+  turn.className = 'ct-turn ' + cls;
+  const safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  turn.innerHTML = `<div class="ct-lbl">${label}</div><div class="ct-bubble">${safe}</div>`;
+  wrap.appendChild(turn);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+// ── Build the full post-interview report on the done screen ───────────────
+function _buildDoneReport() {
+  const rt = document.getElementById('report-transcript');
+  if (!rt) return;
+  if (!_convTranscript.length) { rt.innerHTML = ''; return; }
+  let html = '<div class="rpt-head">Interview Transcript</div>';
+  for (const t of _convTranscript) {
+    const isNexai = t.speaker === 'nexai';
+    const lbl  = isNexai ? 'NexAI' : 'You';
+    const cls  = isNexai ? 'nexai' : 'candidate';
+    const safe = t.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    html += `<div class="rt-turn"><div class="rt-lbl ${cls}">${lbl}</div><div class="rt-text">${safe}</div></div>`;
+  }
+  html += '<p style="font-size:12px;color:#596A83;margin-top:14px;padding-top:10px;border-top:1px solid #D7E0EC">Your webcam and screen recording have been securely submitted to the hiring team for review.</p>';
+  rt.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORB ANIMATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _orbSetState(s) {
+  _orbState = s;
+  const av = document.getElementById('nexai-avatar');
+  if (av) av.className = (s === 'idle' || s === 'done') ? '' : s;
+}
+
+function _stopOrb() {
+  if (_orbRaf) { cancelAnimationFrame(_orbRaf); _orbRaf = null; }
+}
+
+function _startOrb() {
+  const canvas = document.getElementById('orb');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, cx = W/2, cy = H/2;
+  function frame() {
+    _orbRaf = requestAnimationFrame(frame);
+    _orbPhase += 0.04;
+    ctx.clearRect(0, 0, W, H);
+
+    // In listening state: orb radius reacts to live mic amplitude
+    let base;
+    if (_orbState === 'listening') {
+      base = 14 + Math.min(_micAmplitude * 0.35, 10) + Math.sin(_orbPhase * 3) * 2;
+    } else if (_orbState === 'speaking') {
+      base = 18 + Math.sin(_orbPhase * 2) * 3;
+    } else {
+      base = 16 + Math.sin(_orbPhase) * 1;
+    }
+
+    const gr = ctx.createRadialGradient(cx-4, cy-4, 1, cx, cy, base);
+    gr.addColorStop(0,   '#22D3EE');
+    gr.addColorStop(1,   '#2563EB');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(cx, cy, base, 0, Math.PI * 2); ctx.fill();
+
+    const hl = ctx.createRadialGradient(cx-5, cy-5, 0, cx-2, cy-2, base * 0.55);
+    hl.addColorStop(0, 'rgba(255,255,255,0.28)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hl;
+    ctx.beginPath(); ctx.arc(cx, cy, base, 0, Math.PI * 2); ctx.fill();
+  }
+  frame();
+}
+
+// ── Periodic flag flush — sends accumulated flags every 90 s so they survive crashes ──
+async function _periodicFlagFlush() {
+  if (!_procSessId || !_procFlags.length) return;
+  const toSend = _procFlags.splice(0); // drain buffer atomically
+  // apiPublic() never throws -- it catches every fetch/HTTP failure itself
+  // and returns {_err}, so the old try/catch here was dead code and a failed
+  // flush silently lost the whole batch (already spliced out). Check the
+  // real signal instead and requeue on failure.
+  const res = await apiPublic(
+    `/api/proctoring/candidate/${_procSessId}/flags?token=${encodeURIComponent(_token)}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ flags: toSend }) }
+  );
+  if (res && res._err) { _procFlags.unshift(...toSend); } // put back on failure, retried next cycle
+}
+
+// Flush when tab is hidden (switching windows, minimising, Alt+Tab), and track
+// tab-away state for the proctoring tick loop (see _startProcAIAnalysis).
+// blur/focus catch an OS-level app switch even when the tab itself stays
+// "visible" per the Page Visibility API on some browsers; visibilitychange
+// catches same-window tab switches. Either one flips _tabAway.
+document.addEventListener('visibilitychange', () => {
+  _tabAway = document.hidden;
+  if (document.hidden && _procSessId) _periodicFlagFlush();
+});
+window.addEventListener('blur', () => { _tabAway = true; });
+window.addEventListener('focus', () => { _tabAway = false; });
+
+// Best-effort flush on close/navigate away via sendBeacon (no await needed)
+window.addEventListener('beforeunload', () => {
+  _cleanupProctoring();
+  if (_procFlags.length && _procSessId && _token && navigator.sendBeacon) {
+    const blob = new Blob(
+      [JSON.stringify({ flags: _procFlags })],
+      { type: 'application/json' }
+    );
+    navigator.sendBeacon(
+      `/api/proctoring/candidate/${_procSessId}/flags?token=${encodeURIComponent(_token)}`,
+      blob
+    );
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+# Production orchestration.
+#
+# PostgreSQL is NOT containerized here — it runs natively on the same Linux
+# host as this compose stack (db 'oneclickhire', user 'ochuser' already
+# created). The backend container reaches it via host.docker.internal, which
+# extra_hosts below maps to the host's gateway IP (works on Linux Docker
+# 20.10+, not just Mac/Windows). Make sure Postgres is listening on the
+# docker bridge interface (listen_addresses in postgresql.conf) and that
+# pg_hba.conf allows the container's subnet to connect.
+services:
+  backend:
+    build:
+      context: .                      # project root — gives Dockerfile access to frontend/
+      dockerfile: backend/Dockerfile
+    profiles: [prod]
+    environment:
+      # Explicit opt-in for real email transmission (connectors.send_email) --
+      # deliberately set HERE, not in .env.prod, because docker-compose.dev.yml
+      # also loads .env.prod (to keep API keys in sync) and would otherwise
+      # inherit this too. environment: here takes precedence over env_file:
+      # below for the same key, so this is safe even though .env.prod is shared.
+      EMAIL_REAL_SEND_ENABLED: "true"
+    env_file: .env.prod
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # The portal allocates a host port and injects it as ${PORT}.
+    # Exactly one service publishes it; the app's internal port is 8080.
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - cv_store:/app/cv_store        # persistent CV file storage across restarts
+      - jd_store:/app/jd_store        # persistent requisition JD file storage across restarts
+    restart: unless-stopped
+
+volumes:
+  cv_store:
+  jd_store:

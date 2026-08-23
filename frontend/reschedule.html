@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0A1F44">
+<title>Reschedule your interview — Enternly</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F8FCFE;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+:focus-visible{outline:2px solid #2563EB;outline-offset:2px}
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.10);max-width:560px;width:100%;padding:36px 32px}
+h1{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-bottom:4px;color:#0A1F44}
+.sub{font-size:13px;color:#596A83;margin-bottom:24px}
+.info-box{background:#F8FCFE;border:1px solid #D7E0EC;border-radius:8px;padding:16px;margin-bottom:20px;font-size:13px;line-height:1.7}
+.info-box strong{color:#0A1F44}
+label{display:block;font-size:12px;font-weight:600;color:#0A1F44;margin-bottom:6px}
+input[type=datetime-local]{width:100%;padding:10px 12px;border:1px solid #D7E0EC;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:18px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 22px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:.15s;width:100%;margin-top:8px}
+.btn-primary{background:#2563EB;color:#fff}.btn-primary:hover{background:#1D4ED8}.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.status{text-align:center;font-size:13px;color:#596A83;min-height:20px;margin:8px 0}
+.error-box{text-align:center;padding:20px 0}
+.error-box h2{font-size:18px;color:#e2455a;margin-bottom:8px}
+.error-box p{font-size:13px;color:#596A83}
+.success-box{text-align:center;padding:20px 0}
+.success-box h2{font-size:18px;color:#0e9f6e;margin-bottom:8px}
+.success-box p{font-size:13px;color:#596A83}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <h1>Loading…</h1>
+</div>
+<script>
+const _token = new URLSearchParams(location.search).get('token');
+let _lastData = null;
+const _MAX_DAYS_OUT = 62;
+
+async function apiPublic(path, opts){
+  try{
+    const r = await fetch(path, opts);
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) return {__error: d.detail || `HTTP ${r.status}`};
+    return d;
+  }catch(e){
+    return {__error: 'Network error — please check your connection and retry.'};
+  }
+}
+
+function render(html){ document.getElementById('card').innerHTML = html; }
+
+function fmtIST(iso){
+  return new Date(iso).toLocaleString('en-IN',{dateStyle:'full',timeStyle:'short',timeZone:'Asia/Kolkata'});
+}
+
+// datetime-local has no timezone info -- treat whatever the requester picks
+// as their own local wall-clock time (their browser's timezone) and convert
+// to a real UTC instant from there, same approach the SPA's native
+// datetime-local inputs already use for the recruiter's own "Schedule now" flow.
+function localInputToUtcIso(value){
+  return new Date(value).toISOString();
+}
+
+async function boot(){
+  if(!_token){
+    render(`<div class="error-box"><h2>Invalid link</h2><p>This reschedule link is missing its token. Please use the link from your email.</p></div>`);
+    return;
+  }
+  const data = await apiPublic(`/api/scheduling/reschedule/validate?token=${encodeURIComponent(_token)}`);
+  if(data.__error){
+    render(`<div class="error-box"><h2>Something went wrong</h2><p>${data.__error}</p></div>`);
+    return;
+  }
+  if(!data.valid){
+    const msgs = {
+      not_found: 'This reschedule link is not valid.',
+      cancelled: 'This interview has been cancelled and can no longer be rescheduled.',
+      completed: 'This interview has already taken place and can no longer be rescheduled.',
+    };
+    render(`<div class="error-box"><h2>Link no longer active</h2><p>${msgs[data.reason] || 'This reschedule link is no longer active.'}</p></div>`);
+    return;
+  }
+  _lastData = data;
+  renderPicker();
+}
+
+function renderPicker(){
+  const now = new Date();
+  const minLocal = new Date(now.getTime() + 60*60*1000); // at least 1h from now
+  const maxLocal = new Date(now.getTime() + _MAX_DAYS_OUT*24*60*60*1000);
+  const toLocalInput = d => new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  render(`
+    <h1>Reschedule your interview</h1>
+    <p class="sub">${_lastData.job_title || 'the role'}${_lastData.company ? ' at ' + _lastData.company : ''} · ${_lastData.duration_min} minutes</p>
+    <div class="info-box">
+      Hi <strong>${_lastData.candidate_name || ''}</strong>, currently scheduled for
+      <strong>${_lastData.current_scheduled_at ? fmtIST(_lastData.current_scheduled_at) : 'an earlier time'}</strong> (IST).
+      Pick a new time below — everyone (candidate, panel, and recruiter) will be notified automatically.
+    </div>
+    <label for="new-dt">New date &amp; time (your local time)</label>
+    <input type="datetime-local" id="new-dt" min="${toLocalInput(minLocal)}" max="${toLocalInput(maxLocal)}">
+    <button class="btn btn-primary" id="confirm-btn" onclick="confirmReschedule()">Confirm new time</button>
+    <div class="status" id="status"></div>
+  `);
+}
+
+async function confirmReschedule(){
+  const dtVal = document.getElementById('new-dt').value;
+  const statusEl = document.getElementById('status');
+  if(!dtVal){
+    statusEl.textContent = 'Pick a date & time first.';
+    statusEl.style.color = '#e2455a';
+    return;
+  }
+  const btn = document.getElementById('confirm-btn');
+  btn.disabled = true; btn.textContent = 'Rescheduling…';
+  statusEl.textContent = '';
+  const res = await apiPublic(`/api/scheduling/reschedule/confirm?token=${encodeURIComponent(_token)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({start_utc: localInputToUtcIso(dtVal)}),
+  });
+  if(res.__error){
+    btn.disabled = false; btn.textContent = 'Confirm new time';
+    statusEl.textContent = res.__error;
+    statusEl.style.color = '#e2455a';
+    return;
+  }
+  render(`<div class="success-box"><h2>Rescheduled!</h2><p>The interview is now confirmed for <strong>${fmtIST(res.start_utc)}</strong> (IST). A new calendar invite is on its way to everyone involved.</p></div>`);
+}
+
+boot();
+</script>
+</body>
+</html>

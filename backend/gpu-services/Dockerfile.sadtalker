@@ -1,0 +1,30 @@
+# SadTalker GPU microservice — STEP A3
+# Base: NVIDIA CUDA + Python 3.10 (deep learning image)
+# Deploy on GCP n1-standard-4 + NVIDIA T4 instance.
+#
+# Build: docker build -f Dockerfile.sadtalker -t enternly-sadtalker .
+# Run:   docker run --gpus all -p 8090:8090 \
+#               -e GCS_BUCKET=your-bucket \
+#               enternly-sadtalker
+
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    python3.10 python3-pip git ffmpeg libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /sadtalker
+RUN git clone https://github.com/OpenTalker/SadTalker.git .
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir fastapi uvicorn python-multipart google-cloud-storage
+
+# Download pretrained weights (~2 GB)
+RUN bash scripts/download_models.sh
+
+COPY sadtalker_service.py /app/sadtalker_service.py
+ENV SADTALKER_DIR=/sadtalker
+
+EXPOSE 8090
+CMD ["uvicorn", "app.sadtalker_service:app", "--host", "0.0.0.0", "--port", "8090"]
