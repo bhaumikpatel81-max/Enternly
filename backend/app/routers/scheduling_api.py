@@ -168,6 +168,7 @@ def _send_candidate_pick_email(req_row: dict, ctx: dict, candidate_link: str) ->
         connectors.send_email(
             ctx["candidate_email"], subject, body_txt, html=html_body,
             reply_to=_reply_to_recruiter_and_hr(ctx.get("requisition_id")),
+            tenant_id=ctx.get("tenant_id"),
         )
         return True
     except Exception as exc:
@@ -208,6 +209,7 @@ def _send_hm_request_email(req_id: str, hm_user_id: str, ctx: dict) -> bool:
         connectors.send_email(
             hm["email"], subject, body, html=html_body,
             reply_to=_reply_to_recruiter_and_hr(ctx.get("requisition_id")),
+            tenant_id=ctx.get("tenant_id"),
         )
         return True
     except Exception as exc:
@@ -1406,6 +1408,7 @@ def _send_booking_notifications(
             panel_attachments=panel_attachments,
             uid=calendar_uid,
             sequence=ics_sequence,
+            tenant_id=ctx.get("tenant_id"),
         )
 
     log_activity(
@@ -1930,7 +1933,7 @@ def cancel_interview(interview_id: str, body: CancelInterviewIn, user: dict = De
     notified = []
     for e in ([ctx["candidate_email"]] if ctx.get("candidate_email") else []) + cc_emails:
         try:
-            connectors.send_email(e, subject, "Your interview has been cancelled.", html=email_html)
+            connectors.send_email(e, subject, "Your interview has been cancelled.", html=email_html, tenant_id=ctx.get("tenant_id"))
             notified.append(e)
         except Exception as exc:
             print(f"[scheduling] cancellation email to {e} failed: {exc}")
@@ -1957,6 +1960,7 @@ def cancel_interview(interview_id: str, body: CancelInterviewIn, user: dict = De
                 duration_min=iv.get("duration_min") or 45,
                 candidate_name=ctx["candidate_name"], job_title=ctx["job_title"],
                 uid=iv.get("calendar_uid"), sequence=new_sequence,
+                tenant_id=ctx.get("tenant_id"),
             )
         except Exception as exc:
             print(f"[scheduling] calendar cancellation send failed: {exc}")

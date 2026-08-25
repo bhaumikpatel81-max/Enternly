@@ -34,9 +34,15 @@ _RETRY_BACKOFF_MIN   = [30, 180]  # minutes before retrying attempt 2 and attemp
 
 
 def _smtp_configured() -> bool:
-    from .connectors import _load_email_cfg
-    cfg = _load_email_cfg()
-    return bool(cfg["user"] and cfg["password"])
+    """Cheap idle-gate: true if ANY tenant (or the env fallback) has SMTP
+    configured. Each row still sends through its own tenant's config."""
+    import os
+    if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"):
+        return True
+    row = query_one(
+        "SELECT 1 FROM system_settings WHERE key='smtp_user' AND COALESCE(value, '') <> '' LIMIT 1"
+    )
+    return bool(row)
 
 
 def _claim_batch() -> list:
@@ -80,7 +86,7 @@ def _fetch_batch(ids: list) -> list:
     return query(
         """SELECT a.id AS app_id, a.hm_feedback_reminder_count, a.hm_feedback_reminder_attempts,
                   c.full_name AS candidate_name,
-                  r.id AS req_id, r.title AS req_title, r.req_code,
+                  r.id AS req_id, r.title AS req_title, r.req_code, r.tenant_id,
                   hm.id AS hm_id, hm.full_name AS hm_name, hm.email AS hm_email,
                   iv.scheduled_at AS interview_scheduled_at, rc.name AS round_name
            FROM application a
@@ -167,9 +173,10 @@ def _send_one(row: dict) -> None:
     if not row.get("hm_email"):
         raise RuntimeError("no_email_on_file")
 
-    base_url = (_load_email_cfg().get("base_url") or "http://localhost:8000").strip().rstrip("/")
+    tenant_id = row.get("tenant_id")
+    base_url = (_load_email_cfg(tenant_id).get("base_url") or "http://localhost:8000").strip().rstrip("/")
     subject, plain, html_body = _build_email(row, base_url)
-    send_email(row["hm_email"], subject, plain, html=html_body)
+    send_email(row["hm_email"], subject, plain, html=html_body, tenant_id=tenant_id)
 
     query(
         """UPDATE application
@@ -195,7 +202,7 @@ def _fetch_ready_context(interview_id: str):
     return query_one(
         """SELECT a.id AS app_id, a.hm_feedback,
                   c.full_name AS candidate_name,
-                  r.id AS req_id, r.title AS req_title, r.req_code, r.hiring_manager_id,
+                  r.id AS req_id, r.title AS req_title, r.req_code, r.hiring_manager_id, r.tenant_id,
                   hm.id AS hm_id, hm.full_name AS hm_name, hm.email AS hm_email,
                   i.scheduled_at AS interview_scheduled_at, rc.name AS round_name
            FROM interview i
@@ -234,7 +241,7 @@ def send_feedback_ready_email(interview_id: str) -> None:
         from .notifications import notify
         from .email_layout import build_branded_email
 
-        base_url = (_load_email_cfg().get("base_url") or "http://localhost:8000").strip().rstrip("/")
+        base_url = (_load_email_cfg(row.get("tenant_id")).get("base_url") or "http://localhost:8000").strip().rstrip("/")
         review_url = f"{base_url}/#profiles"
         hm_first = (row.get("hm_name") or "there").split(" ")[0]
         candidate_name = row.get("candidate_name") or "the candidate"
@@ -268,7 +275,7 @@ def send_feedback_ready_email(interview_id: str) -> None:
             cta_label="Review Feedback Now",
             cta_link=review_url,
         )
-        send_email(row["hm_email"], subject, plain, html=html_body)
+        send_email(row["hm_email"], subject, plain, html=html_body, tenant_id=row.get("tenant_id"))
 
         notify(
             row["hm_id"], "hm_feedback_ready",

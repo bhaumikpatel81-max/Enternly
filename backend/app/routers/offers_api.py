@@ -215,6 +215,10 @@ def _send_offer_email(
         globals_ = resolve_global_placeholders(req_id=req_id, actor=actor)
         reply_to = globals_.get("recruiter_email") or None
         subject, body = render_template(template_key, values, req_id=req_id, actor=actor)
+        tenant_id = (actor or {}).get("tenant_id")
+        if not tenant_id and req_id:
+            req_row = query_one("SELECT tenant_id FROM requisition WHERE id=%s", [req_id])
+            tenant_id = (req_row or {}).get("tenant_id")
 
         hero_title_html, hero_subtitle = _OFFER_TEMPLATE_META.get(
             template_key, ("Offer<br>Update.", "There's an update on an offer."),
@@ -232,7 +236,7 @@ def _send_offer_email(
         all_sent = True
         for addr in to_emails:
             try:
-                send_email(addr, subject, body, html=html_body, reply_to=reply_to)
+                send_email(addr, subject, body, html=html_body, reply_to=reply_to, tenant_id=tenant_id)
             except Exception as exc:
                 all_sent = False
                 print(f"[offers] WARNING: email to {addr} failed ({template_key}): {exc}")

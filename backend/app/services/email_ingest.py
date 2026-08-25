@@ -165,16 +165,24 @@ async def start_email_poller():
         try:
             service = await asyncio.to_thread(_get_oauth_service, creds_path)
 
-            # Read accounts from system_settings
-            setting = await asyncio.to_thread(
-                query_one,
-                "SELECT value FROM system_settings WHERE key='email_ingest_accounts'",
+            # Read accounts from system_settings -- this key is tenant-scoped
+            # (Migration 96), so every tenant that has configured its own
+            # ingest mailboxes gets its rows polled, each stamped with ITS
+            # OWN tenant_id below (never a single global reader picking one
+            # tenant's row arbitrarily).
+            settings_rows = await asyncio.to_thread(
+                query,
+                "SELECT tenant_id, value FROM system_settings WHERE key='email_ingest_accounts'",
                 [],
             )
-            accounts_raw = (setting or {}).get("value") or ""
-            accounts = [a.strip() for a in accounts_raw.split(",") if a.strip()]
+            acct_tenant_map = {}
+            for row in (settings_rows or []):
+                for a in (row.get("value") or "").split(","):
+                    a = a.strip()
+                    if a:
+                        acct_tenant_map[a] = row.get("tenant_id")
 
-            for acct in accounts:
+            for acct, tenant_id in acct_tenant_map.items():
                 try:
                     attachments = await asyncio.to_thread(
                         _fetch_resume_attachments, service, acct
@@ -196,7 +204,7 @@ async def start_email_poller():
                         continue  # a sibling attachment on this message already failed
                     try:
                         await _ingest_email_attachment(
-                            att["data"], att["filename"], query, query_one, cv_parser
+                            att["data"], att["filename"], query, query_one, cv_parser, tenant_id
                         )
                         ok_message_ids.add(mid)
                     except Exception as exc:
@@ -223,17 +231,24 @@ async def start_email_poller():
         await asyncio.sleep(_POLL_EVERY)
 
 
-async def _ingest_email_attachment(data: bytes, filename: str, query, query_one, cv_parser):
+async def _ingest_email_attachment(data: bytes, filename: str, query, query_one, cv_parser, tenant_id=None):
     """Ingest one attachment into cv_repository with source='email'."""
     import uuid as _uuid
     import os
 
     file_hash = cv_parser.sha256_hash(data)
-    existing = await asyncio.to_thread(
-        query_one,
-        "SELECT id FROM cv_repository WHERE file_hash=%s",
-        [file_hash],
-    )
+    if tenant_id:
+        existing = await asyncio.to_thread(
+            query_one,
+            "SELECT id FROM cv_repository WHERE file_hash=%s AND tenant_id=%s",
+            [file_hash, tenant_id],
+        )
+    else:
+        existing = await asyncio.to_thread(
+            query_one,
+            "SELECT id FROM cv_repository WHERE file_hash=%s",
+            [file_hash],
+        )
     if existing:
         return  # duplicate
 
@@ -252,11 +267,18 @@ async def _ingest_email_attachment(data: bytes, filename: str, query, query_one,
     candidate_id = req_id = None
     map_status = "pool"
     if name:
-        cand = await asyncio.to_thread(
-            query_one,
-            "SELECT id FROM candidate WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(%s)) LIMIT 1",
-            [name],
-        )
+        if tenant_id:
+            cand = await asyncio.to_thread(
+                query_one,
+                "SELECT id FROM candidate WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(%s)) AND tenant_id=%s LIMIT 1",
+                [name, tenant_id],
+            )
+        else:
+            cand = await asyncio.to_thread(
+                query_one,
+                "SELECT id FROM candidate WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(%s)) LIMIT 1",
+                [name],
+            )
         if cand:
             candidate_id = str(cand["id"])
             app_row = await asyncio.to_thread(
@@ -269,15 +291,16 @@ async def _ingest_email_attachment(data: bytes, filename: str, query, query_one,
                 req_id = str(app_row["requisition_id"]) if app_row["requisition_id"] else None
             map_status = "mapped"
 
+    tenant_col, tenant_ph, tenant_val = ("tenant_id, ", "%s, ", [tenant_id]) if tenant_id else ("", "", [])
     await asyncio.to_thread(
         query,
-        """INSERT INTO cv_repository
-           (id, file_name, file_path, file_hash, file_ext, candidate_name,
+        f"""INSERT INTO cv_repository
+           ({tenant_col}id, file_name, file_path, file_hash, file_ext, candidate_name,
             candidate_id, requisition_id, map_status, raw_text,
             text_vector, skills, source)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+           VALUES ({tenant_ph}%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                    to_tsvector('english', %s), %s, 'email')""",
-        [cv_id, filename, dest, file_hash, ext, name,
+        [*tenant_val, cv_id, filename, dest, file_hash, ext, name,
          candidate_id, req_id, map_status, raw_text,
          raw_text or '', skills],
         False,

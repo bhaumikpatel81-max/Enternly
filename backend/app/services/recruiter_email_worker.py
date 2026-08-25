@@ -42,7 +42,7 @@ def _set_status(status: str, detail: str = "") -> None:
 
 def _fetch_configured_recruiters() -> list:
     return query(
-        """SELECT id, gmail_address, gmail_app_password, gmail_last_scan_at FROM app_user
+        """SELECT id, gmail_address, gmail_app_password, gmail_last_scan_at, tenant_id FROM app_user
            WHERE gmail_address IS NOT NULL AND gmail_address <> ''
              AND gmail_app_password IS NOT NULL AND gmail_app_password <> ''"""
     ) or []
@@ -83,7 +83,7 @@ async def start_recruiter_email_worker():
                     try:
                         res = await asyncio.to_thread(
                             scan_gmail_inbox, r["gmail_address"], r["gmail_app_password"], str(r["id"]),
-                            r.get("gmail_last_scan_at"), is_scan_paused,
+                            r.get("gmail_last_scan_at"), is_scan_paused, r.get("tenant_id"),
                         )
                         for k in ("processed", "mapped", "pooled", "duplicates", "skipped"):
                             totals[k] += res.get(k, 0)

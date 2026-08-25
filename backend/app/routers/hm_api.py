@@ -112,6 +112,10 @@ def _send_safe(
         from ..services.email_layout import build_branded_email
         globals_ = resolve_global_placeholders(req_id=req_id, actor=actor)
         reply_to = globals_.get("recruiter_email") or None
+        tenant_id = (actor or {}).get("tenant_id")
+        if not tenant_id and req_id:
+            req_row = query_one("SELECT tenant_id FROM requisition WHERE id=%s", [req_id])
+            tenant_id = (req_row or {}).get("tenant_id")
         subject, body = render_template(template_key, values, req_id=req_id, actor=actor)
 
         hero_title_html, hero_subtitle = _HM_REQ_TEMPLATE_META.get(
@@ -136,7 +140,7 @@ def _send_safe(
         all_sent = True
         for addr in to_emails:
             try:
-                send_email(addr, subject, body, html=html_body, reply_to=reply_to)
+                send_email(addr, subject, body, html=html_body, reply_to=reply_to, tenant_id=tenant_id)
             except Exception as exc:
                 all_sent = False
                 print(f"[hm_api] email to {addr} failed: {exc}")

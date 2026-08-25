@@ -174,7 +174,7 @@ def create_user(body: CreateUserIn, actor=Depends(require_user_write)):
         try:
             from .password_api import _issue_token, _send_link_email
             raw = _issue_token(str(row["id"]), "invite")
-            _send_link_email(row["email"], row["full_name"], raw, "invite")
+            _send_link_email(row["email"], row["full_name"], raw, "invite", tenant_id=actor.get("tenant_id"))
             setup_email_sent = True
         except Exception as exc:
             print(f"[create_user] setup email failed: {exc}")

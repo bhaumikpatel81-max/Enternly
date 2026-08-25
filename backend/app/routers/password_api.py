@@ -33,8 +33,8 @@ def _hash_token(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _base_url() -> str:
-    cfg = _load_email_cfg()
+def _base_url(tenant_id: str = None) -> str:
+    cfg = _load_email_cfg(tenant_id)
     return (cfg.get("base_url") or os.environ.get("APP_BASE_URL", "")).rstrip("/")
 
 
@@ -86,8 +86,8 @@ def _build_password_html(full_name: str, to_email: str, link: str, purpose: str)
     )
 
 
-def _send_link_email(to_email: str, full_name: str, raw_token: str, purpose: str):
-    link = f"{_base_url()}/set-password?token={raw_token}"
+def _send_link_email(to_email: str, full_name: str, raw_token: str, purpose: str, tenant_id: str = None):
+    link = f"{_base_url(tenant_id)}/set-password?token={raw_token}"
     if purpose == "invite":
         subject = "Set your Enternly password"
         intro = (
@@ -110,11 +110,11 @@ def _send_link_email(to_email: str, full_name: str, raw_token: str, purpose: str
         "— EnternsTech Talent Acquisition"
     )
     html = _build_password_html(full_name, to_email, link, purpose)
-    send_email(to_email, subject, body, html=html)
+    send_email(to_email, subject, body, html=html, tenant_id=tenant_id)
 
 
 def issue_invite_for_external_user(
-    user_id: str, email: str, full_name: str, account_type: str
+    user_id: str, email: str, full_name: str, account_type: str, tenant_id: str = None
 ) -> str:
     """
     Issue a set-password invite for a vendor or candidate user.
@@ -124,7 +124,7 @@ def issue_invite_for_external_user(
     from ..services.email_validation import assert_real_email
     email = assert_real_email(email)  # last line of defence before any real send
     raw = _issue_token(str(user_id), "invite", account_type=account_type)
-    _send_link_email(email, full_name, raw, "invite")
+    _send_link_email(email, full_name, raw, "invite", tenant_id=tenant_id)
     return raw
 
 
@@ -146,7 +146,7 @@ def send_setup_link(body: InviteIn, admin=Depends(require_company_admin)):
     if user["role"] not in _SELF_SERVICE_ROLES:
         raise HTTPException(400, "Self-service password is only for staff roles (Company Admin / TA Manager / Recruiter)")
     raw = _issue_token(str(user["id"]), "invite", account_type="staff")
-    _send_link_email(user["email"], user["full_name"], raw, "invite")
+    _send_link_email(user["email"], user["full_name"], raw, "invite", tenant_id=admin.get("tenant_id"))
     return {"ok": True, "sent_to": user["email"]}
 
 
@@ -170,12 +170,12 @@ def forgot_password(body: ForgotIn):
 
     # 1. Staff (app_user) — only self-service roles, active
     staff = query_one(
-        "SELECT id, full_name, email, role, is_active FROM app_user WHERE email=%s", [email]
+        "SELECT id, full_name, email, role, is_active, tenant_id FROM app_user WHERE email=%s", [email]
     )
     if staff and staff["is_active"] and staff["role"] in _SELF_SERVICE_ROLES:
         raw = _issue_token(str(staff["id"]), "reset", account_type="staff")
         try:
-            _send_link_email(staff["email"], staff["full_name"], raw, "reset")
+            _send_link_email(staff["email"], staff["full_name"], raw, "reset", tenant_id=staff.get("tenant_id"))
         except Exception as exc:
             print(f"[password] staff reset email failed: {exc}")
             # GENERIC is still returned below (anti-enumeration) -- this is the
@@ -190,12 +190,12 @@ def forgot_password(body: ForgotIn):
 
     # 2. Vendor user (vendor_user) — active only
     vu = query_one(
-        "SELECT id, full_name, email, is_active FROM vendor_user WHERE email=%s", [email]
+        "SELECT id, full_name, email, is_active, tenant_id FROM vendor_user WHERE email=%s", [email]
     )
     if vu and vu["is_active"]:
         raw = _issue_token(str(vu["id"]), "reset", account_type="vendor")
         try:
-            _send_link_email(vu["email"], vu["full_name"], raw, "reset")
+            _send_link_email(vu["email"], vu["full_name"], raw, "reset", tenant_id=vu.get("tenant_id"))
         except Exception as exc:
             print(f"[password] vendor reset email failed: {exc}")
             log_activity(
@@ -209,7 +209,7 @@ def forgot_password(body: ForgotIn):
     #    has no full_name column (it links to candidate). Resolve a display
     #    name via the candidate table; fall back to the email local-part.
     cu = query_one(
-        """SELECT cu.id, cu.email, cu.is_active, c.full_name
+        """SELECT cu.id, cu.email, cu.is_active, c.full_name, c.tenant_id
            FROM candidate_user cu
            JOIN candidate c ON c.id = cu.candidate_id
            WHERE cu.email=%s""",
@@ -219,7 +219,7 @@ def forgot_password(body: ForgotIn):
         display_name = cu.get("full_name") or cu["email"].split("@")[0]
         raw = _issue_token(str(cu["id"]), "reset", account_type="candidate")
         try:
-            _send_link_email(cu["email"], display_name, raw, "reset")
+            _send_link_email(cu["email"], display_name, raw, "reset", tenant_id=cu.get("tenant_id"))
         except Exception as exc:
             print(f"[password] candidate reset email failed: {exc}")
             log_activity(

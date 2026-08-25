@@ -50,6 +50,7 @@ def _send_application_rejected_email(app_id: str, user: Optional[dict] = None) -
         ctx = query_one(
             """SELECT c.full_name AS candidate_name, c.email AS candidate_email,
                       r.id AS requisition_id, r.title AS job_title,
+                      r.tenant_id AS tenant_id,
                       gc.name AS company
                FROM application a
                JOIN candidate c ON c.id = a.candidate_id
@@ -89,7 +90,7 @@ def _send_application_rejected_email(app_id: str, user: Optional[dict] = None) -
             about_heading=None,
             footer_note="We wish you the best in your career search.",
         )
-        result = connectors.send_email(ctx["candidate_email"], subject, body, html=html_body)
+        result = connectors.send_email(ctx["candidate_email"], subject, body, html=html_body, tenant_id=ctx.get("tenant_id"))
         if not result.get("sent"):
             # send_email() returns {"sent": False} rather than raising when
             # SMTP isn't configured -- treat that the same as a real failure.
@@ -2089,7 +2090,7 @@ def _maybe_send_feedback_package(app_id: str, feedback_text: str) -> None:
 
     ctx = query_one(
         """SELECT a.candidate_id, c.full_name AS candidate_name,
-                  r.title AS job_title, r.id AS requisition_id
+                  r.title AS job_title, r.id AS requisition_id, r.tenant_id AS tenant_id
            FROM application a
            JOIN candidate c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
@@ -2133,7 +2134,7 @@ def _maybe_send_feedback_package(app_id: str, feedback_text: str) -> None:
     )
     for addr in recruiter_emails:
         try:
-            connectors.send_email(addr, subject, body_txt, html=html_body, attachments=attachments)
+            connectors.send_email(addr, subject, body_txt, html=html_body, attachments=attachments, tenant_id=ctx.get("tenant_id"))
         except Exception as exc:
             print(f"[pipeline] Failed to send HM feedback package to {addr}: {exc}")
 

@@ -362,7 +362,7 @@ def test_send_template(key: str, user=Depends(_require_template_access)):
             raise HTTPException(422, str(exc))
 
     try:
-        send_email(user_row["email"], f"[TEST] {subj}", body)
+        send_email(user_row["email"], f"[TEST] {subj}", body, tenant_id=user.get("tenant_id"))
     except Exception as exc:
         raise HTTPException(500, f"Email delivery failed: {exc}")
 
@@ -390,6 +390,7 @@ def _send_template_email_to_application(app_id: str, key: str, sender_user_id: s
                c.full_name  AS candidate_name,
                c.email      AS candidate_email,
                r.title      AS job_title,
+               r.tenant_id  AS tenant_id,
                gc.name      AS company_name,
                u.full_name  AS recruiter_name
            FROM application a
@@ -481,7 +482,7 @@ def _send_template_email_to_application(app_id: str, key: str, sender_user_id: s
 
     # Send
     try:
-        send_email(candidate_email, rendered_subject, rendered_body, html=html_body)
+        send_email(candidate_email, rendered_subject, rendered_body, html=html_body, tenant_id=app_row.get("tenant_id"))
     except Exception as exc:
         raise HTTPException(500, f"Email delivery failed: {exc}")
 

@@ -128,7 +128,7 @@ def _ensure_candidate_portal_invite(cand_id: str, email: str, full_name: str) ->
             [cand_id, email.lower().strip(), tenant_id],
         )
         if cu:
-            issue_invite_for_external_user(str(cu["id"]), email, full_name, "candidate")
+            issue_invite_for_external_user(str(cu["id"]), email, full_name, "candidate", tenant_id=tenant_id)
     except Exception as exc:
         print(f"[vendor-submit] Candidate portal invite failed for {email}: {exc}")
 
@@ -239,10 +239,10 @@ def register_vendor(body: RegisterVendorIn, user: dict = Depends(_require_intern
     invite_link = None
     try:
         raw = issue_invite_for_external_user(
-            str(vu["id"]), vu["email"], vu["full_name"], "vendor"
+            str(vu["id"]), vu["email"], vu["full_name"], "vendor", tenant_id=tenant_id
         )
         from ..routers.password_api import _base_url
-        invite_link = f"{_base_url()}/set-password?token={raw}"
+        invite_link = f"{_base_url(tenant_id)}/set-password?token={raw}"
     except Exception as exc:
         print(f"[vendor] Invite email failed for {vu['email']}: {exc}")
 
@@ -302,10 +302,10 @@ def add_vendor_user(
     invite_link = None
     try:
         raw = issue_invite_for_external_user(
-            str(vu["id"]), vu["email"], vu["full_name"], "vendor"
+            str(vu["id"]), vu["email"], vu["full_name"], "vendor", tenant_id=tenant_id
         )
         from ..routers.password_api import _base_url
-        invite_link = f"{_base_url()}/set-password?token={raw}"
+        invite_link = f"{_base_url(tenant_id)}/set-password?token={raw}"
     except Exception as exc:
         print(f"[vendor] Invite email failed for {vu['email']}: {exc}")
 
@@ -515,7 +515,7 @@ async def portal_submit_cv(
         raise HTTPException(403, "This requisition is not opened to your vendor")
 
     req = query_one(
-        "SELECT id, approval_status FROM requisition WHERE id=%s", [req_id]
+        "SELECT id, approval_status, tenant_id FROM requisition WHERE id=%s", [req_id]
     )
     if not req:
         raise HTTPException(404, "Requisition not found")
@@ -590,6 +590,7 @@ async def portal_submit_cv(
             uploaded_by=None,
             candidate_id=cand_id,
             req_id=req_id,
+            tenant_id=req.get("tenant_id"),
         )
     except Exception as exc:
         print(f"[vendor-submit] CV repository ingest failed: {exc}")

@@ -373,7 +373,7 @@ def portal_recommended(candidate: dict = Depends(get_current_candidate)):
 
 # ── Portal: one-click apply ───────────────────────────────────────────────────
 
-def _send_neutral_rejection_email(candidate_email: str, candidate_name: str, job_title: str, company: str) -> bool:
+def _send_neutral_rejection_email(candidate_email: str, candidate_name: str, job_title: str, company: str, tenant_id: str = None) -> bool:
     """
     Auto-rejection for a no-poach match. Deliberately generic -- this fires
     with no human review, so it must never disclose the real reason (a
@@ -404,7 +404,7 @@ def _send_neutral_rejection_email(candidate_email: str, candidate_name: str, job
         cta_label=None, cta_link=None,
     )
     try:
-        connectors.send_email(candidate_email, subject, body, html=html_body)
+        connectors.send_email(candidate_email, subject, body, html=html_body, tenant_id=tenant_id)
         return True
     except Exception as exc:
         print(f"[candidate-portal] no-poach auto-reject email failed for {candidate_email}: {exc}")
@@ -502,6 +502,7 @@ def portal_apply(req_id: str, candidate: dict = Depends(get_current_candidate)):
         if cand_row and cand_row.get("email"):
             _send_neutral_rejection_email(
                 cand_row["email"], cand_row.get("full_name"), req["title"], req.get("company"),
+                tenant_id=tenant_id,
             )
         return {
             "application_id": app_id,

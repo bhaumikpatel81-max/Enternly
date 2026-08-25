@@ -158,7 +158,7 @@ def send_application_received_jd_email(candidate_name: str, candidate_email: str
             cta_label=None, cta_link=None,
         )
 
-        send_email(candidate_email, subject, body, html=html_body, reply_to=reply_to)
+        send_email(candidate_email, subject, body, html=html_body, reply_to=reply_to, tenant_id=tenant_id)
     except Exception as exc:
         print(f"[jd-email] Failed to send JD confirmation to {candidate_email}: {exc}")
         try:

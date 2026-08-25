@@ -2899,7 +2899,7 @@ def _maybe_issue_candidate_invite(cand_id: str, email: str, full_name: str) -> N
         )
         if cu:
             from .routers.password_api import issue_invite_for_external_user
-            issue_invite_for_external_user(str(cu["id"]), email, full_name, "candidate")
+            issue_invite_for_external_user(str(cu["id"]), email, full_name, "candidate", tenant_id=tenant_id)
             _prefill_profile_from_resume(cand_id)
     except Exception as exc:
         print(f"[candidate-portal] Auto-invite failed for {email}: {exc}")
@@ -2979,10 +2979,11 @@ def _store_extended_fields(application_id: str, **kwargs):
 def apply(payload: ApplyIn):
     """Text-paste application: create/reuse candidate → auto-screen."""
     _req_approval = query_one(
-        "SELECT approval_status FROM requisition WHERE id=%s", [payload.requisition_id]
+        "SELECT approval_status, tenant_id FROM requisition WHERE id=%s", [payload.requisition_id]
     )
     if _req_approval and (_req_approval.get("approval_status") or "approved") != "approved":
         raise HTTPException(403, "This requisition is not open for applications yet.")
+    _apply_tenant_id = (_req_approval or {}).get("tenant_id")
     try:
         pipeline._check_no_poach_block(payload.current_company, payload.requisition_id)
     except pipeline.NoPoachBlockedError as exc:
@@ -3025,6 +3026,7 @@ def apply(payload: ApplyIn):
                 uploaded_by=None,
                 candidate_id=str(cand_id),
                 req_id=payload.requisition_id,
+                tenant_id=_apply_tenant_id,
             )
             _cv_id = _cv_result.get("cv_id") if _cv_result else None
             if _cv_id:
@@ -3088,10 +3090,11 @@ async def apply_upload(
 ):
     """File-upload path: extract text from PDF/Word, dedup check, then auto-screen."""
     _req_approval_u = query_one(
-        "SELECT approval_status FROM requisition WHERE id=%s", [requisition_id]
+        "SELECT approval_status, tenant_id FROM requisition WHERE id=%s", [requisition_id]
     )
     if _req_approval_u and (_req_approval_u.get("approval_status") or "approved") != "approved":
         raise HTTPException(403, "This requisition is not open for applications yet.")
+    _apply_upload_tenant_id = (_req_approval_u or {}).get("tenant_id")
     try:
         pipeline._check_no_poach_block(current_company or None, requisition_id)
     except pipeline.NoPoachBlockedError as exc:
@@ -3148,6 +3151,7 @@ async def apply_upload(
             uploaded_by=None,
             candidate_id=str(cand_id),
             req_id=requisition_id,
+            tenant_id=_apply_upload_tenant_id,
         )
         _cv_id = _cv_result.get("cv_id") if _cv_result else None
         if _cv_id:
@@ -3258,7 +3262,7 @@ def schedule(payload: ScheduleIn, request: Request):
     if request.state.user.get("role") not in ("recruiter", "ta_manager", "admin"):
         return JSONResponse(status_code=403, content={"detail": "Not authorised to schedule interviews"})
     app_row = query_one(
-        """SELECT a.id, c.email, c.full_name, r.title AS job_title
+        """SELECT a.id, c.email, c.full_name, r.title AS job_title, r.tenant_id
            FROM application a
            JOIN candidate c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
@@ -3288,6 +3292,7 @@ def schedule(payload: ScheduleIn, request: Request):
         meet_link=payload.meet_link,
         candidate_name=app_row.get("full_name") or "Candidate",
         job_title=app_row.get("job_title") or "the role",
+        tenant_id=app_row.get("tenant_id"),
     )
     rc = query_one(
         """SELECT id FROM round_config
@@ -3345,7 +3350,7 @@ def schedule(payload: ScheduleIn, request: Request):
             cta_label="Join Meeting" if meeting.get("meet_link") else None,
             cta_link=meeting.get("meet_link") or None,
         )
-        connectors.send_email(app_row["email"], _et_subj, _et_body, html=_et_html)
+        connectors.send_email(app_row["email"], _et_subj, _et_body, html=_et_html, tenant_id=app_row.get("tenant_id"))
         confirmation_email_sent = True
     except Exception as _sched_email_exc:
         print(f"[schedule] Email send failed: {_sched_email_exc}")

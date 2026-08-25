@@ -57,8 +57,8 @@ def _plain_language(flag_kind, detail):
         return f"{flag_kind}: {detail}"
 
 
-def _resolve_recipients(session_id):
-    """Invite creator's email (if resolvable) + every ta_manager/admin's email."""
+def _resolve_recipients(session_id, tenant_id=None):
+    """Invite creator's email (if resolvable) + every ta_manager/company_admin's email in the same tenant."""
     emails = set()
     creator = query_one(
         """SELECT cu.email AS creator_email
@@ -72,9 +72,17 @@ def _resolve_recipients(session_id):
     if creator and creator.get('creator_email'):
         emails.add(creator['creator_email'])
 
-    ta_admins = query(
-        "SELECT email FROM app_user WHERE role IN ('ta_manager','admin') AND email IS NOT NULL AND email <> ''"
-    ) or []
+    if tenant_id:
+        ta_admins = query(
+            """SELECT email FROM app_user
+               WHERE role IN ('ta_manager','admin','company_admin') AND tenant_id = %s
+                 AND email IS NOT NULL AND email <> ''""",
+            [tenant_id],
+        ) or []
+    else:
+        ta_admins = query(
+            "SELECT email FROM app_user WHERE role IN ('ta_manager','admin','company_admin') AND email IS NOT NULL AND email <> ''"
+        ) or []
     for r in ta_admins:
         emails.add(r['email'])
 
@@ -114,7 +122,7 @@ def send_integrity_digest_for_session(session_id):
         ) or []
 
         ctx = query_one(
-            """SELECT c.full_name AS candidate_name, r.title AS job_title, r.id AS req_id
+            """SELECT c.full_name AS candidate_name, r.title AS job_title, r.id AS req_id, r.tenant_id
                FROM proctoring_session ps
                JOIN application a ON a.id = ps.application_id
                JOIN candidate  c ON c.id = a.candidate_id
@@ -125,7 +133,8 @@ def send_integrity_digest_for_session(session_id):
         if not ctx:
             return {"sent": False, "reason": "session_context_not_found"}
 
-        base_url = (_load_email_cfg().get("base_url") or "http://localhost:8000").strip().rstrip("/")
+        tenant_id = ctx.get("tenant_id")
+        base_url = (_load_email_cfg(tenant_id).get("base_url") or "http://localhost:8000").strip().rstrip("/")
         review_link = f"{base_url}/#proctoring_review"
 
         flag_summary = "\n".join(
@@ -143,7 +152,7 @@ def send_integrity_digest_for_session(session_id):
             print(f"[proctoring_alerts] template error for session {session_id}: {exc}")
             return {"sent": False, "reason": f"template_error: {exc}"}
 
-        recipients = _resolve_recipients(session_id)
+        recipients = _resolve_recipients(session_id, tenant_id)
         if not recipients:
             return {
                 "sent": False, "reason": "no_recipients",
@@ -153,7 +162,7 @@ def send_integrity_digest_for_session(session_id):
         send_results = []
         for email in recipients:
             try:
-                res = send_email(email, subject, plain)
+                res = send_email(email, subject, plain, tenant_id=tenant_id)
             except Exception as exc:
                 res = {"sent": False, "error": str(exc)}
             send_results.append({"to": email, "result": res})
@@ -179,9 +188,18 @@ def send_relink_notification(candidate_name, job_title, actor, termination_reaso
     the relink has already succeeded); never raises.
     """
     try:
-        recipients = query(
-            "SELECT email FROM app_user WHERE role IN ('ta_manager','admin') AND email IS NOT NULL AND email <> ''"
-        ) or []
+        tenant_id = (actor or {}).get("tenant_id")
+        if tenant_id:
+            recipients = query(
+                """SELECT email FROM app_user
+                   WHERE role IN ('ta_manager','admin','company_admin') AND tenant_id = %s
+                     AND email IS NOT NULL AND email <> ''""",
+                [tenant_id],
+            ) or []
+        else:
+            recipients = query(
+                "SELECT email FROM app_user WHERE role IN ('ta_manager','admin','company_admin') AND email IS NOT NULL AND email <> ''"
+            ) or []
         emails = sorted({r['email'] for r in recipients})
         if not emails:
             return {"sent": False, "reason": "no_recipients"}
@@ -199,7 +217,7 @@ def send_relink_notification(candidate_name, job_title, actor, termination_reaso
         send_results = []
         for email in emails:
             try:
-                res = send_email(email, subject, plain)
+                res = send_email(email, subject, plain, tenant_id=tenant_id)
             except Exception as exc:
                 res = {"sent": False, "error": str(exc)}
             send_results.append({"to": email, "result": res})

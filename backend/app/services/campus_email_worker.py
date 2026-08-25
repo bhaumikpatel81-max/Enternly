@@ -28,9 +28,19 @@ _RETRY_BACKOFF_MIN    = [5, 15]  # minutes before retrying attempt 2 and attempt
 
 
 def _smtp_configured() -> bool:
-    from .connectors import _load_email_cfg
-    cfg = _load_email_cfg()
-    return bool(cfg["user"] and cfg["password"])
+    """
+    Cheap idle-vs-active gate for the loop -- true if ANY tenant (or the env
+    var fallback) has SMTP configured. Each row is still sent through its own
+    tenant's config in _send_one(); this only avoids spinning the claim/fetch
+    loop hot when nothing at all is configured anywhere.
+    """
+    import os
+    if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"):
+        return True
+    row = query_one(
+        "SELECT 1 FROM system_settings WHERE key='smtp_user' AND COALESCE(value, '') <> '' LIMIT 1"
+    )
+    return bool(row)
 
 
 def _claim_batch() -> list:
@@ -68,7 +78,7 @@ def _fetch_batch(ids: list) -> list:
         return []
     return query(
         """SELECT cc.id, cc.name, cc.email, cc.application_id, cc.email_attempts,
-                  r.id AS req_id, r.title, gc.name AS company
+                  r.id AS req_id, r.title, r.tenant_id, gc.name AS company
            FROM campus_candidate cc
            JOIN requisition r ON r.id = cc.requisition_id
            JOIN business_unit bu ON bu.id = r.bu_id
@@ -97,7 +107,8 @@ def _send_one(row: dict) -> None:
     if not invite_row:
         raise RuntimeError("no_valid_token")
 
-    base_url = (_load_email_cfg().get("base_url") or "http://localhost:8000").strip().rstrip("/")
+    tenant_id = row.get("tenant_id")
+    base_url = (_load_email_cfg(tenant_id).get("base_url") or "http://localhost:8000").strip().rstrip("/")
     invite_url = f"{base_url}/nexai-interview?token={invite_row['token']}"
 
     globals_ = _rgp(req_id=str(row["req_id"]))
@@ -116,7 +127,7 @@ def _send_one(row: dict) -> None:
         company=row["company"],
         invite_url=invite_url,
     )
-    send_email(row["email"], subject, plain, html=html_body, reply_to=reply_to)
+    send_email(row["email"], subject, plain, html=html_body, reply_to=reply_to, tenant_id=tenant_id)
 
     query(
         """UPDATE campus_candidate

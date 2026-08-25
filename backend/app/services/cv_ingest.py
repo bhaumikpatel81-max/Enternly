@@ -49,6 +49,7 @@ def ingest_one(
     source: str,
     uploaded_by: Optional[str],
     raw_text: Optional[str] = None,
+    tenant_id: Optional[str] = None,
 ) -> dict:
     """
     Process one file: hash-check, extract, map, store.
@@ -57,15 +58,27 @@ def ingest_one(
     raw_text: pass the already-extracted text (e.g. the caller already ran
     extract_text() to classify the attachment) to avoid re-parsing the same
     PDF/DOCX a second time. None means "extract it here" (existing callers).
+
+    tenant_id: whose CV repository this belongs to. Every interactive caller
+    (upload, folder scan, recruiter mailbox poll) has an authenticated actor
+    and should pass theirs; None falls back to the seed tenant via the
+    column's own DB default (Migration 96), for the one caller — the plain
+    Gmail CV-ingest poller in email_ingest.py — that resolves its own
+    per-account tenant separately rather than through this parameter.
     """
     os.makedirs(_CV_STORE, exist_ok=True)
 
     ext = Path(filename).suffix.lower().lstrip(".")
     file_hash = _parser.sha256_hash(data)
 
-    existing = query_one(
-        "SELECT id FROM cv_repository WHERE file_hash=%s", [file_hash]
-    )
+    if tenant_id:
+        existing = query_one(
+            "SELECT id FROM cv_repository WHERE file_hash=%s AND tenant_id=%s", [file_hash, tenant_id]
+        )
+    else:
+        existing = query_one(
+            "SELECT id FROM cv_repository WHERE file_hash=%s", [file_hash]
+        )
     if existing:
         return {"status": "duplicate", "filename": filename}
 
@@ -83,10 +96,16 @@ def ingest_one(
     candidate_id = req_id = None
     map_status = "pool"
     if name:
-        cand = query_one(
-            "SELECT id FROM candidate WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(%s)) LIMIT 1",
-            [name],
-        )
+        if tenant_id:
+            cand = query_one(
+                "SELECT id FROM candidate WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(%s)) AND tenant_id=%s LIMIT 1",
+                [name, tenant_id],
+            )
+        else:
+            cand = query_one(
+                "SELECT id FROM candidate WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(%s)) LIMIT 1",
+                [name],
+            )
         if cand:
             candidate_id = str(cand["id"])
             app_row = query_one(
@@ -109,14 +128,15 @@ def ingest_one(
     enrich_status = "done" if not has_text else "pending"
     enriched_at_sql = "now()" if not has_text else "NULL"
 
+    tenant_col, tenant_ph, tenant_val = ("tenant_id, ", "%s, ", [tenant_id]) if tenant_id else ("", "", [])
     query(
         f"""INSERT INTO cv_repository
-           (id, file_name, file_path, file_hash, file_ext, candidate_name,
+           ({tenant_col}id, file_name, file_path, file_hash, file_ext, candidate_name,
             candidate_id, requisition_id, map_status, raw_text,
             text_vector, skills, source, uploaded_by, enrich_status, enriched_at)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+           VALUES ({tenant_ph}%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                    to_tsvector('english', %s), %s, %s, %s, %s, {enriched_at_sql})""",
-        [cv_id, filename, dest, file_hash, ext, name,
+        [*tenant_val, cv_id, filename, dest, file_hash, ext, name,
          candidate_id, req_id, map_status, raw_text,
          raw_text or "", skills, source, uploaded_by, enrich_status],
         fetch=False,

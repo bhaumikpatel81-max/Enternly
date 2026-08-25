@@ -31,9 +31,15 @@ _RETRY_BACKOFF_MIN = [30, 180]  # minutes before retrying attempt 2 and attempt 
 
 
 def _smtp_configured() -> bool:
-    from .connectors import _load_email_cfg
-    cfg = _load_email_cfg()
-    return bool(cfg["user"] and cfg["password"])
+    """Cheap idle-gate: true if ANY tenant (or the env fallback) has SMTP
+    configured. Each row still sends through its own tenant's config."""
+    import os
+    if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"):
+        return True
+    row = query_one(
+        "SELECT 1 FROM system_settings WHERE key='smtp_user' AND COALESCE(value, '') <> '' LIMIT 1"
+    )
+    return bool(row)
 
 
 def _claim_batch() -> list:
@@ -64,7 +70,7 @@ def _fetch_batch(ids: list) -> list:
     if not ids:
         return []
     return query(
-        """SELECT id, full_name, given_name, email, linkedin_url,
+        """SELECT id, full_name, given_name, email, linkedin_url, tenant_id,
                   linkedin_connected_at, linkedin_last_synced_at,
                   linkedin_reminder_attempts, linkedin_unsub_token
            FROM candidate
@@ -166,10 +172,11 @@ def _send_one(row: dict) -> None:
     if not row.get("email"):
         raise RuntimeError("no_email_on_file")
 
-    base_url = (_load_email_cfg().get("base_url") or "http://localhost:8000").strip().rstrip("/")
+    tenant_id = row.get("tenant_id")
+    base_url = (_load_email_cfg(tenant_id).get("base_url") or "http://localhost:8000").strip().rstrip("/")
     unsub_token = _ensure_unsub_token(row)
     subject, plain, html_body = _build_email(row, base_url, unsub_token)
-    send_email(row["email"], subject, plain, html=html_body)
+    send_email(row["email"], subject, plain, html=html_body, tenant_id=tenant_id)
 
     query(
         """UPDATE candidate

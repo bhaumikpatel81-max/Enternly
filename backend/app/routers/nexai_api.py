@@ -1012,7 +1012,7 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
     html = _build_invite_html(name=name, job=job, company=company, invite_url=invite_url)
 
     try:
-        send_email(app_row["email"], email_subject, plain, html=html, reply_to=_reply_to)
+        send_email(app_row["email"], email_subject, plain, html=html, reply_to=_reply_to, tenant_id=user.get("tenant_id"))
         email_sent  = True
         email_error = None
     except Exception as exc:
@@ -1499,6 +1499,7 @@ def _fire_completion_email(session_id: str) -> None:
                       c.full_name    AS candidate_name,
                       r.title        AS requisition_title,
                       r.id           AS requisition_id,
+                      r.tenant_id    AS tenant_id,
                       ns.raw_score, ns.score_detail,
                       ns.transcript, ns.conversation,
                       ns.email_sent
@@ -1552,6 +1553,7 @@ def _fire_completion_email(session_id: str) -> None:
             body=plain,
             html=html_body,
             reply_to=row["recruiter_email"],
+            tenant_id=row.get("tenant_id"),
         )
         query(
             "UPDATE nexai_session SET email_sent = TRUE WHERE id = %s",

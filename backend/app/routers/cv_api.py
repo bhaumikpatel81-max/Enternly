@@ -159,6 +159,7 @@ def ingest_and_link(
     uploaded_by: Optional[str],
     candidate_id: str,
     req_id: Optional[str],
+    tenant_id: Optional[str] = None,
 ) -> dict:
     """
     Ingest a resume file and hard-link it to a known candidate + requisition.
@@ -173,9 +174,14 @@ def ingest_and_link(
         ext = "bin"
     file_hash = _parser.sha256_hash(data)
 
-    existing = query_one(
-        "SELECT id, candidate_id FROM cv_repository WHERE file_hash=%s", [file_hash]
-    )
+    if tenant_id:
+        existing = query_one(
+            "SELECT id, candidate_id FROM cv_repository WHERE file_hash=%s AND tenant_id=%s", [file_hash, tenant_id]
+        )
+    else:
+        existing = query_one(
+            "SELECT id, candidate_id FROM cv_repository WHERE file_hash=%s", [file_hash]
+        )
     if existing:
         # Existing row — update link if it's currently unmapped
         if not existing["candidate_id"] and candidate_id:
@@ -202,14 +208,15 @@ def ingest_and_link(
     with open(dest, "wb") as f:
         f.write(data)
 
+    tenant_col, tenant_ph, tenant_val = ("tenant_id, ", "%s, ", [tenant_id]) if tenant_id else ("", "", [])
     query(
-        """INSERT INTO cv_repository
-           (id, file_name, file_path, file_hash, file_ext, candidate_name,
+        f"""INSERT INTO cv_repository
+           ({tenant_col}id, file_name, file_path, file_hash, file_ext, candidate_name,
             candidate_id, requisition_id, map_status, raw_text,
             text_vector, skills, source, uploaded_by)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'mapped',%s,
+           VALUES ({tenant_ph}%s,%s,%s,%s,%s,%s,%s,%s,'mapped',%s,
                    to_tsvector('english', %s), %s, %s, %s)""",
-        [cv_id, filename, dest, file_hash, ext, name,
+        [*tenant_val, cv_id, filename, dest, file_hash, ext, name,
          candidate_id, req_id, raw_text,
          raw_text or "", skills, source, uploaded_by],
         fetch=False,
@@ -234,7 +241,7 @@ def _job_cancel_requested(job_id: str) -> bool:
     return bool(row and row.get("cancel_requested"))
 
 
-def _run_ingest_job(job_id: str, folder: str, uploaded_by: Optional[str]):
+def _run_ingest_job(job_id: str, folder: str, uploaded_by: Optional[str], tenant_id: Optional[str] = None):
     """Background worker for scan-folder ingestion."""
     paths: list[Path] = []
     for root, _, files in os.walk(folder):
@@ -274,7 +281,7 @@ def _run_ingest_job(job_id: str, folder: str, uploaded_by: Optional[str]):
                 errors.append({"file": p.name, "error": f"skipped (not a CV — {reason})"})
                 continue
 
-            r = _ingest_one(data, p.name, "bulk_folder", uploaded_by, raw_text=raw_text)
+            r = _ingest_one(data, p.name, "bulk_folder", uploaded_by, raw_text=raw_text, tenant_id=tenant_id)
             if r["status"] == "duplicate":
                 duplicates += 1
             elif r["status"] == "ok":
@@ -842,12 +849,12 @@ def scan_email(background_tasks: BackgroundTasks, user: dict = Depends(_cv_auth)
     background_tasks.add_task(
         _run_imap_ingest, job_id,
         row["gmail_address"], row["gmail_app_password"], row.get("gmail_last_scan_at"),
-        user["sub"],
+        user["sub"], user.get("tenant_id"),
     )
     return {"job_id": job_id}
 
 
-def _run_imap_ingest(job_id: str, gmail: str, app_password: str, last_scan_at, uploaded_by: str):
+def _run_imap_ingest(job_id: str, gmail: str, app_password: str, last_scan_at, uploaded_by: str, tenant_id: Optional[str] = None):
     """
     Background task: IMAP scan + ingest CV attachments from one Gmail inbox.
     Delegates the actual scan/classify/ingest to services/cv_email_scan.py,
@@ -868,6 +875,7 @@ def _run_imap_ingest(job_id: str, gmail: str, app_password: str, last_scan_at, u
         totals = scan_gmail_inbox(
             gmail, app_password, uploaded_by, since=last_scan_at,
             should_stop=lambda: _job_cancel_requested(job_id),
+            tenant_id=tenant_id,
         )
     except Exception as exc:
         _set_job(status="done", errors=json.dumps([{"file": "IMAP login", "error": str(exc)}]))
@@ -900,8 +908,8 @@ def _run_imap_ingest(job_id: str, gmail: str, app_password: str, last_scan_at, u
 @router.get("/{cv_id}/file")
 def serve_cv_file(cv_id: str, user: dict = Depends(_cv_auth)):
     row = query_one(
-        "SELECT file_path, file_name, file_ext FROM cv_repository WHERE id=%s",
-        [cv_id],
+        "SELECT file_path, file_name, file_ext FROM cv_repository WHERE id=%s AND tenant_id=%s",
+        [cv_id, user.get("tenant_id")],
     )
     if not row:
         raise HTTPException(404, "CV not found")
@@ -936,7 +944,7 @@ def delete_cv(cv_id: str, user: dict = Depends(_cv_auth)):
     only reverse link (candidate.cv_repository_id) is ON DELETE SET NULL —
     so this is a plain hard delete plus removing the file on disk.
     """
-    row = query_one("SELECT file_path FROM cv_repository WHERE id=%s", [cv_id])
+    row = query_one("SELECT file_path FROM cv_repository WHERE id=%s AND tenant_id=%s", [cv_id, user.get("tenant_id")])
     if not row:
         raise HTTPException(404, "CV not found")
 
@@ -970,8 +978,8 @@ async def get_cv_profile(cv_id: str, user: dict = Depends(_cv_auth)):
                   experience_years, current_position, location, ai_summary,
                   map_status, enrich_status, source, created_at,
                   candidate_id, requisition_id
-           FROM cv_repository WHERE id=%s""",
-        [cv_id],
+           FROM cv_repository WHERE id=%s AND tenant_id=%s""",
+        [cv_id, user.get("tenant_id")],
     )
     if not row:
         raise HTTPException(404, "CV not found")
@@ -985,8 +993,8 @@ async def get_cv_profile(cv_id: str, user: dict = Depends(_cv_auth)):
                           experience_years, current_position, location, ai_summary,
                           map_status, enrich_status, source, created_at,
                           candidate_id, requisition_id
-                   FROM cv_repository WHERE id=%s""",
-                [cv_id],
+                   FROM cv_repository WHERE id=%s AND tenant_id=%s""",
+                [cv_id, user.get("tenant_id")],
             )
         except Exception as exc:
             print(f"[cv-profile] on-demand enrichment failed for {cv_id}: {exc}")
@@ -1023,7 +1031,7 @@ class MapToRequisitionIn(BaseModel):
     requisition_id: str
 
 
-def _map_one_cv_to_requisition(cv_id: str, requisition_id: str) -> dict:
+def _map_one_cv_to_requisition(cv_id: str, requisition_id: str, tenant_id: str = None) -> dict:
     """
     Take a CV Repository entry (mapped or still in the pool) and enter it
     into a chosen requisition's real pipeline — same intake_and_screen()
@@ -1042,16 +1050,27 @@ def _map_one_cv_to_requisition(cv_id: str, requisition_id: str) -> dict:
     Shared by the single-CV map endpoint and the bulk-map endpoint so both
     stay in lockstep with the one real intake path.
     """
-    row = query_one(
-        """SELECT candidate_name, email, phone, raw_text, experience_years,
-                  candidate_id, file_path
-           FROM cv_repository WHERE id=%s""",
-        [cv_id],
-    )
+    if tenant_id:
+        row = query_one(
+            """SELECT candidate_name, email, phone, raw_text, experience_years,
+                      candidate_id, file_path
+               FROM cv_repository WHERE id=%s AND tenant_id=%s""",
+            [cv_id, tenant_id],
+        )
+    else:
+        row = query_one(
+            """SELECT candidate_name, email, phone, raw_text, experience_years,
+                      candidate_id, file_path
+               FROM cv_repository WHERE id=%s""",
+            [cv_id],
+        )
     if not row:
         raise HTTPException(404, "CV not found")
 
-    req = query_one("SELECT id FROM requisition WHERE id=%s", [requisition_id])
+    if tenant_id:
+        req = query_one("SELECT id FROM requisition WHERE id=%s AND tenant_id=%s", [requisition_id, tenant_id])
+    else:
+        req = query_one("SELECT id FROM requisition WHERE id=%s", [requisition_id])
     if not req:
         raise HTTPException(404, "Requisition not found")
 
@@ -1115,7 +1134,7 @@ def _map_one_cv_to_requisition(cv_id: str, requisition_id: str) -> dict:
 
 @router.post("/{cv_id}/map")
 def map_cv_to_requisition(cv_id: str, body: MapToRequisitionIn, user: dict = Depends(_cv_auth)):
-    return _map_one_cv_to_requisition(cv_id, body.requisition_id)
+    return _map_one_cv_to_requisition(cv_id, body.requisition_id, user.get("tenant_id"))
 
 
 class BulkDeleteIn(BaseModel):
@@ -1141,8 +1160,8 @@ def bulk_delete_cv(body: BulkDeleteIn, user: dict = Depends(_cv_auth)):
         raise HTTPException(400, "Too many ids in one request (max 2000)")
 
     rows = query(
-        "SELECT id, file_path FROM cv_repository WHERE id = ANY(%s::uuid[])",
-        [body.cv_ids],
+        "SELECT id, file_path FROM cv_repository WHERE id = ANY(%s::uuid[]) AND tenant_id=%s",
+        [body.cv_ids, user.get("tenant_id")],
     ) or []
     found_ids = [str(r["id"]) for r in rows]
     not_found = [cid for cid in body.cv_ids if cid not in found_ids]
@@ -1184,14 +1203,14 @@ def bulk_map_cv(body: BulkMapIn, user: dict = Depends(_cv_auth)):
     if len(body.cv_ids) > 2000:
         raise HTTPException(400, "Too many ids in one request (max 2000)")
 
-    req = query_one("SELECT id FROM requisition WHERE id=%s", [body.requisition_id])
+    req = query_one("SELECT id FROM requisition WHERE id=%s AND tenant_id=%s", [body.requisition_id, user.get("tenant_id")])
     if not req:
         raise HTTPException(404, "Requisition not found")
 
     mapped, failed = [], []
     for cv_id in body.cv_ids:
         try:
-            result = _map_one_cv_to_requisition(cv_id, body.requisition_id)
+            result = _map_one_cv_to_requisition(cv_id, body.requisition_id, user.get("tenant_id"))
             mapped.append({"cv_id": cv_id, **result})
         except HTTPException as exc:
             failed.append({"cv_id": cv_id, "error": exc.detail})
@@ -1234,7 +1253,7 @@ async def upload_cvs(
             continue
 
         r = await asyncio.to_thread(
-            _ingest_one, data, f.filename, "upload", user["sub"], raw_text
+            _ingest_one, data, f.filename, "upload", user["sub"], raw_text, user.get("tenant_id")
         )
         if llm_result and llm_result.get("is_resume"):
             await asyncio.to_thread(_persist_enrichment_result, r["cv_id"], llm_result)
@@ -1270,7 +1289,7 @@ def scan_folder(
            pooled, duplicates, errors) VALUES (%s,'running',0,0,0,0,0,'[]'::jsonb)""",
         [job_id], fetch=False,
     )
-    background_tasks.add_task(_run_ingest_job, job_id, inbox, user["sub"])
+    background_tasks.add_task(_run_ingest_job, job_id, inbox, user["sub"], user.get("tenant_id"))
     return {"job_id": job_id, "message": "Ingest job started"}
 
 
@@ -1299,8 +1318,9 @@ def backfill_candidates(user: dict = Depends(_cv_auth)):
            ) a ON true
            WHERE c.resume_url IS NOT NULL
              AND c.resume_url != ''
+             AND c.tenant_id = %s
            ORDER BY c.id""",
-        [],
+        [user.get("tenant_id")],
     ) or []
 
     processed = duplicates = skipped = 0
@@ -1321,6 +1341,7 @@ def backfill_candidates(user: dict = Depends(_cv_auth)):
                 uploaded_by=user["sub"],
                 candidate_id=str(row["candidate_id"]),
                 req_id=str(row["requisition_id"]) if row["requisition_id"] else None,
+                tenant_id=user.get("tenant_id"),
             )
             if r["status"] == "duplicate":
                 duplicates += 1

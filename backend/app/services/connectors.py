@@ -133,6 +133,7 @@ def send_calendar_invite(
     uid: Optional[str] = None,
     sequence: int = 0,
     cancelled: bool = False,
+    tenant_id: str = None,
 ) -> dict:
     """
     Send a calendar invite (.ics attached) from hr@amnex.com to each recipient.
@@ -161,7 +162,7 @@ def send_calendar_invite(
     from email.mime.base import MIMEBase
     from email import encoders as _enc
 
-    cfg = _load_email_cfg()
+    cfg = _load_email_cfg(tenant_id)
     if not (cfg["user"] and cfg["password"]):
         print(f"[calendar] SMTP not configured — invite NOT sent to {to_emails}")
         return {"sent": False, "stub": True, "to": to_emails}
@@ -276,7 +277,8 @@ def schedule_meeting(organizer_email: str, candidate_email: str,
                      candidate_attachments: Optional[list] = None,
                      panel_attachments: Optional[list] = None,
                      uid: Optional[str] = None,
-                     sequence: int = 0) -> dict:
+                     sequence: int = 0,
+                     tenant_id: str = None) -> dict:
     """
     Create a calendar invite (.ics over SMTP) from hr@amnex.com and email it
     to the candidate + each panel member. No Google API — meet_link is
@@ -317,14 +319,14 @@ def schedule_meeting(organizer_email: str, candidate_email: str,
         subject=subject, body_text=body, html_body=candidate_html,
         start_dt_utc=start_time, duration_min=duration_min, location=location,
         reply_to=organizer_email, attachments=candidate_attachments, uid=shared_uid,
-        sequence=sequence,
+        sequence=sequence, tenant_id=tenant_id,
     )
     panel_result = send_calendar_invite(
         to_emails=panel_only,
         subject=subject, body_text=body, html_body=panel_html,
         start_dt_utc=start_time, duration_min=duration_min, location=location,
         reply_to=organizer_email, attachments=panel_attachments, uid=shared_uid,
-        sequence=sequence,
+        sequence=sequence, tenant_id=tenant_id,
     )
 
     all_emails = ([candidate_email] if candidate_email else []) + panel_only
@@ -351,6 +353,7 @@ def send_calendar_cancellation(
     duration_min: int, candidate_name: str, job_title: str,
     uid: Optional[str], sequence: int,
     reply_to: Optional[str] = None,
+    tenant_id: str = None,
 ) -> dict:
     """
     Cancel a previously-sent calendar invite: emails every recipient a
@@ -374,12 +377,14 @@ def send_calendar_cancellation(
         subject=subject, body_text=body,
         start_dt_utc=start_time, duration_min=duration_min,
         reply_to=reply_to, uid=shared_uid, sequence=sequence, cancelled=True,
+        tenant_id=tenant_id,
     )
     panel_result = send_calendar_invite(
         to_emails=panel_only,
         subject=subject, body_text=body,
         start_dt_utc=start_time, duration_min=duration_min,
         reply_to=reply_to, uid=shared_uid, sequence=sequence, cancelled=True,
+        tenant_id=tenant_id,
     )
     sent_to = (cand_result.get("to") or []) + (panel_result.get("to") or [])
     return {"sent_to": sent_to}
@@ -472,15 +477,23 @@ def resolve_global_placeholders(
     }
 
 
-def _load_email_cfg() -> dict:
+def _load_email_cfg(tenant_id: str = None) -> dict:
     """
     Load all email config from system_settings (DB first, env vars as fallback).
     Returns a dict with keys: user, password, host, port, from_name, base_url.
+
+    system_settings is tenant-scoped (Migration 96) -- tenant_id is optional
+    only for the callers that genuinely have no per-item tenant context yet
+    (a handful of background loops, tracked as follow-up work); every other
+    caller should pass the tenant whose mailbox this send belongs to.
     """
     db: dict = {}
     try:
         from ..db import query as _q
-        rows = _q("SELECT key, value FROM system_settings")
+        if tenant_id:
+            rows = _q("SELECT key, value FROM system_settings WHERE tenant_id = %s", [tenant_id])
+        else:
+            rows = _q("SELECT key, value FROM system_settings")
         db = {r["key"]: (r["value"] or "").strip() for r in (rows or [])}
     except Exception as exc:
         print(f"[email] WARNING: could not read system_settings: {exc}")
@@ -550,6 +563,7 @@ def send_email(
     html: str = None,
     reply_to: str = None,
     attachments: Optional[list] = None,
+    tenant_id: str = None,
 ) -> dict:
     """
     Send email.  Priority:
@@ -581,7 +595,7 @@ def send_email(
     if html:
         html = _re.sub(r'\{\{[^}]+\}\}', '', html)
 
-    cfg = _load_email_cfg()
+    cfg = _load_email_cfg(tenant_id)
 
     if not _real_send_enabled():
         redirect = os.environ.get("EMAIL_TEST_REDIRECT", "").strip()

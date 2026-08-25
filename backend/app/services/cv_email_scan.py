@@ -33,7 +33,7 @@ _DEFAULT_LOOKBACK_DAYS = 30
 _CHECKPOINT_BUFFER_DAYS = 2
 
 
-def scan_message_for_cvs(msg, uploaded_by) -> dict:
+def scan_message_for_cvs(msg, uploaded_by, tenant_id=None) -> dict:
     """
     Walk one already-parsed email.message.Message for CV-like attachments.
     Returns {"processed", "mapped", "pooled", "duplicates", "skipped", "errors"}.
@@ -60,7 +60,11 @@ def scan_message_for_cvs(msg, uploaded_by) -> dict:
             # attachment gets walked again on every cycle; skip the
             # expensive PDF/DOCX parse for anything we already have.
             file_hash = _parser.sha256_hash(file_data)
-            if query_one("SELECT id FROM cv_repository WHERE file_hash=%s", [file_hash]):
+            if tenant_id:
+                dup = query_one("SELECT id FROM cv_repository WHERE file_hash=%s AND tenant_id=%s", [file_hash, tenant_id])
+            else:
+                dup = query_one("SELECT id FROM cv_repository WHERE file_hash=%s", [file_hash])
+            if dup:
                 result["duplicates"] += 1
                 continue
 
@@ -73,7 +77,7 @@ def scan_message_for_cvs(msg, uploaded_by) -> dict:
                 result["errors"].append({"file": filename, "error": f"skipped (not a CV — {reason})"})
                 continue
 
-            r = ingest_one(file_data, filename, "email_ingest", uploaded_by, raw_text=raw_text)
+            r = ingest_one(file_data, filename, "email_ingest", uploaded_by, raw_text=raw_text, tenant_id=tenant_id)
             if r["status"] == "ok":
                 result["processed"] += 1
                 if r.get("mapped"):
@@ -93,7 +97,7 @@ def scan_message_for_cvs(msg, uploaded_by) -> dict:
     return result
 
 
-def scan_gmail_inbox(gmail_address: str, app_password: str, uploaded_by, since: datetime = None, should_stop=None) -> dict:
+def scan_gmail_inbox(gmail_address: str, app_password: str, uploaded_by, since: datetime = None, should_stop=None, tenant_id=None) -> dict:
     """
     Log into one Gmail inbox via IMAP and scan for CV attachments.
 
@@ -155,7 +159,7 @@ def scan_gmail_inbox(gmail_address: str, app_password: str, uploaded_by, since: 
             raw = data[0][1]
             msg = _email_lib.message_from_bytes(raw, policy=_ep.default)
 
-            per_msg = scan_message_for_cvs(msg, uploaded_by)
+            per_msg = scan_message_for_cvs(msg, uploaded_by, tenant_id)
             for k in ("processed", "mapped", "pooled", "duplicates", "skipped"):
                 totals[k] += per_msg[k]
             totals["errors"].extend(per_msg["errors"])

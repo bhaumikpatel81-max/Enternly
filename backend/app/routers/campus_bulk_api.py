@@ -712,7 +712,7 @@ class BulkCampusInviteIn(BaseModel):
     requisition_id: str
 
 
-def _campus_base_url() -> tuple[str, bool]:
+def _campus_base_url(tenant_id: str = None) -> tuple[str, bool]:
     """
     Return (base_url, is_localhost).
     Uses connectors._load_email_cfg() which already applies the correct
@@ -720,7 +720,7 @@ def _campus_base_url() -> tuple[str, bool]:
     DB always wins, so the Settings UI value is never shadowed by .env.prod.
     """
     from ..services.connectors import _load_email_cfg
-    url = (_load_email_cfg().get("base_url") or "http://localhost:8000").strip().rstrip("/")
+    url = (_load_email_cfg(tenant_id).get("base_url") or "http://localhost:8000").strip().rstrip("/")
     is_local = any(x in url for x in ("localhost", "127.0.0.1", "0.0.0.0"))
     return url, is_local
 
@@ -760,7 +760,7 @@ def bulk_invite(
     if not req:
         raise HTTPException(404, "Requisition not found")
 
-    base_url, is_local = _campus_base_url()
+    base_url, is_local = _campus_base_url(user.get("tenant_id"))
 
     queued_for_email = 0
     queued_local = 0
@@ -988,7 +988,7 @@ def resend_queued_invites(
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
 
-    base_url, is_local = _campus_base_url()
+    base_url, is_local = _campus_base_url(user.get("tenant_id"))
     if is_local:
         raise HTTPException(400, "Production URL is still localhost. Set the base URL in Settings first.")
 
@@ -1124,9 +1124,10 @@ async def upload_campus_resume(
     Runs intake_and_screen with is_fresher_role forced True, updates campus_candidate.
     """
     invite = query_one(
-        """SELECT ni.application_id, a.requisition_id
+        """SELECT ni.application_id, a.requisition_id, r.tenant_id
            FROM nexai_invite ni
            JOIN application a ON a.id = ni.application_id
+           JOIN requisition r ON r.id = a.requisition_id
            WHERE ni.token=%s AND ni.expires_at > now()""",
         [session_token],
     )
@@ -1135,6 +1136,7 @@ async def upload_campus_resume(
 
     app_id = str(invite["application_id"])
     req_id = str(invite["requisition_id"])
+    tenant_id = invite.get("tenant_id")
 
     if not file.filename or not file.filename.lower().endswith((".pdf", ".docx", ".doc")):
         raise HTTPException(400, "Only PDF or Word documents are accepted (PDF/DOCX/DOC)")
@@ -1219,6 +1221,7 @@ async def upload_campus_resume(
                 uploaded_by=None,
                 candidate_id=str(cand_row["candidate_id"]),
                 req_id=req_id,
+                tenant_id=tenant_id,
             )
         except Exception as exc:
             print(f"[campus-resume] CV repository ingest failed for candidate "
