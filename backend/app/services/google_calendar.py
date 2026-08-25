@@ -1,14 +1,16 @@
 """
-Google Calendar OAuth + event creation -- one shared connection (hr@amnex.com,
-or whichever mailbox a TA admin connects) used to auto-generate a real Google
-Meet link for every panel round's confirmed interview.
+Google Calendar OAuth + event creation -- one connection PER TENANT (Migration
+96 added tenant_id + a UNIQUE index on google_calendar_connection), used to
+auto-generate a real Google Meet link for every panel round's confirmed
+interview.
 
-Deliberately a SINGLE system-wide connection, not per-recruiter: a TA admin
-connects once (GET /api/google/connect -> Google consent screen -> GET
-/api/google/callback), and every panel round's interview event is created
-under that one account from then on. See routers/google_calendar_api.py for
-the connect/disconnect/status endpoints and scheduling_api.confirm_pick()
-for where the generated link actually gets used.
+Each customer's own Company Admin connects once (GET /api/google/connect ->
+Google consent screen -> GET /api/google/callback), and every panel round's
+interview event for THEIR company is created under that one account from
+then on -- a different tenant's admin connecting their own mailbox never
+touches this one. See routers/google_calendar_api.py for the
+connect/disconnect/status endpoints and scheduling_api.confirm_pick() for
+where the generated link actually gets used.
 
 Never raises out of the "am I connected / can I create an event" surface --
 every public function here returns None/False on any failure so callers can
@@ -63,15 +65,16 @@ def is_configured() -> bool:
     return _client_config() is not None
 
 
-def get_connection() -> Optional[dict]:
-    """The single active connection row, if one exists."""
+def get_connection(tenant_id: str) -> Optional[dict]:
+    """This tenant's active connection row, if one exists."""
     return query_one(
-        "SELECT * FROM google_calendar_connection ORDER BY created_at DESC LIMIT 1"
+        "SELECT * FROM google_calendar_connection WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
+        [tenant_id],
     )
 
 
-def is_connected() -> bool:
-    return get_connection() is not None
+def is_connected(tenant_id: str) -> bool:
+    return get_connection(tenant_id) is not None
 
 
 def build_auth_url(state: str) -> Optional[str]:
@@ -128,10 +131,16 @@ def _raise_with_google_detail(resp: "requests.Response", context: str) -> None:
 
 def exchange_code_and_store(code: str, connected_by: Optional[str]) -> dict:
     """Exchange an OAuth `code` for tokens, fetch which Google account it is,
-    and store it as THE connection (replacing any previous one). Raises on
-    failure -- this only ever runs inside the interactive callback endpoint,
-    which is expected to surface a real error to the connecting admin rather
-    than fail silently."""
+    and store it as the connecting admin's OWN tenant's connection (replacing
+    any previous one for that same tenant only). Raises on failure -- this
+    only ever runs inside the interactive callback endpoint, which is
+    expected to surface a real error to the connecting admin rather than
+    fail silently."""
+    tenant_row = query_one("SELECT tenant_id FROM app_user WHERE id = %s", [connected_by]) if connected_by else None
+    tenant_id = (tenant_row or {}).get("tenant_id")
+    if not tenant_id:
+        raise RuntimeError("Could not resolve which company this Google account should be connected to")
+
     cfg = _client_config()
     if not cfg:
         raise RuntimeError("Google OAuth is not configured (GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI)")
@@ -177,20 +186,21 @@ def exchange_code_and_store(code: str, connected_by: Optional[str]) -> dict:
     google_email = google_email or "unknown"
 
     expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-    # Single-row semantics: replace whatever was connected before.
-    query("DELETE FROM google_calendar_connection", fetch=False)
+    # One-row-per-tenant semantics: replace whatever this tenant had
+    # connected before, without touching any other tenant's row.
+    query("DELETE FROM google_calendar_connection WHERE tenant_id = %s", [tenant_id], fetch=False)
     query(
         """INSERT INTO google_calendar_connection
-             (google_email, access_token, refresh_token, token_expiry, scope, connected_by)
-           VALUES (%s,%s,%s,%s,%s,%s)""",
-        [google_email, access_token, refresh_token, expiry, scope, connected_by],
+             (google_email, access_token, refresh_token, token_expiry, scope, connected_by, tenant_id)
+           VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+        [google_email, access_token, refresh_token, expiry, scope, connected_by, tenant_id],
         fetch=False,
     )
     return {"google_email": google_email}
 
 
-def disconnect() -> None:
-    query("DELETE FROM google_calendar_connection", fetch=False)
+def disconnect(tenant_id: str) -> None:
+    query("DELETE FROM google_calendar_connection WHERE tenant_id = %s", [tenant_id], fetch=False)
 
 
 def _refresh_access_token(conn: dict) -> Optional[str]:
@@ -221,8 +231,8 @@ def _refresh_access_token(conn: dict) -> Optional[str]:
     return access_token
 
 
-def _get_valid_access_token() -> Optional[str]:
-    conn = get_connection()
+def _get_valid_access_token(tenant_id: str) -> Optional[str]:
+    conn = get_connection(tenant_id)
     if not conn:
         return None
     expiry = conn.get("token_expiry")
@@ -238,6 +248,7 @@ def create_event_with_meet(
     start_dt_utc: datetime,
     duration_min: int,
     attendee_emails: list,
+    tenant_id: str,
 ) -> Optional[dict]:
     """Create a real Calendar event (on the connected account's primary
     calendar) with an auto-generated Google Meet link. Returns
@@ -250,7 +261,7 @@ def create_event_with_meet(
     ALSO email every attendee its own bare calendar-invite notification,
     landing as a confusing duplicate alongside the branded one.
     """
-    access_token = _get_valid_access_token()
+    access_token = _get_valid_access_token(tenant_id)
     if not access_token:
         return None
 
@@ -298,12 +309,12 @@ def create_event_with_meet(
     return {"event_id": event.get("id"), "meet_link": meet_link, "html_link": event.get("htmlLink")}
 
 
-def delete_event(event_id: str) -> bool:
+def delete_event(event_id: str, tenant_id: str) -> bool:
     """Best-effort delete of a Google Calendar event this app created via
     create_event_with_meet -- e.g. when an interview is cancelled. Same
     "never raises, returns falsy if not connected/fails" contract as
     create_event_with_meet."""
-    access_token = _get_valid_access_token()
+    access_token = _get_valid_access_token(tenant_id)
     if not access_token or not event_id:
         return False
     try:

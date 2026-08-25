@@ -36,7 +36,7 @@ def _require_admin(user: dict):
 @router.get("/status")
 def status(user: dict = Depends(get_current_user)):
     _require_admin(user)
-    conn = gcal.get_connection()
+    conn = gcal.get_connection(user.get("tenant_id"))
     return {
         "configured": gcal.is_configured(),
         "connected": conn is not None,
@@ -107,5 +107,5 @@ def callback(code: str = None, state: str = None, error: str = None):
 @router.post("/disconnect")
 def disconnect(user: dict = Depends(get_current_user)):
     _require_admin(user)
-    gcal.disconnect()
+    gcal.disconnect(user.get("tenant_id"))
     return {"ok": True}

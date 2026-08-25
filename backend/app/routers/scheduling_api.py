@@ -41,7 +41,7 @@ def _app_context(application_id: str) -> Optional[dict]:
     return query_one(
         """SELECT a.id AS application_id, a.requisition_id, a.current_round,
                   c.id AS candidate_id, c.full_name AS candidate_name, c.email AS candidate_email,
-                  r.title AS job_title, r.hiring_manager_id,
+                  r.title AS job_title, r.hiring_manager_id, r.tenant_id,
                   gc.name AS company
            FROM application a
            JOIN candidate   c  ON c.id = a.candidate_id
@@ -1350,6 +1350,7 @@ def _send_booking_notifications(
                 start_dt_utc=start_utc,
                 duration_min=duration_min,
                 attendee_emails=[e for e in ([ctx["candidate_email"]] + panel_emails) if e],
+                tenant_id=ctx.get("tenant_id"),
             )
         except Exception as exc:
             gcal_result = None
@@ -1944,7 +1945,7 @@ def cancel_interview(interview_id: str, body: CancelInterviewIn, user: dict = De
     # removes it too. Neither failure should block the cancellation itself.
     if iv.get("gcal_event_id"):
         try:
-            google_calendar.delete_event(iv["gcal_event_id"])
+            google_calendar.delete_event(iv["gcal_event_id"], ctx.get("tenant_id"))
         except Exception as exc:
             print(f"[scheduling] gcal event delete failed: {exc}")
     if iv["scheduled_at"]:

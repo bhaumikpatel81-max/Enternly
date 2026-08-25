@@ -356,8 +356,11 @@ def list_feedback_forms(user: dict = Depends(get_current_user)):
     )
 
 
-def _org_name() -> str:
-    row = query_one("SELECT value FROM system_settings WHERE key = 'company_name'")
+def _org_name(tenant_id: str = None) -> str:
+    if tenant_id:
+        row = query_one("SELECT value FROM system_settings WHERE tenant_id = %s AND key = 'company_name'", [tenant_id])
+    else:
+        row = query_one("SELECT value FROM system_settings WHERE key = 'company_name'")
     return (row.get("value") if row else None) or "EnternsTech Pvt. Ltd."
 
 
@@ -401,7 +404,7 @@ def get_scorecard_form(interview_id: str, user: dict = Depends(get_current_user)
             "status":         interview["status"],
             "scheduled_at":   interview["scheduled_at"].isoformat() if interview.get("scheduled_at") else None,
         },
-        "organization": _org_name(),
+        "organization": _org_name(user.get("tenant_id")),
         "interviewer_name": user.get("name"),
         "form":        form,
         "my_scorecard": {
@@ -636,7 +639,7 @@ def get_scorecard_pdf(interview_id: str, user: dict = Depends(get_current_user))
         raise HTTPException(404, "You have no scorecard on this interview yet")
 
     pdf_bytes = render_scorecard_pdf(
-        organization=_org_name(),
+        organization=_org_name(user.get("tenant_id")),
         candidate_name=interview["candidate_name"],
         requisition=interview["requisition"],
         department=interview.get("department"),

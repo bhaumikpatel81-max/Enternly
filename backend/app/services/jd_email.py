@@ -25,14 +25,17 @@ def resolve_jd_placeholders(req_id: str) -> Optional[dict]:
     Returns None if the requisition doesn't exist.
     """
     req = query_one(
-        """SELECT title, hiring_location, min_experience, max_experience, job_description
+        """SELECT title, hiring_location, min_experience, max_experience, job_description, tenant_id
            FROM requisition WHERE id=%s""",
         [req_id],
     )
     if not req:
         return None
 
-    about_row = query_one("SELECT value FROM system_settings WHERE key='about_company_text'", [])
+    about_row = query_one(
+        "SELECT value FROM system_settings WHERE tenant_id=%s AND key='about_company_text'",
+        [req.get("tenant_id")],
+    )
     about_company = (about_row or {}).get("value") or ""
 
     min_exp, max_exp = req.get("min_experience"), req.get("max_experience")
@@ -67,23 +70,24 @@ def send_application_received_jd_email(candidate_name: str, candidate_email: str
     Respects the 'auto_jd_email' system setting toggle.
     """
     try:
-        toggle_row = query_one(
-            "SELECT value FROM system_settings WHERE key='auto_jd_email'", []
-        )
-        if toggle_row and (toggle_row.get("value") or "true").lower() not in ("true", "1", "yes"):
-            return
-
         req = query_one(
             """SELECT title, hiring_location, min_experience, max_experience,
-                      job_description, key_skills
+                      job_description, key_skills, tenant_id
                FROM requisition WHERE id=%s""",
             [req_id],
         )
         if not req:
             return
+        tenant_id = req.get("tenant_id")
+
+        toggle_row = query_one(
+            "SELECT value FROM system_settings WHERE tenant_id=%s AND key='auto_jd_email'", [tenant_id]
+        )
+        if toggle_row and (toggle_row.get("value") or "true").lower() not in ("true", "1", "yes"):
+            return
 
         about_row = query_one(
-            "SELECT value FROM system_settings WHERE key='about_company_text'", []
+            "SELECT value FROM system_settings WHERE tenant_id=%s AND key='about_company_text'", [tenant_id]
         )
         about_company = (about_row or {}).get("value") or ""
 

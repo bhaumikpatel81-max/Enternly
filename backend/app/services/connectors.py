@@ -406,10 +406,29 @@ def resolve_global_placeholders(
 
     Never raises — returns safe defaults on any error.
     """
+    # Resolve which tenant's company_name/signature to use -- the acting
+    # user's own tenant_id if we have one, else the requisition's, else fall
+    # back to an unscoped read (today's single-tenant behaviour).
+    tenant_id = None
+    if actor and isinstance(actor, dict):
+        tenant_id = actor.get("tenant_id")
+    if not tenant_id and req_id:
+        try:
+            req_row = query_one("SELECT tenant_id FROM requisition WHERE id=%s", [req_id])
+            tenant_id = (req_row or {}).get("tenant_id")
+        except Exception:
+            pass
+
     try:
-        rows = query(
-            "SELECT key, value FROM system_settings WHERE key IN ('company_name','ta_default_signature')"
-        )
+        if tenant_id:
+            rows = query(
+                "SELECT key, value FROM system_settings WHERE tenant_id=%s AND key IN ('company_name','ta_default_signature')",
+                [tenant_id],
+            )
+        else:
+            rows = query(
+                "SELECT key, value FROM system_settings WHERE key IN ('company_name','ta_default_signature')"
+            )
         cfg = {r["key"]: (r["value"] or "").strip() for r in (rows or [])}
     except Exception:
         cfg = {}

@@ -37,7 +37,7 @@ def _subject_for(user: dict) -> tuple[str, str]:
 def my_profile(period: str = "all", user: dict = Depends(get_current_user)):
     """Returns the caller's own gamification profile (points, tier, badges, rank)."""
     subject_type, subject_id = _subject_for(user)
-    return get_profile(subject_type, subject_id, period)
+    return get_profile(subject_type, subject_id, period, user.get("tenant_id"))
 
 
 # ── /leaderboard — TA managers and admins only ────────────────────────────────
