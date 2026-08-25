@@ -29,8 +29,8 @@ _STATE_TTL_MINUTES = 10
 
 
 def _require_admin(user: dict):
-    if user["role"] not in ("admin", "ta_manager"):
-        raise HTTPException(403, "Admin or TA Manager access required")
+    if user["role"] not in ("admin", "platform_admin", "company_admin"):
+        raise HTTPException(403, "Company Admin access required")
 
 
 @router.get("/status")

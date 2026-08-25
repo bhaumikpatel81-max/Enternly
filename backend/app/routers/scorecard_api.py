@@ -350,7 +350,10 @@ def list_feedback_forms(user: dict = Depends(get_current_user)):
     options. No form-authoring UI here, just selection among what exists."""
     if user["role"] not in ("recruiter", "ta_manager", "admin", "hiring_manager", "hrbp"):
         raise HTTPException(403, "Not authorised")
-    return query("SELECT id, name FROM feedback_form WHERE is_active = TRUE ORDER BY name")
+    return query(
+        "SELECT id, name FROM feedback_form WHERE is_active = TRUE AND tenant_id = %s ORDER BY name",
+        [user.get("tenant_id")],
+    )
 
 
 def _org_name() -> str:

@@ -495,6 +495,9 @@ def list_offers(
     uid  = user["sub"]
     join_parts, where_parts, params = [], [], []
 
+    where_parts.append("r.tenant_id = %s")
+    params.append(user.get("tenant_id"))
+
     if role == "recruiter":
         join_parts.append(
             "JOIN requisition_recruiter rr_s ON rr_s.requisition_id = r.id AND rr_s.recruiter_id = %s"

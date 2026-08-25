@@ -80,7 +80,8 @@ def login(body: LoginIn, request: Request):
         raise HTTPException(429, "Too many login attempts. Please wait 15 minutes and try again.")
 
     user = query_one(
-        "SELECT id, full_name, email, role, password_hash, is_active, bu_id "
+        "SELECT id, full_name, email, role, password_hash, is_active, bu_id, "
+        "tenant_id, token_version "
         "FROM app_user WHERE email = %s", [email],
     )
 

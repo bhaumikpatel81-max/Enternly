@@ -1028,12 +1028,13 @@ def list_batches(
         raise HTTPException(403, "Not authorised")
 
     rows = query(
-        """SELECT id, file_name, total_rows, selected_count,
-                  invited_count, status, created_at
-           FROM campus_upload_batch
-           WHERE requisition_id=%s
-           ORDER BY created_at DESC""",
-        [requisition_id],
+        """SELECT cub.id, cub.file_name, cub.total_rows, cub.selected_count,
+                  cub.invited_count, cub.status, cub.created_at
+           FROM campus_upload_batch cub
+           JOIN requisition r ON r.id = cub.requisition_id
+           WHERE cub.requisition_id=%s AND r.tenant_id=%s
+           ORDER BY cub.created_at DESC""",
+        [requisition_id, user.get("tenant_id")],
     )
     return [
         {
@@ -1062,7 +1063,12 @@ def delete_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
 
-    batch = query_one("SELECT id FROM campus_upload_batch WHERE id=%s", [batch_id])
+    batch = query_one(
+        """SELECT cub.id FROM campus_upload_batch cub
+           JOIN requisition r ON r.id = cub.requisition_id
+           WHERE cub.id=%s AND r.tenant_id=%s""",
+        [batch_id, user.get("tenant_id")],
+    )
     if not batch:
         raise HTTPException(404, "Batch not found")
 

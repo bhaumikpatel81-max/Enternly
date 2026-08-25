@@ -23,12 +23,12 @@ from ..db import query, query_one
 
 router = APIRouter(prefix="/api/bands", tags=["bands"])
 
-_ADMIN_ROLES = {"admin", "ta_manager"}
+_ADMIN_ROLES = {"admin", "platform_admin", "company_admin"}
 
 
 def _require_admin(user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") not in _ADMIN_ROLES:
-        raise HTTPException(403, "ta_manager / admin only")
+        raise HTTPException(403, "Company Admin only")
     return user
 
 
@@ -56,7 +56,10 @@ _BAND_COLS = """b.id, b.code, b.rank, b.description, b.is_active,
 
 @router.get("/all")
 def list_all_bands(user: dict = Depends(_require_admin)):
-    return query(f"SELECT {_BAND_COLS} FROM band b ORDER BY b.rank")
+    return query(
+        f"SELECT {_BAND_COLS} FROM band b WHERE b.tenant_id = %s ORDER BY b.rank",
+        [user.get("tenant_id")],
+    )
 
 
 # ── Create a new band ─────────────────────────────────────────────────────────
@@ -70,16 +73,20 @@ class CreateBandIn(BaseModel):
 
 @router.post("/")
 def create_band(body: CreateBandIn, user: dict = Depends(_require_admin)):
-    existing = query_one("SELECT id FROM band WHERE UPPER(code) = UPPER(%s)", [body.code])
+    tenant_id = user.get("tenant_id")
+    existing = query_one(
+        "SELECT id FROM band WHERE tenant_id = %s AND UPPER(code) = UPPER(%s)",
+        [tenant_id, body.code],
+    )
     if existing:
         raise HTTPException(409, f"Band code '{body.code}' already exists")
     rank = body.rank
     if rank is None:
-        rank = query_one("SELECT COALESCE(MAX(rank), 0) + 1 AS next FROM band")["next"]
+        rank = query_one("SELECT COALESCE(MAX(rank), 0) + 1 AS next FROM band WHERE tenant_id = %s", [tenant_id])["next"]
     new_id = query_one(
-        """INSERT INTO band (code, rank, description)
-           VALUES (%s, %s, %s) RETURNING id""",
-        [body.code.upper(), rank, body.description],
+        """INSERT INTO band (code, rank, description, tenant_id)
+           VALUES (%s, %s, %s, %s) RETURNING id""",
+        [body.code.upper(), rank, body.description, tenant_id],
     )["id"]
     if body.company_ids:
         _set_band_companies(new_id, body.company_ids)
@@ -98,15 +105,16 @@ class PatchBandIn(BaseModel):
 
 @router.patch("/{band_id}")
 def patch_band(band_id: str, body: PatchBandIn, user: dict = Depends(_require_admin)):
-    band = query_one("SELECT id, code FROM band WHERE id=%s", [band_id])
+    tenant_id = user.get("tenant_id")
+    band = query_one("SELECT id, code FROM band WHERE id=%s AND tenant_id=%s", [band_id, tenant_id])
     if not band:
         raise HTTPException(404, "Band not found")
 
     sets, vals = [], []
     if body.code is not None:
         dup = query_one(
-            "SELECT id FROM band WHERE UPPER(code)=UPPER(%s) AND id<>%s",
-            [body.code, band_id],
+            "SELECT id FROM band WHERE tenant_id=%s AND UPPER(code)=UPPER(%s) AND id<>%s",
+            [tenant_id, body.code, band_id],
         )
         if dup:
             raise HTTPException(409, f"Band code '{body.code}' already exists")
@@ -131,7 +139,7 @@ def patch_band(band_id: str, body: PatchBandIn, user: dict = Depends(_require_ad
 
 @router.delete("/{band_id}")
 def delete_band(band_id: str, user: dict = Depends(_require_admin)):
-    band = query_one("SELECT id, code FROM band WHERE id=%s", [band_id])
+    band = query_one("SELECT id, code FROM band WHERE id=%s AND tenant_id=%s", [band_id, user.get("tenant_id")])
     if not band:
         raise HTTPException(404, "Band not found")
 

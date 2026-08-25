@@ -56,7 +56,7 @@ def log_activity(
         # failures is at least visible somewhere other than stdout.
         try:
             query(
-                """INSERT INTO system_settings (key, value) VALUES ('activity_log_last_failure', %s)
+                """INSERT INTO system_status (key, value) VALUES ('activity_log_last_failure', %s)
                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
                 [f"{entity_type}.{action}|{exc}"[:500]],
                 fetch=False,

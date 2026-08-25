@@ -1,7 +1,7 @@
 """
 Email template CRUD endpoints + manual send.
 
-Template management (admin / ta_manager only):
+Template management (Company Admin only):
   GET    /api/email-templates              list all templates (built-in + custom)
   POST   /api/email-templates              create custom template
   GET    /api/email-templates/sendable     list sendable custom templates (any recruiter)
@@ -46,11 +46,11 @@ _PH_RE = re.compile(r'\{\{(\w+)\}\}')
 
 def _require_template_access(user=Depends(get_current_user)):
     role = user["role"]
-    if role in ("admin", "ta_manager"):
+    if role in ("admin", "platform_admin", "company_admin"):
         return user
     if role == "recruiter" and recruiter_has_module(user.get("sub"), "email_templates"):
         return user
-    raise HTTPException(403, "Email template management is restricted to admin and TA managers.")
+    raise HTTPException(403, "Email template management is restricted to Company Admins.")
 
 
 def _require_send_access(user=Depends(get_current_user)):

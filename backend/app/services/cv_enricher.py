@@ -372,7 +372,7 @@ def _write_heartbeat() -> None:
     """
     try:
         query(
-            """INSERT INTO system_settings (key, value, updated_at)
+            """INSERT INTO system_status (key, value, updated_at)
                VALUES ('cv_enricher_heartbeat', now()::text, now())
                ON CONFLICT (key) DO UPDATE SET value = now()::text, updated_at = now()""",
             [], fetch=False,

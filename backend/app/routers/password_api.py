@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from ..db import query, query_one
-from ..auth_utils import hash_password, require_admin, require_admin_or_manager, get_current_user
+from ..auth_utils import hash_password, require_company_admin, get_current_user
 from ..services.connectors import send_email, _load_email_cfg
 from ..services.activity_log import log_activity
 
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/auth", tags=["password"])
 
 _TOKEN_TTL_HOURS = 24
 # Only these roles may use self-service staff password set/reset
-_SELF_SERVICE_ROLES = {"admin", "ta_manager", "recruiter"}
+_SELF_SERVICE_ROLES = {"admin", "platform_admin", "company_admin", "ta_manager", "recruiter"}
 
 
 def _hash_token(raw: str) -> str:
@@ -135,16 +135,16 @@ class InviteIn(BaseModel):
 
 
 @router.post("/send-setup-link")
-def send_setup_link(body: InviteIn, admin=Depends(require_admin)):
-    """Admin triggers a first-time 'set your password' email to a staff user."""
+def send_setup_link(body: InviteIn, admin=Depends(require_company_admin)):
+    """Company Admin triggers a first-time 'set your password' email to a staff user."""
     user = query_one(
-        "SELECT id, full_name, email, role, is_active FROM app_user WHERE email=%s",
-        [body.email.lower().strip()],
+        "SELECT id, full_name, email, role, is_active FROM app_user WHERE email=%s AND tenant_id=%s",
+        [body.email.lower().strip(), admin.get("tenant_id")],
     )
     if not user or not user["is_active"]:
         raise HTTPException(404, "Active user with that email not found")
     if user["role"] not in _SELF_SERVICE_ROLES:
-        raise HTTPException(400, "Self-service password is only for admin / TA manager / recruiter")
+        raise HTTPException(400, "Self-service password is only for staff roles (Company Admin / TA Manager / Recruiter)")
     raw = _issue_token(str(user["id"]), "invite", account_type="staff")
     _send_link_email(user["email"], user["full_name"], raw, "invite")
     return {"ok": True, "sent_to": user["email"]}
@@ -240,7 +240,7 @@ class AdminResetIn(BaseModel):
 
 
 @router.post("/admin-reset-password")
-def admin_reset_password(body: AdminResetIn, admin=Depends(require_admin_or_manager)):
+def admin_reset_password(body: AdminResetIn, admin=Depends(require_company_admin)):
     """Manual escape hatch for vendor/candidate accounts whose self-service
     reset email silently failed to send -- mirrors the staff-only
     POST /admin/users/{id}/reset-password in admin_users.py, which has no
@@ -251,8 +251,8 @@ def admin_reset_password(body: AdminResetIn, admin=Depends(require_admin_or_mana
     if not table:
         raise HTTPException(400, "account_type must be 'vendor' or 'candidate'")
     row = query_one(
-        f"UPDATE {table} SET password_hash = %s WHERE id = %s RETURNING id",
-        [hash_password(body.new_password), body.user_id],
+        f"UPDATE {table} SET password_hash = %s WHERE id = %s AND tenant_id = %s RETURNING id",
+        [hash_password(body.new_password), body.user_id, admin.get("tenant_id")],
     )
     if not row:
         raise HTTPException(404, "Account not found")

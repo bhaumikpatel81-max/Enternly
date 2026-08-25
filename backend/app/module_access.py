@@ -1,11 +1,13 @@
 """
 Per-recruiter module-access delegation.
 
-TA Manager (or admin) picks an individual recruiter from a dropdown and
-toggles which otherwise admin/ta_manager-only modules that ONE recruiter
-may use. Off by default — a recruiter has no delegated access until a
-TA Manager explicitly grants it, and grants apply only to the chosen
-recruiter, not the whole role.
+A Company Admin (or the legacy admin / a Platform Admin) picks an individual
+recruiter from a dropdown and toggles which otherwise Company-Admin-only
+modules that ONE recruiter may use. Off by default — a recruiter has no
+delegated access until a Company Admin explicitly grants it, and grants
+apply only to the chosen recruiter, not the whole role. ta_manager holds
+neither the delegation power nor blanket module access — it's restricted to
+team management + reports.
 
 "Users & Access" (account/role management) is intentionally never
 delegable here, to prevent a recruiter from ever creating accounts or
@@ -77,9 +79,12 @@ def recruiter_has_module(recruiter_id: str, module: str) -> bool:
 
 
 def effective_module_access(user: dict) -> dict:
-    """What the CURRENT user can see, given their role/id."""
+    """What the CURRENT user can see, given their role/id. ta_manager is
+    deliberately NOT granted blanket access here -- these are org-config
+    modules (vendors, approvals, organisation, SLA, templates), and
+    ta_manager is restricted to team management + reports."""
     role = user.get("role")
-    if role in ("admin", "ta_manager"):
+    if role in ("admin", "platform_admin", "company_admin"):
         return {k: True for k in DELEGABLE_MODULES}
     if role == "recruiter":
         return get_recruiter_grants(user.get("sub"))

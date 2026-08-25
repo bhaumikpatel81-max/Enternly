@@ -4,9 +4,9 @@ Named Approval Chain Templates API.
 Endpoints
 ---------
 GET    /api/offer-chain-templates              — list active templates + steps (recruiter+)
-POST   /api/offer-chain-templates              — create template (ta_manager + admin)
-PUT    /api/offer-chain-templates/{id}         — replace template name/steps (ta_manager + admin)
-DELETE /api/offer-chain-templates/{id}         — soft-delete (ta_manager + admin)
+POST   /api/offer-chain-templates              — create template (Company Admin)
+PUT    /api/offer-chain-templates/{id}         — replace template name/steps (Company Admin)
+DELETE /api/offer-chain-templates/{id}         — soft-delete (Company Admin)
 
 Templates are reusable: when the TA manager creates a requisition the frontend
 copies the template steps into _approverChain (with per-step sla_days) and saves
@@ -27,15 +27,15 @@ router = APIRouter(prefix="/api/offer-chain-templates", tags=["chain_templates"]
 
 def _require_write(user: dict = Depends(get_current_user)) -> dict:
     role = user.get("role")
-    if role in ("admin", "ta_manager"):
+    if role in ("admin", "platform_admin", "company_admin"):
         return user
     if role == "recruiter" and recruiter_has_module(user.get("sub"), "chain_templates"):
         return user
-    raise HTTPException(403, "TA Manager or Admin access required")
+    raise HTTPException(403, "Company Admin access required")
 
 
 def _require_read(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "ta_manager", "recruiter"):
+    if user.get("role") not in ("admin", "platform_admin", "company_admin", "ta_manager", "recruiter"):
         raise HTTPException(403, "Not authorised")
     return user
 
@@ -82,12 +82,13 @@ def _save_steps(template_id: str, steps: list[TemplateStepIn]) -> None:
         )
 
 
-def _validate_steps(steps: list[TemplateStepIn]) -> None:
+def _validate_steps(steps: list[TemplateStepIn], tenant_id: str) -> None:
     if not steps:
         raise HTTPException(400, "At least one approver step is required")
     for s in steps:
         if not query_one(
-            "SELECT id FROM app_user WHERE id = %s AND is_active = TRUE", [s.approver_id]
+            "SELECT id FROM app_user WHERE id = %s AND is_active = TRUE AND tenant_id = %s",
+            [s.approver_id, tenant_id],
         ):
             raise HTTPException(400, f"Approver {s.approver_id} not found or inactive")
     if len(steps) > 20:
@@ -102,8 +103,9 @@ def list_templates(user: dict = Depends(_require_read)):
     templates = query(
         """SELECT id, name, description, created_at, updated_at
            FROM offer_chain_template
-           WHERE is_active = TRUE
+           WHERE is_active = TRUE AND tenant_id = %s
            ORDER BY name""",
+        [user.get("tenant_id")],
     ) or []
     return [
         {**dict(t), "steps": _load_steps(str(t["id"]))}
@@ -114,22 +116,24 @@ def list_templates(user: dict = Depends(_require_read)):
 @router.post("", status_code=201)
 def create_template(body: TemplateIn, user: dict = Depends(_require_write)):
     """Create a named approval chain template."""
+    tenant_id = user.get("tenant_id")
     name = (body.name or "").strip()
     if not name:
         raise HTTPException(400, "Template name is required")
-    _validate_steps(body.steps)
+    _validate_steps(body.steps, tenant_id)
 
     # Prevent duplicate names
     if query_one(
-        "SELECT id FROM offer_chain_template WHERE name = %s AND is_active = TRUE", [name]
+        "SELECT id FROM offer_chain_template WHERE tenant_id = %s AND name = %s AND is_active = TRUE",
+        [tenant_id, name],
     ):
         raise HTTPException(409, f"A template named '{name}' already exists")
 
     tmpl = query_one(
-        """INSERT INTO offer_chain_template (name, description, created_by)
-           VALUES (%s, %s, %s)
+        """INSERT INTO offer_chain_template (name, description, created_by, tenant_id)
+           VALUES (%s, %s, %s, %s)
            RETURNING id""",
-        [name, body.description, user["sub"]],
+        [name, body.description, user["sub"], tenant_id],
     )
     tmpl_id = str(tmpl["id"])
     _save_steps(tmpl_id, body.steps)
@@ -143,21 +147,22 @@ def update_template(
     user: dict = Depends(_require_write),
 ):
     """Replace a template's name, description, and steps."""
+    tenant_id = user.get("tenant_id")
     if not query_one(
-        "SELECT id FROM offer_chain_template WHERE id = %s AND is_active = TRUE",
-        [template_id],
+        "SELECT id FROM offer_chain_template WHERE id = %s AND tenant_id = %s AND is_active = TRUE",
+        [template_id, tenant_id],
     ):
         raise HTTPException(404, "Template not found")
 
     name = (body.name or "").strip()
     if not name:
         raise HTTPException(400, "Template name is required")
-    _validate_steps(body.steps)
+    _validate_steps(body.steps, tenant_id)
 
     # Prevent name collision with other templates
     clash = query_one(
-        "SELECT id FROM offer_chain_template WHERE name = %s AND is_active = TRUE AND id != %s",
-        [name, template_id],
+        "SELECT id FROM offer_chain_template WHERE tenant_id = %s AND name = %s AND is_active = TRUE AND id != %s",
+        [tenant_id, name, template_id],
     )
     if clash:
         raise HTTPException(409, f"Another template named '{name}' already exists")
@@ -179,9 +184,9 @@ def delete_template(template_id: str, user: dict = Depends(_require_write)):
     row = query_one(
         """UPDATE offer_chain_template
            SET is_active = FALSE, updated_at = now()
-           WHERE id = %s AND is_active = TRUE
+           WHERE id = %s AND tenant_id = %s AND is_active = TRUE
            RETURNING id""",
-        [template_id],
+        [template_id, user.get("tenant_id")],
     )
     if not row:
         raise HTTPException(404, "Template not found")

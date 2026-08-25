@@ -328,6 +328,7 @@ def list_for_review(
         )
         params.append(user["sub"])
 
+    params.append(user.get("tenant_id"))
     params += [limit, offset]
 
     return query(
@@ -354,6 +355,7 @@ def list_for_review(
         LEFT JOIN proctoring_session ps ON ps.nexai_session_id = ns.id
         {scope_join}
         WHERE ns.status IN ('completed', 'terminated_proctoring')
+          AND r.tenant_id = %s
         ORDER BY COALESCE(ps.created_at, ns.completed_at, ns.created_at) DESC
         LIMIT %s OFFSET %s
         """,

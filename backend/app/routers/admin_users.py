@@ -5,14 +5,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from ..db import query, query_one
-from ..auth_utils import hash_password, require_admin, require_admin_or_manager, get_current_user
+from ..auth_utils import hash_password, require_company_admin, get_current_user
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 _VALID_ROLES = {
+    "platform_admin", "company_admin",
     "admin", "ta_manager", "recruiter",
     "hiring_manager", "bu_head", "director", "interviewer", "hrbp",
 }
+
+# Roles a Company Admin (non-platform) may not create/promote-to or act on --
+# reserved for a Platform Admin (Enternstech) or the legacy admin role.
+_PLATFORM_ONLY_ROLES = {"admin", "platform_admin", "company_admin"}
 
 _USER_COLS = """id, full_name, email, role, is_active, created_at, gmail_address,
     (SELECT COALESCE(array_agg(bu_id), ARRAY[]::uuid[]) FROM app_user_bu WHERE user_id = app_user.id) AS bu_ids,
@@ -20,11 +25,22 @@ _USER_COLS = """id, full_name, email, role, is_active, created_at, gmail_address
 
 
 def require_users_read(user: dict = Depends(get_current_user)) -> dict:
-    """Admin/TA Manager get full Users & Access; Recruiters get a read-only
-    Hiring Manager list plus the ability to create HM accounts (see
-    create_user's recruiter branch below) -- they can't manage any account."""
-    if user.get("role") not in ("admin", "ta_manager", "recruiter"):
-        raise HTTPException(403, "Admin, TA Manager, or Recruiter access required")
+    """Company Admin gets full Users & Access; TA Manager gets a read-only
+    view of their company's users (team management, not account management);
+    Recruiters get a read-only Hiring Manager list plus the ability to create
+    HM accounts (see create_user's recruiter branch below)."""
+    if user.get("role") not in ("admin", "platform_admin", "company_admin", "ta_manager", "recruiter"):
+        raise HTTPException(403, "Company Admin, TA Manager, or Recruiter access required")
+    return user
+
+
+def require_user_write(user: dict = Depends(get_current_user)) -> dict:
+    """Creating/editing staff accounts is a Company Admin action. TA Manager
+    is deliberately excluded -- restricted to managing their team + reports,
+    not the accounts themselves. Recruiters keep their narrower carve-out
+    (may only create Hiring Manager accounts, enforced in create_user)."""
+    if user.get("role") not in ("admin", "platform_admin", "company_admin", "recruiter"):
+        raise HTTPException(403, "Company Admin or Recruiter access required")
     return user
 
 
@@ -62,19 +78,32 @@ def _sync_hrbp_directory(full_name: str, email: str, role: str, is_active: bool,
 
 
 def _assert_can_assign_role(actor: dict, target_role: Optional[str]) -> None:
-    """Only an admin may create or promote a user to the admin role."""
-    if target_role == "admin" and actor.get("role") != "admin":
-        raise HTTPException(403, "Only an admin can assign the admin role")
+    """Only a Platform Admin (or the legacy admin role) may create or promote
+    a user into admin/platform_admin/company_admin -- a Company Admin may
+    manage TA Managers and Recruiters in their own company, but not mint
+    another admin tier."""
+    if target_role in _PLATFORM_ONLY_ROLES and actor.get("role") not in ("admin", "platform_admin"):
+        raise HTTPException(403, "Only a Platform Admin can assign that role")
 
 
 def _assert_can_act_on_user(actor: dict, target_user_id: str) -> None:
-    """A ta_manager (non-admin) may not modify, deactivate, delete, or reset
-    the password of an account that currently holds the admin role."""
-    if actor.get("role") == "admin":
+    """A Company Admin (non-platform) may not modify, deactivate, delete, or
+    reset the password of an account that holds admin/platform_admin/
+    company_admin -- those accounts are a Platform Admin's to manage. Also
+    blocks acting on another tenant's user entirely -- a cross-tenant target
+    reads as 404, same as a nonexistent one, so no existence is leaked.
+    admin/platform_admin are intentionally exempt from the tenant check
+    (Platform Admin cross-tenant support access doesn't have its own
+    audited path yet -- see the tenancy blueprint)."""
+    if actor.get("role") in ("admin", "platform_admin"):
         return
-    target = query_one("SELECT role FROM app_user WHERE id = %s", [target_user_id])
-    if target and target.get("role") == "admin":
-        raise HTTPException(403, "Only an admin can modify another admin's account")
+    target = query_one("SELECT role, tenant_id FROM app_user WHERE id = %s", [target_user_id])
+    if not target:
+        return
+    if str(target.get("tenant_id")) != str(actor.get("tenant_id")):
+        raise HTTPException(404, "User not found")
+    if target.get("role") in _PLATFORM_ONLY_ROLES:
+        raise HTTPException(403, "Only a Platform Admin can modify that account")
 
 
 class CreateUserIn(BaseModel):
@@ -102,15 +131,19 @@ def list_users(
     offset: int = Query(0, ge=0),
     actor=Depends(require_users_read),
 ):
-    where = "WHERE role = 'hiring_manager'" if actor.get("role") == "recruiter" else ""
+    conds = ["tenant_id = %s"]
+    params = [actor.get("tenant_id")]
+    if actor.get("role") == "recruiter":
+        conds.append("role = 'hiring_manager'")
+    where = "WHERE " + " AND ".join(conds)
     return query(
         f"SELECT {_USER_COLS} FROM app_user {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
-        [limit, offset],
+        params + [limit, offset],
     )
 
 
 @router.post("/users", status_code=201)
-def create_user(body: CreateUserIn, actor=Depends(require_users_read)):
+def create_user(body: CreateUserIn, actor=Depends(require_user_write)):
     if actor.get("role") == "recruiter" and body.role != "hiring_manager":
         raise HTTPException(403, "Recruiters may only create Hiring Manager accounts")
     if body.role not in _VALID_ROLES:
@@ -127,9 +160,9 @@ def create_user(body: CreateUserIn, actor=Depends(require_users_read)):
         raise HTTPException(400, "A user with that email already exists")
     pwd_hash = hash_password(body.password) if body.password else None
     new_id = query_one(
-        """INSERT INTO app_user (full_name, email, role, password_hash, created_by)
-           VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-        [body.full_name, email, body.role, pwd_hash, actor.get("sub")],
+        """INSERT INTO app_user (full_name, email, role, password_hash, created_by, tenant_id)
+           VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+        [body.full_name, email, body.role, pwd_hash, actor.get("sub"), actor.get("tenant_id")],
     )["id"]
     if body.bu_ids:
         _set_hrbp_bus(new_id, body.bu_ids)
@@ -151,7 +184,7 @@ def create_user(body: CreateUserIn, actor=Depends(require_users_read)):
 
 
 @router.patch("/users/{user_id}")
-def update_user(user_id: str, body: UpdateUserIn, admin=Depends(require_admin_or_manager)):
+def update_user(user_id: str, body: UpdateUserIn, admin=Depends(require_company_admin)):
     if body.role and body.role not in _VALID_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {sorted(_VALID_ROLES)}")
     _assert_can_act_on_user(admin, user_id)
@@ -165,6 +198,11 @@ def update_user(user_id: str, body: UpdateUserIn, admin=Depends(require_admin_or
         sets.append("is_active = %s"); params.append(body.is_active)
     if not sets:
         raise HTTPException(400, "Nothing to update")
+    if body.role is not None or body.is_active is not None:
+        # Invalidate any JWT already issued to this user -- a role/active
+        # change must take effect immediately, not wait out the token's
+        # remaining TOKEN_HOURS (see auth_utils._refresh_staff_claims).
+        sets.append("token_version = token_version + 1")
     params.append(user_id)
     row = query_one(
         f"UPDATE app_user SET {', '.join(sets)} WHERE id = %s RETURNING {_USER_COLS}",
@@ -185,7 +223,7 @@ class UpdateUserFullIn(BaseModel):
 
 
 @router.patch("/users/{user_id}/full")
-def update_user_full(user_id: str, body: UpdateUserFullIn, admin=Depends(require_admin_or_manager)):
+def update_user_full(user_id: str, body: UpdateUserFullIn, admin=Depends(require_company_admin)):
     """Extended PATCH that also allows updating email and resetting the user's login email."""
     if body.role and body.role not in _VALID_ROLES:
         raise HTTPException(400, f"Invalid role. Choose from: {sorted(_VALID_ROLES)}")
@@ -209,6 +247,8 @@ def update_user_full(user_id: str, body: UpdateUserFullIn, admin=Depends(require
         sets.append("is_active = %s"); params.append(body.is_active)
     if not sets and body.bu_ids is None:
         raise HTTPException(400, "Nothing to update")
+    if body.role is not None or body.is_active is not None:
+        sets.append("token_version = token_version + 1")
     existing = query_one("SELECT email FROM app_user WHERE id = %s", [user_id])
     if not existing:
         raise HTTPException(404, "User not found")
@@ -231,7 +271,7 @@ class UserEmailConfigIn(BaseModel):
 
 
 @router.get("/users/{user_id}/email-config")
-def get_user_email_config(user_id: str, admin=Depends(require_admin_or_manager)):
+def get_user_email_config(user_id: str, admin=Depends(require_company_admin)):
     _assert_can_act_on_user(admin, user_id)
     row = query_one(
         "SELECT gmail_address, gmail_app_password FROM app_user WHERE id = %s",
@@ -248,7 +288,7 @@ def get_user_email_config(user_id: str, admin=Depends(require_admin_or_manager))
 
 
 @router.put("/users/{user_id}/email-config")
-def set_user_email_config(user_id: str, body: UserEmailConfigIn, admin=Depends(require_admin_or_manager)):
+def set_user_email_config(user_id: str, body: UserEmailConfigIn, admin=Depends(require_company_admin)):
     _assert_can_act_on_user(admin, user_id)
     sets, params = [], []
     if body.gmail_address is not None:
@@ -273,7 +313,7 @@ def set_user_email_config(user_id: str, body: UserEmailConfigIn, admin=Depends(r
 
 
 @router.delete("/users/{user_id}/email-config")
-def clear_user_email_config(user_id: str, admin=Depends(require_admin_or_manager)):
+def clear_user_email_config(user_id: str, admin=Depends(require_company_admin)):
     _assert_can_act_on_user(admin, user_id)
     row = query_one(
         "UPDATE app_user SET gmail_address=NULL, gmail_app_password=NULL WHERE id=%s RETURNING id",
@@ -285,10 +325,11 @@ def clear_user_email_config(user_id: str, admin=Depends(require_admin_or_manager
 
 
 @router.delete("/users/{user_id}")
-def deactivate_user(user_id: str, admin=Depends(require_admin_or_manager)):
+def deactivate_user(user_id: str, admin=Depends(require_company_admin)):
     _assert_can_act_on_user(admin, user_id)
     row = query_one(
-        "UPDATE app_user SET is_active = false WHERE id = %s RETURNING id, full_name, email, role",
+        "UPDATE app_user SET is_active = false, token_version = token_version + 1 "
+        "WHERE id = %s RETURNING id, full_name, email, role",
         [user_id],
     )
     if not row:
@@ -298,7 +339,7 @@ def deactivate_user(user_id: str, admin=Depends(require_admin_or_manager)):
 
 
 @router.delete("/users/{user_id}/permanent")
-def delete_user_permanent(user_id: str, admin=Depends(require_admin_or_manager)):
+def delete_user_permanent(user_id: str, admin=Depends(require_company_admin)):
     """
     Permanently remove a user record.
     Fails with 409 if the user owns records (requisitions, scorecards, etc.)
@@ -328,12 +369,13 @@ def delete_user_permanent(user_id: str, admin=Depends(require_admin_or_manager))
 
 
 @router.post("/users/{user_id}/reset-password")
-def reset_password(user_id: str, body: ResetPasswordIn, admin=Depends(require_admin_or_manager)):
+def reset_password(user_id: str, body: ResetPasswordIn, admin=Depends(require_company_admin)):
     if len(body.new_password) < 6:
         raise HTTPException(400, "Password must be at least 6 characters")
     _assert_can_act_on_user(admin, user_id)
     row = query_one(
-        "UPDATE app_user SET password_hash = %s WHERE id = %s RETURNING id",
+        "UPDATE app_user SET password_hash = %s, token_version = token_version + 1 "
+        "WHERE id = %s RETURNING id",
         [hash_password(body.new_password), user_id],
     )
     if not row:
@@ -341,7 +383,7 @@ def reset_password(user_id: str, body: ResetPasswordIn, admin=Depends(require_ad
     return {"ok": True}
 
 
-# ── System Settings (admin / ta_manager only) ─────────────────────────────────
+# ── System Settings (Company Admin) ───────────────────────────────────────────
 
 # Keys that hold sensitive values — shown masked in GET response
 _SECRET_KEYS = {"smtp_password"}
@@ -362,18 +404,73 @@ _SETTING_DEFAULTS = {
 
 
 def _require_settings_access(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "ta_manager"):
-        raise HTTPException(403, "Admin or TA Manager access required")
+    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
+        raise HTTPException(403, "Company Admin access required")
     return user
+
+
+# ── Per-tenant role labels ─────────────────────────────────────────────────────
+# The role VALUE ('recruiter', 'bu_head', 'director', 'hrbp', ...) is a fixed
+# system key that every permission check and report in the codebase keys off
+# of -- it never changes. What a company CALLS that role in their own org is
+# a separate, tenant-owned label layered on top, because every customer uses
+# different job titles for the same underlying job (one company's
+# "Recruiter" is another's "Talent Partner"; "BU Head" might be "Department
+# Head" or "Vertical Lead" elsewhere). platform_admin/company_admin/admin are
+# structural to the SaaS itself, not a customer's job-title vocabulary, so
+# they're deliberately not included here.
+_ROLE_LABEL_DEFAULTS = {
+    "ta_manager":     "TA Manager",
+    "recruiter":      "Recruiter",
+    "hiring_manager": "Hiring Manager",
+    "bu_head":        "BU Head",
+    "director":       "Director",
+    "interviewer":    "Interviewer",
+    "hrbp":           "HRBP",
+}
+
+
+@router.get("/role-labels")
+def get_role_labels(user: dict = Depends(get_current_user)):
+    """Effective label set for the caller's own tenant (defaults merged with
+    any overrides) -- every staff screen renders role names through this
+    instead of the raw role key."""
+    tenant_id = user.get("tenant_id")
+    overrides = {}
+    if tenant_id:
+        row = query_one("SELECT role_labels FROM tenant WHERE id = %s", [tenant_id])
+        overrides = (row or {}).get("role_labels") or {}
+    return {**_ROLE_LABEL_DEFAULTS, **{k: v for k, v in overrides.items() if k in _ROLE_LABEL_DEFAULTS}}
+
+
+class RoleLabelsIn(BaseModel):
+    labels: dict[str, str]
+
+
+@router.put("/role-labels")
+def save_role_labels(body: RoleLabelsIn, user: dict = Depends(require_company_admin)):
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(400, "No tenant on this account")
+    cleaned = {
+        k: v.strip() for k, v in body.labels.items()
+        if k in _ROLE_LABEL_DEFAULTS and v and v.strip()
+    }
+    query(
+        "UPDATE tenant SET role_labels = %s::jsonb WHERE id = %s",
+        [json.dumps(cleaned), tenant_id],
+        fetch=False,
+    )
+    return {**_ROLE_LABEL_DEFAULTS, **cleaned}
 
 
 def _require_admin_settings(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") != "admin":
-        raise HTTPException(403, "Admin only")
+    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
+        raise HTTPException(403, "Company Admin access required")
     return user
 
 
-# ── Per-recruiter module-access delegation (TA Manager / admin controlled) ───
+# ── Per-recruiter module-access delegation (Company Admin controlled) ───────
 from ..module_access import (
     DELEGABLE_MODULES,
     effective_module_access,
@@ -386,11 +483,11 @@ from ..module_access import (
 def _require_module_access(module_key: str):
     def dep(user: dict = Depends(get_current_user)) -> dict:
         role = user.get("role")
-        if role in ("admin", "ta_manager"):
+        if role in ("admin", "platform_admin", "company_admin"):
             return user
         if role == "recruiter" and recruiter_has_module(user.get("sub"), module_key):
             return user
-        raise HTTPException(403, "Admin, TA Manager, or delegated Recruiter access required")
+        raise HTTPException(403, "Company Admin or delegated Recruiter access required")
     return dep
 
 
@@ -401,14 +498,18 @@ _require_form_field_access = _require_module_access("form_fields")
 def list_recruiters_for_delegation(user: dict = Depends(_require_settings_access)):
     """Recruiters to populate the TA Manager's delegation dropdown."""
     return query(
-        "SELECT id, full_name, email FROM app_user WHERE role = 'recruiter' AND is_active = TRUE ORDER BY full_name"
+        "SELECT id, full_name, email FROM app_user WHERE role = 'recruiter' AND is_active = TRUE AND tenant_id = %s ORDER BY full_name",
+        [user.get("tenant_id")],
     )
 
 
 @router.get("/module-access/{recruiter_id}")
 def get_module_access(recruiter_id: str, user: dict = Depends(_require_settings_access)):
     """Delegation state for ONE recruiter — for the TA Manager / admin toggle panel."""
-    if not query_one("SELECT id FROM app_user WHERE id = %s AND role = 'recruiter'", [recruiter_id]):
+    if not query_one(
+        "SELECT id FROM app_user WHERE id = %s AND role = 'recruiter' AND tenant_id = %s",
+        [recruiter_id, user.get("tenant_id")],
+    ):
         raise HTTPException(404, "Recruiter not found")
     grants = get_recruiter_grants(recruiter_id)
     return {
@@ -430,7 +531,10 @@ def save_module_access(
 ):
     if body.module not in DELEGABLE_MODULES:
         raise HTTPException(400, f"Unknown module. Choose from: {sorted(DELEGABLE_MODULES)}")
-    if not query_one("SELECT id FROM app_user WHERE id = %s AND role = 'recruiter'", [recruiter_id]):
+    if not query_one(
+        "SELECT id FROM app_user WHERE id = %s AND role = 'recruiter' AND tenant_id = %s",
+        [recruiter_id, user.get("tenant_id")],
+    ):
         raise HTTPException(404, "Recruiter not found")
     set_recruiter_grant(recruiter_id, body.module, body.enabled, user["sub"])
     return {"ok": True, "module": body.module, "enabled": body.enabled}
@@ -444,7 +548,7 @@ def get_my_module_access(user: dict = Depends(get_current_user)):
 
 @router.get("/settings")
 def get_settings(user: dict = Depends(_require_admin_settings)):
-    rows = query("SELECT key, value, updated_at FROM system_settings")
+    rows = query("SELECT key, value, updated_at FROM system_settings WHERE tenant_id = %s", [user.get("tenant_id")])
     stored = {r["key"]: r["value"] for r in (rows or [])}
     result = {}
     for k, default in _SETTING_DEFAULTS.items():
@@ -483,21 +587,22 @@ def save_settings(body: SaveSettingsIn, user: dict = Depends(_require_admin_sett
     if body.smtp_password and body.smtp_password not in ("", "••••••••"):
         updates["smtp_password"] = body.smtp_password
 
+    tenant_id = user.get("tenant_id")
     for k, v in updates.items():
         if v is None:
             continue
         query(
-            """INSERT INTO system_settings (key, value, updated_by)
-               VALUES (%s, %s, %s)
-               ON CONFLICT (key) DO UPDATE
+            """INSERT INTO system_settings (tenant_id, key, value, updated_by)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (tenant_id, key) DO UPDATE
                  SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by""",
-            [k, v.strip(), user["sub"]],
+            [tenant_id, k, v.strip(), user["sub"]],
             fetch=False,
         )
     return {"ok": True}
 
 
-# ── Application Form Field Config (admin / ta_manager, or delegated recruiter) ─
+# ── Application Form Field Config (Company Admin, or delegated recruiter) ────
 
 _FORM_CFG_KEY = "app_form_required_fields"
 _DEFAULT_REQUIRED_FIELDS = ["name", "email", "phone", "requisition", "resume"]
@@ -511,7 +616,8 @@ class FormFieldConfigIn(BaseModel):
 def get_form_field_config(user: dict = Depends(_require_form_field_access)):
     """Return which application form fields are currently marked required."""
     row = query_one(
-        "SELECT value FROM system_settings WHERE key = %s", [_FORM_CFG_KEY]
+        "SELECT value FROM system_settings WHERE tenant_id = %s AND key = %s",
+        [user.get("tenant_id"), _FORM_CFG_KEY],
     )
     if row:
         try:
@@ -529,13 +635,13 @@ def save_form_field_config(
 ):
     """Persist the list of required application form fields."""
     query(
-        """INSERT INTO system_settings (key, value, updated_by)
-           VALUES (%s, %s, %s)
-           ON CONFLICT (key) DO UPDATE
+        """INSERT INTO system_settings (tenant_id, key, value, updated_by)
+           VALUES (%s, %s, %s, %s)
+           ON CONFLICT (tenant_id, key) DO UPDATE
              SET value      = EXCLUDED.value,
                  updated_at = now(),
                  updated_by = EXCLUDED.updated_by""",
-        [_FORM_CFG_KEY, json.dumps(body.required_fields), user["sub"]],
+        [user.get("tenant_id"), _FORM_CFG_KEY, json.dumps(body.required_fields), user["sub"]],
         fetch=False,
     )
     return {"ok": True}
@@ -552,7 +658,7 @@ async def test_email(user: dict = Depends(_require_admin_settings)):
     from email.mime.text import MIMEText
 
     # Read all settings directly from DB
-    rows = query("SELECT key, value FROM system_settings")
+    rows = query("SELECT key, value FROM system_settings WHERE tenant_id = %s", [user.get("tenant_id")])
     cfg  = {r["key"]: (r["value"] or "").strip() for r in (rows or [])}
 
     smtp_user = cfg.get("smtp_user", "")

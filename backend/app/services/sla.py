@@ -108,9 +108,15 @@ TERMINAL = frozenset({
 
 # ── Config helpers ────────────────────────────────────────────────────────────
 
-def load_config() -> dict:
-    """Return merged SLA config (DB overrides take precedence over defaults)."""
-    rows = query("SELECT config_key, days FROM sla_config") or []
+def load_config(tenant_id: str = None) -> dict:
+    """Return merged SLA config (DB overrides take precedence over defaults).
+    sla_config is tenant-scoped (Migration 96) -- tenant_id is optional only
+    for callers with no request context; every router call site should pass
+    the caller's own tenant_id."""
+    if tenant_id:
+        rows = query("SELECT config_key, days FROM sla_config WHERE tenant_id = %s", [tenant_id]) or []
+    else:
+        rows = query("SELECT config_key, days FROM sla_config") or []
     cfg = dict(SLA_DEFAULTS)
     for r in rows:
         cfg[r["config_key"]] = int(r["days"])

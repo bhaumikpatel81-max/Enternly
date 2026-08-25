@@ -125,7 +125,7 @@ def _set_ingest_status(status: str, detail: str = "") -> None:
     try:
         from ..db import query
         query(
-            """INSERT INTO system_settings (key, value) VALUES ('email_ingest_status', %s)
+            """INSERT INTO system_status (key, value) VALUES ('email_ingest_status', %s)
                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
             [f"{status}|{detail}"], fetch=False,
         )

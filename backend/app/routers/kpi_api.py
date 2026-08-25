@@ -50,7 +50,7 @@ def kpi_dashboard(
     role = user["role"]
     uid  = user["sub"]
     ps   = _period_start(period, year)
-    sjoin, swhere, sjp, swp = _scope(role, uid)
+    sjoin, swhere, sjp, swp = _scope(role, uid, user.get("tenant_id"))
 
     # ── KPI cards ──────────────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ def kpi_dashboard(
     )
 
     # SLA breach counts — reuse sla service helpers
-    sla_cfg = load_config()
+    sla_cfg = load_config(user.get("tenant_id"))
     breach_rows = query(
         f"""SELECT a.status,
                 EXTRACT(EPOCH FROM (now() - COALESCE(
@@ -230,10 +230,10 @@ def kpi_dashboard(
                JOIN requisition_recruiter rr ON rr.recruiter_id = u.id
                JOIN requisition r ON r.id = rr.requisition_id
                LEFT JOIN application a ON a.requisition_id = r.id
-               WHERE u.role IN ('recruiter','ta_manager')
+               WHERE u.role IN ('recruiter','ta_manager') AND u.tenant_id = %s
                GROUP BY u.full_name, u.id
                ORDER BY open_reqs DESC""",
-            [],
+            [user.get("tenant_id")],
         )
         recruiter_load = [
             {

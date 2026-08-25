@@ -193,10 +193,23 @@ def _columns(include_candidate: bool) -> list:
     return cols
 
 
+def _application_in_tenant(app_id: str, tenant_id: str) -> bool:
+    return bool(query_one(
+        """SELECT a.id FROM application a
+           JOIN requisition r ON r.id = a.requisition_id
+           WHERE a.id = %s AND r.tenant_id = %s""",
+        [app_id, tenant_id],
+    ))
+
+
+def _requisition_in_tenant(req_id: str, tenant_id: str) -> bool:
+    return bool(query_one("SELECT id FROM requisition WHERE id = %s AND tenant_id = %s", [req_id, tenant_id]))
+
+
 @router.get("/application/{app_id}")
 def application_timeline(app_id: str, user: dict = Depends(get_current_user)):
     _check_role(user)
-    if not query_one("SELECT id FROM application WHERE id = %s", [app_id]):
+    if not _application_in_tenant(app_id, user.get("tenant_id")):
         raise HTTPException(404, "Application not found")
     if user["role"] == "recruiter":
         req_id = _application_req_id(app_id)
@@ -209,7 +222,7 @@ def application_timeline(app_id: str, user: dict = Depends(get_current_user)):
 @router.get("/requisition/{req_id}")
 def requisition_timeline(req_id: str, user: dict = Depends(get_current_user)):
     _check_role(user)
-    if not query_one("SELECT id FROM requisition WHERE id = %s", [req_id]):
+    if not _requisition_in_tenant(req_id, user.get("tenant_id")):
         raise HTTPException(404, "Requisition not found")
     if user["role"] == "recruiter" and not _recruiter_owns_req(user, req_id):
         raise HTTPException(404, "Requisition not found")
@@ -233,7 +246,7 @@ def _stream_timeline_excel(title: str, filename: str, rows: list, columns: list,
 @router.get("/application/{app_id}/excel")
 def application_timeline_excel(app_id: str, user: dict = Depends(get_current_user)):
     _check_role(user)
-    if not query_one("SELECT id FROM application WHERE id = %s", [app_id]):
+    if not _application_in_tenant(app_id, user.get("tenant_id")):
         raise HTTPException(404, "Application not found")
     if user["role"] == "recruiter":
         req_id = _application_req_id(app_id)
@@ -250,7 +263,7 @@ def application_timeline_excel(app_id: str, user: dict = Depends(get_current_use
 @router.get("/requisition/{req_id}/excel")
 def requisition_timeline_excel(req_id: str, user: dict = Depends(get_current_user)):
     _check_role(user)
-    if not query_one("SELECT id FROM requisition WHERE id = %s", [req_id]):
+    if not _requisition_in_tenant(req_id, user.get("tenant_id")):
         raise HTTPException(404, "Requisition not found")
     if user["role"] == "recruiter" and not _recruiter_owns_req(user, req_id):
         raise HTTPException(404, "Requisition not found")
@@ -267,17 +280,23 @@ def login_history(
     user: dict = Depends(get_current_user),
     user_id: str = Query(None, description="Filter to one app_user id"),
 ):
-    """Admin-only — login_log has no candidate/requisition to anchor a
-    timeline to, so it's a separate small report rather than folded into
-    the UNION above."""
-    if user["role"] != "admin":
-        raise HTTPException(403, "Admin access required")
-    where = "WHERE ll.user_id = %s" if user_id else ""
-    params = [user_id] if user_id else []
+    """Company Admin-only — login_log has no candidate/requisition to anchor
+    a timeline to, so it's a separate small report rather than folded into
+    the UNION above. Scoped to the caller's own tenant via the app_user join
+    (login_log itself has no tenant_id -- a login with no matching app_user,
+    e.g. a since-deleted account, is excluded rather than shown unscoped)."""
+    if user["role"] not in ("admin", "platform_admin", "company_admin"):
+        raise HTTPException(403, "Company Admin access required")
+    where_parts = ["au.tenant_id = %s"]
+    params = [user.get("tenant_id")]
+    if user_id:
+        where_parts.append("ll.user_id = %s")
+        params.append(user_id)
+    where = "WHERE " + " AND ".join(where_parts)
     rows = query(
         f"""SELECT ll.logged_at, au.full_name AS actor_name, au.email, ll.user_role, ll.ip_address
             FROM login_log ll
-            LEFT JOIN app_user au ON au.id = ll.user_id
+            JOIN app_user au ON au.id = ll.user_id
             {where}
             ORDER BY ll.logged_at DESC
             LIMIT 500""",

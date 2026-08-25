@@ -103,11 +103,11 @@ def get_current_vendor(
 
 def _require_internal(user: dict = Depends(get_current_user)) -> dict:
     role = user.get("role")
-    if role in ("admin", "ta_manager"):
+    if role in ("admin", "platform_admin", "company_admin"):
         return user
     if role == "recruiter" and recruiter_has_module(user.get("sub"), "vendors"):
         return user
-    raise HTTPException(403, "Admin, TA Manager, or delegated Recruiter access required")
+    raise HTTPException(403, "Company Admin or delegated Recruiter access required")
 
 
 def _ensure_candidate_portal_invite(cand_id: str, email: str, full_name: str) -> None:
@@ -120,10 +120,12 @@ def _ensure_candidate_portal_invite(cand_id: str, email: str, full_name: str) ->
     try:
         if query_one("SELECT id FROM candidate_user WHERE candidate_id=%s", [cand_id]):
             return
+        cand_row = query_one("SELECT tenant_id FROM candidate WHERE id=%s", [cand_id])
+        tenant_id = (cand_row or {}).get("tenant_id")
         cu = query_one(
-            """INSERT INTO candidate_user (candidate_id, email)
-               VALUES (%s, %s) ON CONFLICT (email) DO NOTHING RETURNING id""",
-            [cand_id, email.lower().strip()],
+            """INSERT INTO candidate_user (candidate_id, email, tenant_id)
+               VALUES (%s, %s, %s) ON CONFLICT (tenant_id, email) DO NOTHING RETURNING id""",
+            [cand_id, email.lower().strip(), tenant_id],
         )
         if cu:
             issue_invite_for_external_user(str(cu["id"]), email, full_name, "candidate")
@@ -214,23 +216,24 @@ def register_vendor(body: RegisterVendorIn, user: dict = Depends(_require_intern
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
+    tenant_id = user.get("tenant_id")
     existing = query_one(
-        "SELECT id FROM vendor_user WHERE LOWER(email) = %s",
-        [first_user_email],
+        "SELECT id FROM vendor_user WHERE tenant_id = %s AND LOWER(email) = %s",
+        [tenant_id, first_user_email],
     )
     if existing:
         raise HTTPException(409, "A vendor user with that email already exists")
 
     vendor = query_one(
-        """INSERT INTO vendor (name, contact_email, contact_phone, created_by)
-           VALUES (%s, %s, %s, %s) RETURNING id, name""",
-        [body.name, body.contact_email, body.contact_phone, user["sub"]],
+        """INSERT INTO vendor (name, contact_email, contact_phone, created_by, tenant_id)
+           VALUES (%s, %s, %s, %s, %s) RETURNING id, name""",
+        [body.name, body.contact_email, body.contact_phone, user["sub"], tenant_id],
     )
 
     vu = query_one(
-        """INSERT INTO vendor_user (vendor_id, full_name, email)
-           VALUES (%s, %s, %s) RETURNING id, email, full_name""",
-        [str(vendor["id"]), body.first_user_name, first_user_email],
+        """INSERT INTO vendor_user (vendor_id, full_name, email, tenant_id)
+           VALUES (%s, %s, %s, %s) RETURNING id, email, full_name""",
+        [str(vendor["id"]), body.first_user_name, first_user_email, tenant_id],
     )
 
     invite_link = None
@@ -270,8 +273,9 @@ def add_vendor_user(
     body: AddVendorUserIn,
     user: dict = Depends(_require_internal),
 ):
+    tenant_id = user.get("tenant_id")
     vendor = query_one(
-        "SELECT id FROM vendor WHERE id=%s AND status='active'", [vendor_id]
+        "SELECT id FROM vendor WHERE id=%s AND tenant_id=%s AND status='active'", [vendor_id, tenant_id]
     )
     if not vendor:
         raise HTTPException(404, "Vendor not found or suspended")
@@ -283,16 +287,16 @@ def add_vendor_user(
         raise HTTPException(400, str(exc))
 
     existing = query_one(
-        "SELECT id FROM vendor_user WHERE LOWER(email) = %s",
-        [email],
+        "SELECT id FROM vendor_user WHERE tenant_id = %s AND LOWER(email) = %s",
+        [tenant_id, email],
     )
     if existing:
         raise HTTPException(409, "A vendor user with that email already exists")
 
     vu = query_one(
-        """INSERT INTO vendor_user (vendor_id, full_name, email)
-           VALUES (%s, %s, %s) RETURNING id, email, full_name""",
-        [vendor_id, body.full_name, email],
+        """INSERT INTO vendor_user (vendor_id, full_name, email, tenant_id)
+           VALUES (%s, %s, %s, %s) RETURNING id, email, full_name""",
+        [vendor_id, body.full_name, email, tenant_id],
     )
 
     invite_link = None
@@ -324,8 +328,10 @@ def list_vendors(user: dict = Depends(_require_internal)):
                   COUNT(vu.id) FILTER (WHERE vu.is_active) AS user_count
            FROM vendor v
            LEFT JOIN vendor_user vu ON vu.vendor_id = v.id
+           WHERE v.tenant_id = %s
            GROUP BY v.id
-           ORDER BY v.created_at DESC"""
+           ORDER BY v.created_at DESC""",
+        [user.get("tenant_id")],
     )
 
 
@@ -343,7 +349,7 @@ def patch_vendor(
 ):
     if body.status not in ("active", "suspended"):
         raise HTTPException(400, "status must be 'active' or 'suspended'")
-    if not query_one("SELECT id FROM vendor WHERE id=%s", [vendor_id]):
+    if not query_one("SELECT id FROM vendor WHERE id=%s AND tenant_id=%s", [vendor_id, user.get("tenant_id")]):
         raise HTTPException(404, "Vendor not found")
     query(
         "UPDATE vendor SET status=%s WHERE id=%s",
@@ -355,8 +361,8 @@ def patch_vendor(
 # ── Internal: suspend or reactivate ONE vendor user (not the whole vendor) ───
 
 def _assert_ta_or_admin(user: dict) -> None:
-    if user.get("role") not in ("ta_manager", "admin"):
-        raise HTTPException(403, "TA Manager or admin access required")
+    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
+        raise HTTPException(403, "Company Admin access required")
 
 
 @router.patch("/{vendor_id}/users/{user_id}/suspend")

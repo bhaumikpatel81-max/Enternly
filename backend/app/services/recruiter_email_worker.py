@@ -32,7 +32,7 @@ def _set_status(status: str, detail: str = "") -> None:
     though there's no dedicated admin UI surfacing it yet."""
     try:
         query(
-            """INSERT INTO system_settings (key, value) VALUES ('recruiter_email_scan_status', %s)
+            """INSERT INTO system_status (key, value) VALUES ('recruiter_email_scan_status', %s)
                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
             [f"{status}|{detail}"[:500]], fetch=False,
         )

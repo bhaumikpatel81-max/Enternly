@@ -746,6 +746,7 @@ class RequisitionIn(BaseModel):
     band_id: str
     hrbp_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
+    client_id: Optional[str] = None   # set when hiring on behalf of an external client (RPO/staffing)
     roll_type: str = "on_roll"
     capex_opex: str = "na"
     key_skills: list[str] = []
@@ -843,6 +844,18 @@ def create_requisition(body: RequisitionIn, user: dict = Depends(get_current_use
         if not hm_row:
             raise HTTPException(422, "Selected hiring manager not found or inactive")
 
+    # Resolve/validate the client this req is being worked on behalf of, if
+    # any (staffing/RPO provision) -- scoped to the creator's own tenant so
+    # one customer can never point a requisition at another's client roster.
+    client_id = body.client_id or None
+    if client_id:
+        client_row = query_one(
+            "SELECT id FROM client WHERE id = %s AND tenant_id = %s AND is_active = true",
+            [client_id, user.get("tenant_id")],
+        )
+        if not client_row:
+            raise HTTPException(422, "Selected client not found or inactive")
+
     # Hiring manager reqs start as pending_ta_approval — not visible until TA approves
     approval_status = "pending_ta_approval" if role == "hiring_manager" else "approved"
 
@@ -865,6 +878,7 @@ def create_requisition(body: RequisitionIn, user: dict = Depends(get_current_use
                 """
                 INSERT INTO requisition
                   (title, bu_id, band_id, hrbp_id, hrbp_email, hrbp_name, hiring_manager_id,
+                   client_id, tenant_id,
                    roll_type, capex_opex, key_skills, min_experience, max_experience,
                    budgeted_ctc, budgeted_fixed, budgeted_variable,
                    openings, fiscal_year, job_description,
@@ -873,11 +887,12 @@ def create_requisition(body: RequisitionIn, user: dict = Depends(get_current_use
                    screening_questions, is_fresher_role, resume_weight, interview_weight,
                    req_code, status, opened_at, created_by,
                    approval_status, created_by_role)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'open',now(),%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'open',now(),%s,%s,%s)
                 RETURNING id, title, status, req_code, approval_status
                 """,
                 [
                     body.title, body.bu_id, body.band_id, hrbp_id, hrbp_email, hrbp_name, hiring_manager_id,
+                    client_id, user.get("tenant_id"),
                     body.roll_type, body.capex_opex,
                     body.key_skills, body.min_experience, body.max_experience, total_ctc,
                     fixed, variable,
@@ -1165,6 +1180,7 @@ class RequisitionEditIn(BaseModel):
     band_id: Optional[str] = None
     hrbp_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
+    client_id: Optional[str] = None   # "" clears it back to an internal hire
     roll_type: Optional[str] = None
     capex_opex: Optional[str] = None
     key_skills: Optional[list[str]] = None
@@ -1232,6 +1248,17 @@ def edit_requisition(req_id: str, body: RequisitionEditIn, user: dict = Depends(
             if not hm_row:
                 raise HTTPException(422, "Selected hiring manager not found or inactive")
             _add("hiring_manager_id", body.hiring_manager_id)
+    if body.client_id is not None:
+        if body.client_id == "":
+            _add("client_id", None)
+        else:
+            client_row = query_one(
+                "SELECT id FROM client WHERE id = %s AND tenant_id = %s AND is_active = true",
+                [body.client_id, user.get("tenant_id")],
+            )
+            if not client_row:
+                raise HTTPException(422, "Selected client not found or inactive")
+            _add("client_id", body.client_id)
     if body.roll_type is not None:       _add("roll_type", body.roll_type)
     if body.capex_opex is not None:      _add("capex_opex", body.capex_opex)
     if body.key_skills is not None:      _add("key_skills", body.key_skills)
@@ -2160,7 +2187,7 @@ def get_req_pipeline(req_id: str, user: dict = Depends(get_current_user)):
         [req_id],
     ) or []
 
-    cfg = load_config()
+    cfg = load_config(user.get("tenant_id"))
 
     # Fetch round_config for dynamic interview level names
     round_cfg = query(

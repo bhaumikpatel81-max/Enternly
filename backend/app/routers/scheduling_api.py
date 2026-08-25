@@ -924,6 +924,7 @@ def list_requests(user: dict = Depends(get_current_user)):
             SELECT requisition_id FROM requisition_recruiter WHERE recruiter_id = %s
         )"""
         params.append(user["sub"])
+    params.append(user.get("tenant_id"))
     return query(
         f"""SELECT isr.id, isr.status, isr.duration_min, isr.created_at,
                    isr.hm_submitted_at, isr.confirmed_at, isr.hm_user_id,
@@ -935,7 +936,7 @@ def list_requests(user: dict = Depends(get_current_user)):
             JOIN candidate    c  ON c.id = a.candidate_id
             JOIN requisition  r  ON r.id = a.requisition_id
             LEFT JOIN app_user hm ON hm.id = isr.hm_user_id
-            WHERE 1=1 {scope_sql}
+            WHERE 1=1 {scope_sql} AND r.tenant_id = %s
             ORDER BY isr.created_at DESC
             LIMIT 200""",
         params,

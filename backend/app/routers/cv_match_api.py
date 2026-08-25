@@ -62,10 +62,11 @@ def _serialize(row: dict, cv: dict, req: dict, cached: bool) -> dict:
 def generate_scorecard(cv_id: str, body: ScorecardIn, user: dict = Depends(get_current_user)):
     _require(user)
 
+    tenant_id = user.get("tenant_id")
     cv = query_one(
         """SELECT id, raw_text, experience_years, candidate_name, file_name, candidate_id
-           FROM cv_repository WHERE id=%s""",
-        [cv_id],
+           FROM cv_repository WHERE id=%s AND tenant_id=%s""",
+        [cv_id, tenant_id],
     )
     if not cv:
         raise HTTPException(404, "CV not found")
@@ -81,8 +82,8 @@ def generate_scorecard(cv_id: str, body: ScorecardIn, user: dict = Depends(get_c
                   r.min_experience, r.is_fresher_role, b.code AS band_code
            FROM requisition r
            JOIN band b ON b.id = r.band_id
-           WHERE r.id=%s""",
-        [body.requisition_id],
+           WHERE r.id=%s AND r.tenant_id=%s""",
+        [body.requisition_id, tenant_id],
     )
     if not req:
         raise HTTPException(404, "Requisition not found")
@@ -118,6 +119,13 @@ def generate_scorecard(cv_id: str, body: ScorecardIn, user: dict = Depends(get_c
 def get_scorecard(cv_id: str, requisition_id: str, user: dict = Depends(get_current_user)):
     """Fetch a previously generated scorecard without triggering a (re)score."""
     _require(user)
+    tenant_id = user.get("tenant_id")
+    cv = query_one(
+        "SELECT candidate_name, file_name FROM cv_repository WHERE id=%s AND tenant_id=%s", [cv_id, tenant_id]
+    )
+    req = query_one("SELECT title FROM requisition WHERE id=%s AND tenant_id=%s", [requisition_id, tenant_id])
+    if not cv or not req:
+        raise HTTPException(404, "No scorecard generated yet for this candidate/requisition pair")
     row = query_one(
         """SELECT * FROM cv_scorecard
            WHERE cv_repository_id=%s AND requisition_id=%s""",
@@ -125,8 +133,4 @@ def get_scorecard(cv_id: str, requisition_id: str, user: dict = Depends(get_curr
     )
     if not row:
         raise HTTPException(404, "No scorecard generated yet for this candidate/requisition pair")
-    cv = query_one(
-        "SELECT candidate_name, file_name FROM cv_repository WHERE id=%s", [cv_id]
-    ) or {}
-    req = query_one("SELECT title FROM requisition WHERE id=%s", [requisition_id]) or {}
     return _serialize(row, cv, req, cached=True)

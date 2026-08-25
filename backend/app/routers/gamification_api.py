@@ -65,16 +65,17 @@ def leaderboard(
         "all":     "",
     }.get(period, "")
 
+    tenant_id = user.get("tenant_id")
     rows = query(
         f"""SELECT subject_id,
                    SUM(points_awarded) AS total_points,
                    COUNT(*)            AS event_count
             FROM gamification_event
-            WHERE subject_type=%s {period_filter}
+            WHERE subject_type=%s AND tenant_id=%s {period_filter}
             GROUP BY subject_id
             ORDER BY total_points DESC
             LIMIT 50""",
-        [subject_type],
+        [subject_type, tenant_id],
     )
 
     result = []
@@ -82,10 +83,10 @@ def leaderboard(
         sid    = str(r["subject_id"])
         points = float(r["total_points"])
         # Look up display name
-        name = _resolve_name(subject_type, sid)
+        name = _resolve_name(subject_type, sid, tenant_id)
         badges = query(
-            "SELECT badge_key FROM gamification_badge WHERE subject_type=%s AND subject_id=%s",
-            [subject_type, sid],
+            "SELECT badge_key FROM gamification_badge WHERE subject_type=%s AND subject_id=%s AND tenant_id=%s",
+            [subject_type, sid, tenant_id],
         )
         result.append({
             "rank":        i,
@@ -117,23 +118,24 @@ def leaderboard_history(
     if subject_type not in ("recruiter", "vendor", "candidate", "hm"):
         raise HTTPException(400, "subject_type must be recruiter|vendor|candidate|hm")
 
+    tenant_id = user.get("tenant_id")
     rows = query(
         """SELECT EXTRACT(YEAR FROM created_at)::int AS year,
                   subject_id,
                   SUM(points_awarded) AS total_points,
                   COUNT(*)            AS event_count
            FROM gamification_event
-           WHERE subject_type=%s
+           WHERE subject_type=%s AND tenant_id=%s
            GROUP BY year, subject_id
            ORDER BY year DESC, total_points DESC""",
-        [subject_type],
+        [subject_type, tenant_id],
     )
 
     badge_rows = query(
         """SELECT EXTRACT(YEAR FROM earned_at)::int AS year, subject_id, badge_key
            FROM gamification_badge
-           WHERE subject_type=%s""",
-        [subject_type],
+           WHERE subject_type=%s AND tenant_id=%s""",
+        [subject_type, tenant_id],
     )
     badges_by_key: dict = {}
     for b in badge_rows or []:
@@ -148,7 +150,7 @@ def leaderboard_history(
         badge_keys = badges_by_key.get((year, sid), [])
         years.setdefault(year, []).append({
             "subject_id":  sid,
-            "name":        _resolve_name(subject_type, sid),
+            "name":        _resolve_name(subject_type, sid, tenant_id),
             "points":      points,
             "tier":        tier_for(points),
             "event_count": int(r["event_count"]),
@@ -199,17 +201,17 @@ def leaderboard_excel(
     return excel_export.stream_workbook(wb, f"enternly_leaderboard_{subject_type}_{period}.xlsx")
 
 
-def _resolve_name(subject_type: str, subject_id: str) -> str:
+def _resolve_name(subject_type: str, subject_id: str, tenant_id: str = None) -> str:
     if subject_type in ("recruiter", "hm"):
-        row = query_one("SELECT full_name FROM app_user WHERE id=%s", [subject_id])
+        row = query_one("SELECT full_name FROM app_user WHERE id=%s AND tenant_id=%s", [subject_id, tenant_id])
     elif subject_type == "vendor":
-        row = query_one("SELECT full_name FROM vendor_user WHERE id=%s", [subject_id])
+        row = query_one("SELECT full_name FROM vendor_user WHERE id=%s AND tenant_id=%s", [subject_id, tenant_id])
     elif subject_type == "candidate":
         row = query_one(
             """SELECT c.full_name FROM candidate_user cu
                JOIN candidate c ON c.id = cu.candidate_id
-               WHERE cu.id=%s""",
-            [subject_id],
+               WHERE cu.id=%s AND cu.tenant_id=%s""",
+            [subject_id, tenant_id],
         )
     else:
         row = None
@@ -222,7 +224,10 @@ def _resolve_name(subject_type: str, subject_id: str) -> str:
 def get_config(user: dict = Depends(get_current_user)):
     if user.get("role") not in _TA_ROLES:
         raise HTTPException(403, "ta_manager / admin only")
-    return query("SELECT key, value, updated_at FROM gamification_config ORDER BY key")
+    return query(
+        "SELECT key, value, updated_at FROM gamification_config WHERE tenant_id=%s ORDER BY key",
+        [user.get("tenant_id")],
+    )
 
 
 class ConfigPatchIn(BaseModel):
@@ -234,12 +239,13 @@ class ConfigPatchIn(BaseModel):
 def patch_config(body: ConfigPatchIn, user: dict = Depends(get_current_user)):
     if user.get("role") not in _TA_ROLES:
         raise HTTPException(403, "ta_manager / admin only")
-    existing = query_one("SELECT key FROM gamification_config WHERE key=%s", [body.key])
+    tenant_id = user.get("tenant_id")
+    existing = query_one("SELECT key FROM gamification_config WHERE key=%s AND tenant_id=%s", [body.key, tenant_id])
     if not existing:
         raise HTTPException(404, f"Config key '{body.key}' not found")
     query(
         """UPDATE gamification_config SET value=%s, updated_at=now(), updated_by=%s
-           WHERE key=%s""",
-        [body.value, user["sub"], body.key], fetch=False,
+           WHERE key=%s AND tenant_id=%s""",
+        [body.value, user["sub"], body.key, tenant_id], fetch=False,
     )
     return {"ok": True, "key": body.key, "value": body.value}

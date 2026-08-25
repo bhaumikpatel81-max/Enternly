@@ -209,13 +209,14 @@ def ta_pivot(
         raise HTTPException(404, f"pivot_id must be 1-8, got {pivot_id!r}")
     ps = _period_start(period, year)
     rjoin, rp = "", []
+    xwhere, xp = "AND r.tenant_id = %s", [user.get("tenant_id")]
     if pivot_id == "6":
-        return _pivot6(year, ps, "ta_manager", "")
+        return _pivot6(year, ps, "ta_manager", "", xwhere, xp)
     if pivot_id == "7":
-        return _pivot7(year, ps, "", [])
+        return _pivot7(year, ps, "", [], xwhere, xp)
     if pivot_id == "8":
-        return _pivot8(year, ps, rjoin, rp)
-    return PIVOT_MAP[pivot_id][1](year, ps, rjoin, rp)
+        return _pivot8(year, ps, rjoin, rp, xwhere, xp)
+    return PIVOT_MAP[pivot_id][1](year, ps, rjoin, rp, xwhere, xp)
 
 
 # ── Recruiter pivot endpoint ──────────────────────────────────────────────────
@@ -237,13 +238,14 @@ def recruiter_pivot(
     uid = user["sub"]
     ps = _period_start(period, year)
     rjoin, rp = _recruiter_join("recruiter", uid)
+    xwhere, xp = "AND r.tenant_id = %s", [user.get("tenant_id")]
     if pivot_id == "6":
-        return _pivot6(year, ps, "recruiter", uid)
+        return _pivot6(year, ps, "recruiter", uid, xwhere, xp)
     if pivot_id == "7":
-        return _pivot7(year, ps, "recruiter", [uid])
+        return _pivot7(year, ps, "recruiter", [uid], xwhere, xp)
     if pivot_id == "8":
-        return _pivot8(year, ps, rjoin, rp)
-    return PIVOT_MAP[pivot_id][1](year, ps, rjoin, rp)
+        return _pivot8(year, ps, rjoin, rp, xwhere, xp)
+    return PIVOT_MAP[pivot_id][1](year, ps, rjoin, rp, xwhere, xp)
 
 
 # ── HM summary ───────────────────────────────────────────────────────────────
@@ -368,15 +370,16 @@ def ta_excel(
     if user["role"] not in ("ta_manager", "admin"):
         raise HTTPException(403, "TA Manager or Admin only")
     ps = _period_start(period, year)
+    xwhere, xp = "AND r.tenant_id = %s", [user.get("tenant_id")]
     pivots = [
-        _pivot1(year, ps, "", []),
-        _pivot2(year, ps, "", []),
-        _pivot3(year, ps, "", []),
-        _pivot4(year, ps, "", []),
-        _pivot5(year, ps, "", []),
-        _pivot6(year, ps, "ta_manager", ""),
-        _pivot7(year, ps, "", []),
-        [_pivot8(year, ps, "", [])],
+        _pivot1(year, ps, "", [], xwhere, xp),
+        _pivot2(year, ps, "", [], xwhere, xp),
+        _pivot3(year, ps, "", [], xwhere, xp),
+        _pivot4(year, ps, "", [], xwhere, xp),
+        _pivot5(year, ps, "", [], xwhere, xp),
+        _pivot6(year, ps, "ta_manager", "", xwhere, xp),
+        _pivot7(year, ps, "", [], xwhere, xp),
+        [_pivot8(year, ps, "", [], xwhere, xp)],
     ]
     wb = _build_workbook(pivots, title=f"TA Reports — {period.title()} {year}", generated_by=user.get("name") or user.get("email") or "")
     return excel_export.stream_workbook(wb, f"enternly_ta_report_{year}_{period}.xlsx")
@@ -395,15 +398,16 @@ def recruiter_excel(
     uid = user["sub"]
     ps = _period_start(period, year)
     rjoin, rp = _recruiter_join("recruiter", uid)
+    xwhere, xp = "AND r.tenant_id = %s", [user.get("tenant_id")]
     pivots = [
-        _pivot1(year, ps, rjoin, rp),
-        _pivot2(year, ps, rjoin, rp),
-        _pivot3(year, ps, rjoin, rp),
-        _pivot4(year, ps, rjoin, rp),
-        _pivot5(year, ps, rjoin, rp),
-        _pivot6(year, ps, "recruiter", uid),
-        _pivot7(year, ps, "recruiter", [uid]),
-        [_pivot8(year, ps, rjoin, rp)],
+        _pivot1(year, ps, rjoin, rp, xwhere, xp),
+        _pivot2(year, ps, rjoin, rp, xwhere, xp),
+        _pivot3(year, ps, rjoin, rp, xwhere, xp),
+        _pivot4(year, ps, rjoin, rp, xwhere, xp),
+        _pivot5(year, ps, rjoin, rp, xwhere, xp),
+        _pivot6(year, ps, "recruiter", uid, xwhere, xp),
+        _pivot7(year, ps, "recruiter", [uid], xwhere, xp),
+        [_pivot8(year, ps, rjoin, rp, xwhere, xp)],
     ]
     wb = _build_workbook(pivots, title=f"My Reports — {period.title()} {year}", generated_by=user.get("name") or user.get("email") or "")
     return excel_export.stream_workbook(wb, f"enternly_my_report_{year}_{period}.xlsx")

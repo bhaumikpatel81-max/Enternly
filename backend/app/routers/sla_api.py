@@ -3,8 +3,8 @@ SLA / RAG (Red-Amber-Green) API — deadline tracking across pipeline.
 
 Endpoints
 ---------
-GET  /api/sla/config              — read SLA targets (ta_manager + admin)
-POST /api/sla/config              — save SLA targets (ta_manager + admin)
+GET  /api/sla/config              — read SLA targets (Company Admin)
+POST /api/sla/config              — save SLA targets (Company Admin)
 GET  /api/sla/dashboard           — breach dashboard — all AMBER/RED items, role-scoped
 POST /api/sla/app-rag-bulk        — RAG for a batch of application IDs
 POST /api/sla/req-rag-bulk        — RAG for a batch of requisition IDs
@@ -36,8 +36,8 @@ from ..services.sla import (
 
 router = APIRouter(prefix="/api/sla", tags=["sla"])
 
-_ALLOWED_ROLES_WRITE = {"admin", "ta_manager"}
-_ALLOWED_ROLES_READ  = {"admin", "ta_manager", "recruiter"}
+_ALLOWED_ROLES_WRITE = {"admin", "platform_admin", "company_admin"}
+_ALLOWED_ROLES_READ  = {"admin", "platform_admin", "company_admin", "ta_manager", "recruiter"}
 
 
 def _require_sla_write(user: dict = Depends(get_current_user)) -> dict:
@@ -46,7 +46,7 @@ def _require_sla_write(user: dict = Depends(get_current_user)) -> dict:
         return user
     if role == "recruiter" and recruiter_has_module(user.get("sub"), "sla_settings"):
         return user
-    raise HTTPException(403, "TA Manager or Admin access required")
+    raise HTTPException(403, "Company Admin access required")
 
 
 def _require_sla_read(user: dict = Depends(get_current_user)) -> dict:
@@ -83,7 +83,7 @@ class BulkReqRagIn(BaseModel):
 @router.get("/config")
 def get_sla_config(user: dict = Depends(_require_sla_write)):
     """Return current SLA config merged with defaults."""
-    rows = query("SELECT config_key, days, updated_at FROM sla_config") or []
+    rows = query("SELECT config_key, days, updated_at FROM sla_config WHERE tenant_id = %s", [user.get("tenant_id")]) or []
     stored = {r["config_key"]: r["days"] for r in rows}
     result = {}
     for k, default in SLA_DEFAULTS.items():
@@ -100,17 +100,18 @@ def save_sla_config(body: SLAConfigIn, user: dict = Depends(_require_sla_write))
     for key, days in updates.items():
         if days < 1:
             raise HTTPException(400, f"{key}: days must be >= 1")
+    tenant_id = user.get("tenant_id")
     # One batched upsert via unnest() instead of one INSERT per config key.
     keys = list(updates.keys())
     days_vals = [updates[k] for k in keys]
     query(
-        """INSERT INTO sla_config (config_key, days, updated_by)
-           SELECT k, d, %s FROM unnest(%s::text[], %s::int[]) AS t(k, d)
-           ON CONFLICT (config_key)
+        """INSERT INTO sla_config (config_key, days, updated_by, tenant_id)
+           SELECT k, d, %s, %s FROM unnest(%s::text[], %s::int[]) AS t(k, d)
+           ON CONFLICT (tenant_id, config_key)
            DO UPDATE SET days = EXCLUDED.days,
                          updated_at = now(),
                          updated_by = EXCLUDED.updated_by""",
-        [user["sub"], keys, days_vals],
+        [user["sub"], tenant_id, keys, days_vals],
         fetch=False,
     )
     return {"ok": True, "updated": keys}
@@ -127,7 +128,7 @@ def app_rag_bulk(body: BulkAppRagIn, user: dict = Depends(get_current_user)):
         return {}
     if len(body.app_ids) > 500:
         raise HTTPException(400, "Too many app IDs (max 500)")
-    cfg = load_config()
+    cfg = load_config(user.get("tenant_id"))
     return bulk_application_rag(body.app_ids, cfg)
 
 
@@ -140,7 +141,7 @@ def req_rag_bulk(body: BulkReqRagIn, user: dict = Depends(get_current_user)):
         return {}
     if len(body.req_ids) > 500:
         raise HTTPException(400, "Too many req IDs (max 500)")
-    cfg = load_config()
+    cfg = load_config(user.get("tenant_id"))
     return bulk_requisition_rag(body.req_ids, cfg)
 
 
@@ -154,7 +155,7 @@ def sla_dashboard(user: dict = Depends(_require_sla_read)):
     """
     role     = user.get("role")
     uid      = user.get("sub")
-    cfg      = load_config()
+    cfg      = load_config(user.get("tenant_id"))
 
     breaches = []
 

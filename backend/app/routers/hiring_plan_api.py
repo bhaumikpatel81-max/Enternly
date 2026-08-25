@@ -264,8 +264,10 @@ _SKIP_HEADERS = {
 
 # ── Filter helper ─────────────────────────────────────────────────────────────
 
-def _where(fy, quarter, bu, status, priority) -> tuple:
+def _where(fy, quarter, bu, status, priority, tenant_id=None) -> tuple:
     clauses, params = [], []
+    if tenant_id:
+        clauses.append("h.tenant_id = %s"); params.append(tenant_id)
     if fy:
         clauses.append("h.fiscal_year = %s"); params.append(fy)
     if quarter:
@@ -337,7 +339,7 @@ def list_rows(
     user: dict = Depends(get_current_user),
 ):
     _require(user)
-    w, params = _where(fy, quarter, bu, status, priority)
+    w, params = _where(fy, quarter, bu, status, priority, user.get("tenant_id"))
     rows = query(
         f"""SELECT h.*, r.req_code, r.title AS req_title, r.status AS req_status
             FROM hiring_plan_rows h
@@ -375,8 +377,8 @@ def create_row(body: HPRowIn, user: dict = Depends(get_current_user)):
     req_id = body.requisition_id or None
     link   = body.link_status or 'unlinked'
     if req_id:
-        # Validate the requisition exists
-        if not query_one("SELECT id FROM requisition WHERE id=%s", [req_id]):
+        # Validate the requisition exists and belongs to the caller's tenant
+        if not query_one("SELECT id FROM requisition WHERE id=%s AND tenant_id=%s", [req_id, user.get("tenant_id")]):
             req_id = None; link = 'unlinked'
 
     query(
@@ -392,11 +394,11 @@ def create_row(body: HPRowIn, user: dict = Depends(get_current_user)):
                hiring_status, replacement_for, aipl_code, employee_name,
                offered_fixed, offered_variable, ta_owner, source_of_hire,
                candidate_email, offer_date, tentative_doj, remarks,
-               created_by, created_at, updated_at
+               created_by, tenant_id, created_at, updated_at
            ) VALUES (
                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-               %s,%s,now(),now()
+               %s,%s,%s,now(),now()
            )""",
         [
             new_id,
@@ -416,7 +418,7 @@ def create_row(body: HPRowIn, user: dict = Depends(get_current_user)):
             body.offered_fixed or 0, body.offered_variable or 0,
             body.ta_owner, body.source_of_hire, body.candidate_email,
             _to_date(body.offer_date), _to_date(body.tentative_doj), body.remarks,
-            user["sub"],
+            user["sub"], user.get("tenant_id"),
         ],
         fetch=False,
     )
@@ -435,7 +437,7 @@ def create_row(body: HPRowIn, user: dict = Depends(get_current_user)):
 @router.put("/{row_id}")
 def update_row(row_id: str, body: HPRowIn, user: dict = Depends(get_current_user)):
     _require(user)
-    existing = query_one("SELECT id FROM hiring_plan_rows WHERE id=%s", [row_id])
+    existing = query_one("SELECT id FROM hiring_plan_rows WHERE id=%s AND tenant_id=%s", [row_id, user.get("tenant_id")])
     if not existing:
         raise HTTPException(404, "Row not found")
     if body.hiring_status not in HP_STATUSES:
@@ -446,7 +448,7 @@ def update_row(row_id: str, body: HPRowIn, user: dict = Depends(get_current_user
     req_id = body.requisition_id or None
     link   = body.link_status or 'unlinked'
     if req_id:
-        if not query_one("SELECT id FROM requisition WHERE id=%s", [req_id]):
+        if not query_one("SELECT id FROM requisition WHERE id=%s AND tenant_id=%s", [req_id, user.get("tenant_id")]):
             req_id = None; link = 'unlinked'
 
     query(
@@ -503,7 +505,7 @@ def update_row(row_id: str, body: HPRowIn, user: dict = Depends(get_current_user
 @router.delete("/{row_id}")
 def delete_row(row_id: str, user: dict = Depends(get_current_user)):
     _require(user)
-    existing = query_one("SELECT id FROM hiring_plan_rows WHERE id=%s", [row_id])
+    existing = query_one("SELECT id FROM hiring_plan_rows WHERE id=%s AND tenant_id=%s", [row_id, user.get("tenant_id")])
     if not existing:
         raise HTTPException(404, "Row not found")
     query("DELETE FROM hiring_plan_rows WHERE id=%s", [row_id], fetch=False)
@@ -670,16 +672,19 @@ async def import_sheet(
 @router.post("/{row_id}/create-requisition")
 def create_req_from_plan(row_id: str, user: dict = Depends(get_current_user)):
     _require(user)
-    hp = query_one("SELECT * FROM hiring_plan_rows WHERE id=%s", [row_id])
+    tenant_id = user.get("tenant_id")
+    hp = query_one("SELECT * FROM hiring_plan_rows WHERE id=%s AND tenant_id=%s", [row_id, tenant_id])
     if not hp:
         raise HTTPException(404, "Plan row not found")
 
-    # Try to resolve bu_id from bu name
+    # Try to resolve bu_id from bu name, scoped to the caller's own tenant
     bu_id = None
     if hp.get('bu'):
         bu_row = query_one(
-            "SELECT id FROM business_unit WHERE LOWER(name) ILIKE LOWER(%s) LIMIT 1",
-            [hp['bu']],
+            """SELECT bu.id FROM business_unit bu
+               JOIN group_company gc ON gc.id = bu.company_id
+               WHERE gc.tenant_id = %s AND LOWER(bu.name) ILIKE LOWER(%s) LIMIT 1""",
+            [tenant_id, hp['bu']],
         )
         if bu_row:
             bu_id = str(bu_row['id'])
@@ -722,9 +727,9 @@ def create_req_from_plan(row_id: str, user: dict = Depends(get_current_user)):
                        budgeted_fixed, budgeted_variable,
                        min_experience, max_experience,
                        grade_level, priority, project, status,
-                       created_by, created_at, opened_at
+                       created_by, tenant_id, created_at, opened_at
                    ) VALUES (
-                       %s,%s,%s,%s,'on_roll',%s,%s,%s,%s,%s,%s,%s,%s,'open',%s,now(),now()
+                       %s,%s,%s,%s,'on_roll',%s,%s,%s,%s,%s,%s,%s,%s,'open',%s,%s,now(),now()
                    )""",
                 [
                     req_id, req_code, hp.get('role_name') or 'Untitled',
@@ -734,7 +739,7 @@ def create_req_from_plan(row_id: str, user: dict = Depends(get_current_user)):
                     _safe_float(hp.get('budgeted_variable')),
                     min_exp, max_exp,
                     hp.get('band'), priority, hp.get('project_name'),
-                    user["sub"],
+                    user["sub"], tenant_id,
                 ],
                 fetch=False,
             )
@@ -774,11 +779,12 @@ def hiring_plan_summary(
     user: dict = Depends(get_current_user),
 ):
     _require(user)
-    params: list = []
-    fy_where = ""
+    conds = ["tenant_id = %s"]
+    params: list = [user.get("tenant_id")]
     if fy:
-        fy_where = "WHERE fiscal_year = %s"
+        conds.append("fiscal_year = %s")
         params.append(fy)
+    fy_where = "WHERE " + " AND ".join(conds)
 
     # By BU
     by_bu = query(
@@ -907,7 +913,7 @@ def export_excel(
     _require(user)
     import openpyxl
 
-    w, params = _where(fy, quarter, bu, status, priority)
+    w, params = _where(fy, quarter, bu, status, priority, user.get("tenant_id"))
     rows = query(
         f"""SELECT h.*, r.req_code, r.title AS req_title
             FROM hiring_plan_rows h

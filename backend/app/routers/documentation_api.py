@@ -28,9 +28,17 @@ os.makedirs(_DOCS_DIR, exist_ok=True)
 def _assert_can_access(app_id: str, user: dict) -> None:
     """Role + requisition-ownership gate for the documentation stage.
     Offer docs and negotiation notes are recruiter/ta_manager/admin only;
-    recruiters are scoped to requisitions they own. 404 (not 403) on a
-    non-owned or missing application, to prevent ID enumeration."""
+    recruiters are scoped to requisitions they own, and every role is
+    additionally scoped to their own tenant. 404 (not 403) on a non-owned,
+    cross-tenant, or missing application, to prevent ID enumeration."""
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
+        raise HTTPException(404, "Application not found")
+    if not query_one(
+        """SELECT a.id FROM application a
+           JOIN requisition r ON r.id = a.requisition_id
+           WHERE a.id = %s AND r.tenant_id = %s""",
+        [app_id, user.get("tenant_id")],
+    ):
         raise HTTPException(404, "Application not found")
     if user["role"] == "recruiter":
         req_id = _application_req_id(app_id)

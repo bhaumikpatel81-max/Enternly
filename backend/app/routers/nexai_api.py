@@ -492,6 +492,9 @@ def list_sessions(
     where_parts = []
     params: list = []
 
+    where_parts.append("r.tenant_id = %s")
+    params.append(user.get("tenant_id"))
+
     # Role scoping
     if role == "recruiter":
         join_parts.append(
@@ -502,7 +505,7 @@ def list_sessions(
     elif role == "hiring_manager":
         where_parts.append("r.hiring_manager_id = %s")
         params.append(uid)
-    # ta_manager / admin: sees all
+    # ta_manager / admin: sees all (now bounded to their own tenant)
 
     # Optional filters
     if status == "pending":
@@ -732,7 +735,6 @@ def invite_tracker(user: dict = Depends(get_current_user)):
     uid  = user["sub"]
 
     scope_join  = ""
-    scope_where = ""
     params: list = []
 
     if role == "recruiter":
@@ -740,6 +742,9 @@ def invite_tracker(user: dict = Depends(get_current_user)):
         params.append(uid)
     elif role not in ("ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
+
+    scope_where = "WHERE r.tenant_id = %s"
+    params.append(user.get("tenant_id"))
 
     # DISTINCT ON (a.id) keeps only the most-recently-sent invite per application,
     # so re-sending an invite never inflates the tracker row count.
@@ -793,6 +798,7 @@ def invite_tracker(user: dict = Depends(get_current_user)):
                 ORDER BY se.occurred_at DESC
                 LIMIT 1
             ) latest_se ON true
+            {scope_where}
             ORDER BY a.id, ni.invited_at DESC, ps.created_at DESC
         ) latest_invite
         ORDER BY invited_at DESC
@@ -1999,9 +2005,10 @@ def list_appeals(
            JOIN nexai_session  ns  ON ns.id = pa.nexai_session_id
            LEFT JOIN proctoring_session ps ON ps.application_id = pa.application_id
            LEFT JOIN app_user  rev ON rev.id = pa.reviewed_by
+           WHERE r.tenant_id = %s
            ORDER BY pa.created_at DESC
            LIMIT %s OFFSET %s""",
-        [limit, offset],
+        [user.get("tenant_id"), limit, offset],
     )
     return rows or []
 
@@ -2012,7 +2019,13 @@ def update_appeal(appeal_id: str, body: AppealUpdateIn, user: dict = Depends(get
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
 
-    appeal = query_one("SELECT id FROM proctoring_appeal WHERE id = %s", [appeal_id])
+    appeal = query_one(
+        """SELECT pa.id FROM proctoring_appeal pa
+           JOIN application a ON a.id = pa.application_id
+           JOIN requisition r ON r.id = a.requisition_id
+           WHERE pa.id = %s AND r.tenant_id = %s""",
+        [appeal_id, user.get("tenant_id")],
+    )
     if not appeal:
         raise HTTPException(404, "Appeal not found")
 

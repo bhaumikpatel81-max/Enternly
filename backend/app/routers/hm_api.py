@@ -158,7 +158,7 @@ def _rag_sort_key(item: dict) -> int:
 def hm_dashboard(user: dict = Depends(get_current_user)):
     _require_hm(user)
     uid = user["sub"]
-    sla_cfg = load_config()
+    sla_cfg = load_config(user.get("tenant_id"))
 
     # ── 1. Pending scorecards ─────────────────────────────────────────────────
     # Interviews on the HM's reqs where the HM is on the panel but has not
@@ -465,8 +465,8 @@ def ta_pending_count(user: dict = Depends(get_current_user)):
     _require_ta(user)
     row = query_one(
         "SELECT COUNT(*) AS n FROM requisition "
-        "WHERE COALESCE(approval_status, 'approved') = 'pending_ta_approval'",
-        [],
+        "WHERE COALESCE(approval_status, 'approved') = 'pending_ta_approval' AND tenant_id = %s",
+        [user.get("tenant_id")],
     )
     return {"count": int(row["n"]) if row else 0}
 
@@ -495,9 +495,10 @@ def ta_pending_reqs(user: dict = Depends(get_current_user)):
         LEFT JOIN app_user creator ON creator.id = r.created_by
         LEFT JOIN app_user hm      ON hm.id      = r.hiring_manager_id
         WHERE COALESCE(r.approval_status, 'approved') = 'pending_ta_approval'
+          AND r.tenant_id = %s
         ORDER BY r.created_at DESC
         """,
-        [],
+        [user.get("tenant_id")],
     )
     return rows or []
 
@@ -509,8 +510,8 @@ def ta_approve_requisition(req_id: str, user: dict = Depends(get_current_user)):
     _require_ta(user)
 
     req = query_one(
-        "SELECT id, title, approval_status, hiring_manager_id FROM requisition WHERE id=%s",
-        [req_id],
+        "SELECT id, title, approval_status, hiring_manager_id FROM requisition WHERE id=%s AND tenant_id=%s",
+        [req_id, user.get("tenant_id")],
     )
     if not req:
         raise HTTPException(404, "Requisition not found")
@@ -559,8 +560,8 @@ def ta_reject_requisition(
     _require_ta(user)
 
     req = query_one(
-        "SELECT id, title, approval_status, hiring_manager_id FROM requisition WHERE id=%s",
-        [req_id],
+        "SELECT id, title, approval_status, hiring_manager_id FROM requisition WHERE id=%s AND tenant_id=%s",
+        [req_id, user.get("tenant_id")],
     )
     if not req:
         raise HTTPException(404, "Requisition not found")
@@ -601,8 +602,8 @@ def resend_hm_decision_notice(req_id: str, user: dict = Depends(get_current_user
     for when that notification silently failed the first time."""
     _require_ta(user)
     req = query_one(
-        "SELECT id, title, approval_status, hiring_manager_id, rejection_reason FROM requisition WHERE id=%s",
-        [req_id],
+        "SELECT id, title, approval_status, hiring_manager_id, rejection_reason FROM requisition WHERE id=%s AND tenant_id=%s",
+        [req_id, user.get("tenant_id")],
     )
     if not req:
         raise HTTPException(404, "Requisition not found")

@@ -72,7 +72,9 @@ async def stats(user: dict = Depends(get_current_user)):
              count(*) FILTER (WHERE is_active AND status = 'current') AS current,
              count(*) FILTER (WHERE is_active AND status = 'past') AS past,
              count(*) AS total
-           FROM no_poach_company"""
+           FROM no_poach_company
+           WHERE tenant_id = %s""",
+        [user.get("tenant_id")],
     )
     return row
 
@@ -85,8 +87,8 @@ async def list_companies(
     user: dict = Depends(get_current_user),
 ):
     _require_view(user)
-    where = []
-    params = []
+    where = ["tenant_id = %s"]
+    params = [user.get("tenant_id")]
     if q.strip():
         where.append("company_name ILIKE %s")
         params.append(f"%{q.strip()}%")
@@ -114,9 +116,11 @@ async def add_company(body: CompanyIn, user: dict = Depends(get_current_user)):
     if body.status and body.status not in ("past", "current"):
         raise HTTPException(400, "status must be 'past' or 'current'")
     norm = _normalize(name)
+    tenant_id = user.get("tenant_id")
 
     dup = query_one(
-        "SELECT company_name, is_active FROM no_poach_company WHERE normalized_name = %s", [norm]
+        "SELECT company_name, is_active FROM no_poach_company WHERE tenant_id = %s AND normalized_name = %s",
+        [tenant_id, norm],
     )
     if dup:
         if dup["is_active"]:
@@ -129,10 +133,10 @@ async def add_company(body: CompanyIn, user: dict = Depends(get_current_user)):
 
     row = query_one(
         """INSERT INTO no_poach_company
-             (company_name, normalized_name, status, location, effective_from, effective_to, source)
-           VALUES (%s, %s, %s, %s, %s, %s, 'manual')
+             (company_name, normalized_name, status, location, effective_from, effective_to, source, tenant_id)
+           VALUES (%s, %s, %s, %s, %s, %s, 'manual', %s)
            RETURNING *""",
-        [name, norm, body.status, body.location, body.effective_from, body.effective_to],
+        [name, norm, body.status, body.location, body.effective_from, body.effective_to, tenant_id],
     )
     return row
 
@@ -140,7 +144,8 @@ async def add_company(body: CompanyIn, user: dict = Depends(get_current_user)):
 @router.patch("/{company_id}")
 async def edit_company(company_id: str, body: CompanyPatch, user: dict = Depends(get_current_user)):
     _require_manage(user)
-    existing = query_one("SELECT * FROM no_poach_company WHERE id = %s", [company_id])
+    tenant_id = user.get("tenant_id")
+    existing = query_one("SELECT * FROM no_poach_company WHERE id = %s AND tenant_id = %s", [company_id, tenant_id])
     if not existing:
         raise HTTPException(404, "Company not found")
     if body.status and body.status not in ("past", "current"):
@@ -150,8 +155,8 @@ async def edit_company(company_id: str, body: CompanyPatch, user: dict = Depends
     if body.company_name is not None and body.company_name.strip():
         new_norm = _normalize(body.company_name)
         dup = query_one(
-            "SELECT company_name FROM no_poach_company WHERE normalized_name = %s AND id <> %s",
-            [new_norm, company_id],
+            "SELECT company_name FROM no_poach_company WHERE tenant_id = %s AND normalized_name = %s AND id <> %s",
+            [tenant_id, new_norm, company_id],
         )
         if dup:
             raise HTTPException(409, f"'{dup['company_name']}' already uses that name.")
@@ -184,22 +189,23 @@ async def bulk_action(body: BulkAction, user: dict = Depends(get_current_user)):
     _require_manage(user)
     if not body.ids:
         raise HTTPException(400, "No companies selected")
+    tenant_id = user.get("tenant_id")
 
     if body.action == "deactivate":
-        query("UPDATE no_poach_company SET is_active = false WHERE id = ANY(%s::uuid[])",
-              [body.ids], fetch=False)
+        query("UPDATE no_poach_company SET is_active = false WHERE id = ANY(%s::uuid[]) AND tenant_id = %s",
+              [body.ids, tenant_id], fetch=False)
     elif body.action == "reactivate":
-        query("UPDATE no_poach_company SET is_active = true WHERE id = ANY(%s::uuid[])",
-              [body.ids], fetch=False)
+        query("UPDATE no_poach_company SET is_active = true WHERE id = ANY(%s::uuid[]) AND tenant_id = %s",
+              [body.ids, tenant_id], fetch=False)
     elif body.action == "set_current":
-        query("UPDATE no_poach_company SET status = 'current' WHERE id = ANY(%s::uuid[])",
-              [body.ids], fetch=False)
+        query("UPDATE no_poach_company SET status = 'current' WHERE id = ANY(%s::uuid[]) AND tenant_id = %s",
+              [body.ids, tenant_id], fetch=False)
     elif body.action == "set_past":
-        query("UPDATE no_poach_company SET status = 'past' WHERE id = ANY(%s::uuid[])",
-              [body.ids], fetch=False)
+        query("UPDATE no_poach_company SET status = 'past' WHERE id = ANY(%s::uuid[]) AND tenant_id = %s",
+              [body.ids, tenant_id], fetch=False)
     elif body.action == "delete":
-        query("DELETE FROM no_poach_company WHERE id = ANY(%s::uuid[])",
-              [body.ids], fetch=False)
+        query("DELETE FROM no_poach_company WHERE id = ANY(%s::uuid[]) AND tenant_id = %s",
+              [body.ids, tenant_id], fetch=False)
     else:
         raise HTTPException(400, f"Unknown action '{body.action}'")
 
@@ -210,7 +216,8 @@ async def bulk_action(body: BulkAction, user: dict = Depends(get_current_user)):
 async def matching_applications(company_id: str, user: dict = Depends(get_current_user)):
     """Live match against application.current_company — not the frozen intake-time flag."""
     _require_view(user)
-    company = query_one("SELECT * FROM no_poach_company WHERE id = %s", [company_id])
+    tenant_id = user.get("tenant_id")
+    company = query_one("SELECT * FROM no_poach_company WHERE id = %s AND tenant_id = %s", [company_id, tenant_id])
     if not company:
         raise HTTPException(404, "Company not found")
     if not company["normalized_name"]:
@@ -223,8 +230,9 @@ async def matching_applications(company_id: str, user: dict = Depends(get_curren
            JOIN candidate c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
            WHERE regexp_replace(lower(a.current_company), '[^a-z0-9]', '', 'g') = %s
+             AND r.tenant_id = %s
            ORDER BY a.applied_at DESC""",
-        [company["normalized_name"]],
+        [company["normalized_name"], tenant_id],
     )
 
 
@@ -255,6 +263,7 @@ async def upload_list(file: UploadFile = File(...), user: dict = Depends(get_cur
     errors: list[str] = []
     duplicates_in_file: list[str] = []
     seen_in_file = set()
+    tenant_id = user.get("tenant_id")
 
     for i, row in enumerate(rows, start=2):
         name = (row.get("company_name") or "").strip()
@@ -282,15 +291,15 @@ async def upload_list(file: UploadFile = File(...), user: dict = Depends(get_cur
         # NOT stomp an existing row's status back to null/current, so this
         # only applies when the company doesn't exist yet.
         existing = query_one(
-            "SELECT id FROM no_poach_company WHERE normalized_name = %s", [norm]
+            "SELECT id FROM no_poach_company WHERE tenant_id = %s AND normalized_name = %s", [tenant_id, norm]
         )
         effective_status = status or ("current" if not existing else None)
 
         result = query_one(
             """INSERT INTO no_poach_company
-                 (company_name, normalized_name, status, location, effective_from, effective_to, source)
-               VALUES (%s, %s, %s, %s, %s, %s, 'upload')
-               ON CONFLICT (normalized_name) DO UPDATE
+                 (company_name, normalized_name, status, location, effective_from, effective_to, source, tenant_id)
+               VALUES (%s, %s, %s, %s, %s, %s, 'upload', %s)
+               ON CONFLICT (tenant_id, normalized_name) DO UPDATE
                  SET company_name   = EXCLUDED.company_name,
                      status         = COALESCE(EXCLUDED.status, no_poach_company.status),
                      location       = COALESCE(EXCLUDED.location, no_poach_company.location),
@@ -299,7 +308,7 @@ async def upload_list(file: UploadFile = File(...), user: dict = Depends(get_cur
                      is_active      = true
                RETURNING (xmax = 0) AS was_insert""",
             [name, norm, effective_status, row.get("location") or None,
-             row.get("effective_from") or None, row.get("effective_to") or None],
+             row.get("effective_from") or None, row.get("effective_to") or None, tenant_id],
         )
         if result["was_insert"]:
             inserted += 1

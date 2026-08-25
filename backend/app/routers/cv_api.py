@@ -337,7 +337,8 @@ _COMBINED_CV_CTE = """
             COALESCE(cv.requisition_id, lat_app.requisition_id) AS requisition_id,
             lat_app.status          AS candidate_stage,
             lat_app.id              AS application_id,
-            lat_app.source          AS app_source
+            lat_app.source          AS app_source,
+            cv.tenant_id            AS tenant_id
         FROM cv_repository cv
         LEFT JOIN LATERAL (
             SELECT id, status, requisition_id, source FROM application
@@ -365,7 +366,8 @@ _COMBINED_CV_CTE = """
             lat_app.requisition_id  AS requisition_id,
             lat_app.status          AS candidate_stage,
             lat_app.id              AS application_id,
-            lat_app.source          AS app_source
+            lat_app.source          AS app_source,
+            c.tenant_id             AS tenant_id
         FROM candidate c
         LEFT JOIN LATERAL (
             SELECT id, status, requisition_id, source FROM application
@@ -398,8 +400,9 @@ def cv_stats(user: dict = Depends(_cv_auth)):
                )                                                   AS enriched,
                COUNT(*) FILTER (WHERE enrich_status='pending')    AS pending,
                COUNT(*) FILTER (WHERE enrich_status='failed')     AS failed
-           FROM combined""",
-        [],
+           FROM combined
+           WHERE tenant_id = %s""",
+        [user.get("tenant_id")],
     )
     total    = int(row["total"] or 0)
     enriched = int(row["enriched"] or 0)
@@ -411,7 +414,7 @@ def cv_stats(user: dict = Depends(_cv_auth)):
     # (including idle ticks), so a stale value means the loop isn't
     # running in ANY worker process, not just that it's between rows.
     hb = query_one(
-        "SELECT value FROM system_settings WHERE key='cv_enricher_heartbeat'", [],
+        "SELECT value FROM system_status WHERE key='cv_enricher_heartbeat'", [],
     )
     enricher_seconds_since_heartbeat = None
     if hb and hb.get("value"):
@@ -428,8 +431,8 @@ def cv_stats(user: dict = Depends(_cv_auth)):
     # asyncio task itself raising and dying). Surfacing the actual
     # exception string here means the next stall is diagnosable from the
     # browser, no server log/shell access needed.
-    lock_err  = query_one("SELECT value FROM system_settings WHERE key='bg_lock_last_error'", [])
-    crash_err = query_one("SELECT value FROM system_settings WHERE key='bg_task_status:cv_enricher'", [])
+    lock_err  = query_one("SELECT value FROM system_status WHERE key='bg_lock_last_error'", [])
+    crash_err = query_one("SELECT value FROM system_status WHERE key='bg_task_status:cv_enricher'", [])
 
     # A stale heartbeat with NO lock/crash error logged is exactly what a
     # LEAKED advisory lock looks like: some backend connection still holds
@@ -517,14 +520,14 @@ def retry_failed_enrichment(user: dict = Depends(_cv_auth)):
 
     rows = query(
         """UPDATE cv_repository SET enrich_status='pending'
-           WHERE enrich_status='failed'
+           WHERE enrich_status='failed' AND tenant_id=%s
            RETURNING id""",
-        [],
+        [user.get("tenant_id")],
     )
     return {"requeued": len(rows or [])}
 
 
-def _retag_tier1_all() -> None:
+def _retag_tier1_all(tenant_id: str = None) -> None:
     """
     Runs in a background task, AFTER the triggering HTTP response has
     already gone back to the client. Doing this loop inline in the request
@@ -535,11 +538,12 @@ def _retag_tier1_all() -> None:
     who clicked the button. A background task keeps the same work off the
     request/response cycle entirely.
     """
-    rows = query(
-        """SELECT id, raw_text FROM cv_repository
-           WHERE raw_text IS NOT NULL AND raw_text != ''""",
-        [],
-    )
+    where = "WHERE raw_text IS NOT NULL AND raw_text != ''"
+    params = []
+    if tenant_id:
+        where += " AND tenant_id = %s"
+        params.append(tenant_id)
+    rows = query(f"SELECT id, raw_text FROM cv_repository {where}", params)
     for row in rows or []:
         skills = _parser.extract_tier1_skills(row["raw_text"])
         query("UPDATE cv_repository SET skills=%s WHERE id=%s", [skills, row["id"]], fetch=False)
@@ -565,18 +569,19 @@ def reenrich_all(background_tasks: BackgroundTasks, user: dict = Depends(_cv_aut
     """
     if user.get("role") not in ("ta_manager", "admin"):
         raise HTTPException(403, "Only ta_manager or admin can re-enrich all CVs")
+    tenant_id = user.get("tenant_id")
 
     total = query_one(
-        "SELECT count(*) AS n FROM cv_repository WHERE raw_text IS NOT NULL AND raw_text != ''",
-        [],
+        "SELECT count(*) AS n FROM cv_repository WHERE raw_text IS NOT NULL AND raw_text != '' AND tenant_id = %s",
+        [tenant_id],
     )
     requeued = query(
         """UPDATE cv_repository SET enrich_status='pending'
-           WHERE enrich_status='done'
+           WHERE enrich_status='done' AND tenant_id = %s
            RETURNING id""",
-        [],
+        [tenant_id],
     )
-    background_tasks.add_task(_retag_tier1_all)
+    background_tasks.add_task(_retag_tier1_all, tenant_id)
     return {"requeued": len(requeued or []), "retagging_started_for": int(total["n"] or 0)}
 
 
@@ -594,8 +599,8 @@ def cv_search(
 ):
     limit  = max(1, min(limit, 500))
     offset = max(0, offset)
-    conditions: list[str] = []
-    params: list = []
+    conditions: list[str] = ["combined.tenant_id = %s"]
+    params: list = [user.get("tenant_id")]
 
     if q and q.strip():
         try:

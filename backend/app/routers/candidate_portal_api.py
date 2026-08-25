@@ -326,6 +326,8 @@ def portal_recommended(candidate: dict = Depends(get_current_candidate)):
     """
     cand_id = candidate["candidate_id"]
     cand_skills = _candidate_skills(cand_id)
+    cand_row = query_one("SELECT tenant_id FROM candidate WHERE id=%s", [cand_id])
+    tenant_id = (cand_row or {}).get("tenant_id")
 
     # Already applied reqs — exclude from recommendations
     applied_ids = {
@@ -343,7 +345,9 @@ def portal_recommended(candidate: dict = Depends(get_current_candidate)):
            JOIN business_unit bu ON bu.id = r.bu_id
            WHERE r.status = 'open'
              AND COALESCE(r.approval_status, 'approved') = 'approved'
+             AND r.tenant_id = %s
            ORDER BY r.created_at DESC""",
+        [tenant_id],
     )
 
     results = []
@@ -414,14 +418,16 @@ def portal_apply(req_id: str, candidate: dict = Depends(get_current_candidate)):
     same candidate + req (application table has UNIQUE on those two columns).
     """
     cand_id = candidate["candidate_id"]
+    cand_row = query_one("SELECT tenant_id FROM candidate WHERE id=%s", [cand_id])
+    tenant_id = (cand_row or {}).get("tenant_id")
 
     req = query_one(
         """SELECT r.id, r.approval_status, r.title, gc.name AS company
            FROM requisition r
            JOIN business_unit bu ON bu.id = r.bu_id
            JOIN group_company gc ON gc.id = bu.company_id
-           WHERE r.id=%s""",
-        [req_id],
+           WHERE r.id=%s AND r.tenant_id=%s""",
+        [req_id, tenant_id],
     )
     if not req:
         raise HTTPException(404, "Requisition not found")
@@ -581,8 +587,8 @@ def ta_all_feedback(
     user: dict = Depends(_require_ta),
 ):
     """TA-only: all candidate experience feedback, filterable."""
-    conditions = ["1=1"]
-    params: list = []
+    conditions = ["c.tenant_id = %s"]
+    params: list = [user.get("tenant_id")]
     if company_rating:
         conditions.append("cf.company_rating = %s"); params.append(company_rating)
     if req_id:

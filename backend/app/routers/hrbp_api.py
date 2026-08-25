@@ -100,7 +100,8 @@ def hrbp_bus(user: dict = Depends(get_current_user)):
 def list_hrbp(user: dict = Depends(get_current_user)):
     """All active HRBPs -- for the manual-override dropdown on requisition create/edit."""
     return query(
-        "SELECT id, full_name, email FROM hrbp WHERE is_active = true ORDER BY full_name"
+        "SELECT id, full_name, email FROM hrbp WHERE is_active = true AND tenant_id = %s ORDER BY full_name",
+        [user.get("tenant_id")],
     )
 
 
@@ -111,8 +112,8 @@ def hrbp_for_bu(bu_id: str, user: dict = Depends(get_current_user)):
     row = query_one(
         """SELECT h.id, h.full_name, h.email
            FROM bu_hrbp_map m JOIN hrbp h ON h.id = m.hrbp_id
-           WHERE m.bu_id = %s AND h.is_active = true""",
-        [bu_id],
+           WHERE m.bu_id = %s AND h.is_active = true AND h.tenant_id = %s""",
+        [bu_id, user.get("tenant_id")],
     )
     return row or {}
 

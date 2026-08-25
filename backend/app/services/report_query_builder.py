@@ -131,6 +131,7 @@ def build_query(spec: dict, user: dict):
     entity = spec["entity"]
     explore = EXPLORES[entity]
     role, uid = user["role"], user["sub"]
+    tenant_id = user.get("tenant_id")
 
     extra_joins = []  # de-duplicated, first-seen order
 
@@ -162,7 +163,7 @@ def build_query(spec: dict, user: dict):
     if explore.get("default_where"):
         where_parts.append(explore["default_where"])
 
-    scope_join, scope_where, scope_jp, scope_wp = scope_for(role, uid)
+    scope_join, scope_where, scope_jp, scope_wp = scope_for(role, uid, tenant_id)
     if scope_join:
         _add_join(scope_join)
         params.extend(scope_jp)

@@ -10,6 +10,8 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 
+from .db import query_one
+
 _bearer = HTTPBearer(auto_error=False)
 
 SECRET_KEY = os.environ.get("JWT_SECRET", "").strip()
@@ -52,12 +54,46 @@ def create_token(user: dict) -> str:
             "email": user["email"],
             "role": user["role"],
             "name": user["full_name"],
+            "tenant_id": str(user["tenant_id"]) if user.get("tenant_id") else None,
+            # Snapshot of app_user.token_version at login time -- compared
+            # against the live value on every request by _refresh_staff_claims
+            # so a role change or admin-forced logout doesn't have to wait
+            # out the token's remaining TOKEN_HOURS expiry.
+            "tver": user.get("token_version") or 0,
             "aud": AUD_STAFF,
             "exp": expire,
         },
         SECRET_KEY,
         algorithm=ALGORITHM,
     )
+
+
+def _refresh_staff_claims(payload: dict) -> dict:
+    """A staff JWT is valid for up to TOKEN_HOURS, but role/tenant_id are
+    read live here on every request rather than trusted from the (possibly
+    hours-stale) token -- this is what actually fixes the long-standing bug
+    where an admin reassigning someone's role/company didn't take effect
+    until they happened to log out and back in (see hrbp_api.py's own
+    ad hoc version of this same fix for BU scoping). token_version is the
+    explicit escape hatch on top of that: bumping it invalidates every
+    outstanding token for that user immediately, for cases with no live
+    column to re-read (e.g. an admin-forced logout with no other state
+    change). Vendor/candidate payloads have no role claim -- pass through
+    untouched, there is nothing of theirs to refresh here."""
+    if not is_staff_payload(payload):
+        return payload
+    row = query_one(
+        "SELECT role, tenant_id, token_version, is_active, full_name FROM app_user WHERE id = %s",
+        [payload.get("sub")],
+    )
+    if not row or not row.get("is_active"):
+        raise HTTPException(401, "Account is inactive or no longer exists")
+    if int(row.get("token_version") or 0) != int(payload.get("tver") or 0):
+        raise HTTPException(401, "Session expired — please log in again")
+    payload["role"] = row["role"]
+    payload["tenant_id"] = str(row["tenant_id"]) if row.get("tenant_id") else None
+    payload["name"] = row["full_name"]
+    return payload
 
 
 _KNOWN_AUDIENCES = (AUD_STAFF, AUD_VENDOR, AUD_CANDIDATE)
@@ -77,7 +113,7 @@ def _decode(token: str) -> dict:
     last_err = None
     for aud in _KNOWN_AUDIENCES:
         try:
-            return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience=aud)
+            return _refresh_staff_claims(jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience=aud))
         except JWTError as exc:
             last_err = exc
             continue
@@ -87,7 +123,7 @@ def _decode(token: str) -> dict:
     legacy = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_aud": False})
     if legacy.get("aud"):
         raise last_err or JWTError("Invalid audience")
-    return legacy
+    return _refresh_staff_claims(legacy)
 
 
 def _decode_aud(token: str, audience: str) -> dict:
@@ -123,7 +159,7 @@ def decode_staff_token(token: str) -> dict:
         payload = _decode_aud(token, AUD_STAFF)
         # aud verified cryptographically; still confirm it's staff-shaped.
         assert_staff(payload)
-        return payload
+        return _refresh_staff_claims(payload)
     except JWTError:
         pass  # fall through to grace check
     # Grace window (until all legacy tokens expire, ~8h): accept a token
@@ -140,7 +176,7 @@ def decode_staff_token(token: str) -> dict:
     # No aud at all = legacy token. Narrow rule: staff-shaped only.
     if not is_staff_payload(legacy):
         raise HTTPException(403, "Staff access only")
-    return legacy
+    return _refresh_staff_claims(legacy)
 
 
 def get_current_user(
@@ -157,13 +193,29 @@ def get_current_user(
 require_staff = get_current_user
 
 
-def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") != "admin":
-        raise HTTPException(403, "Admin access required")
+def require_platform_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Enternstech-only tier: manages the tenant/company roster itself.
+    'admin' is kept as an alias here for every account that predates the
+    platform_admin/company_admin split -- it keeps its full former reach
+    rather than being silently locked out by this migration."""
+    if user.get("role") not in ("admin", "platform_admin"):
+        raise HTTPException(403, "Platform Admin access required")
     return user
 
 
-def require_admin_or_manager(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "ta_manager"):
-        raise HTTPException(403, "Admin or TA Manager access required")
+def require_company_admin(user: dict = Depends(get_current_user)) -> dict:
+    """A customer's own super admin: user management, org settings,
+    SMTP/calendar integrations -- scoped to their company. ta_manager is
+    deliberately excluded -- it's restricted to team management + reports,
+    see require_ta_manager below."""
+    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
+        raise HTTPException(403, "Company Admin access required")
+    return user
+
+
+def require_ta_manager(user: dict = Depends(get_current_user)) -> dict:
+    """Team management + reporting only -- anyone who can already act as a
+    Company Admin passes too, since that role is a superset."""
+    if user.get("role") not in ("admin", "platform_admin", "company_admin", "ta_manager"):
+        raise HTTPException(403, "TA Manager access required")
     return user

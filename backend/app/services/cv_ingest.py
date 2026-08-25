@@ -30,13 +30,13 @@ def is_scan_paused() -> bool:
     automatic background poller that keeps running on its own timer
     regardless of what's happening in any single job's progress modal.
     """
-    row = query_one("SELECT value FROM system_settings WHERE key=%s", [_SCAN_PAUSED_KEY])
+    row = query_one("SELECT value FROM system_status WHERE key=%s", [_SCAN_PAUSED_KEY])
     return bool(row and row.get("value") == "true")
 
 
 def set_scan_paused(paused: bool) -> None:
     query(
-        """INSERT INTO system_settings (key, value) VALUES (%s, %s)
+        """INSERT INTO system_status (key, value) VALUES (%s, %s)
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
         [_SCAN_PAUSED_KEY, "true" if paused else "false"],
         fetch=False,

@@ -37,7 +37,7 @@ def list_tickets(
     offset: int = Query(0, ge=0),
     user: dict = Depends(get_current_user),
 ):
-    if user["role"] == "admin":
+    if user["role"] in ("admin", "platform_admin", "company_admin"):
         return query(
             """SELECT t.id, t.category, t.subject, t.description, t.status,
                       t.reply, t.created_at, t.resolved_at,
@@ -47,11 +47,12 @@ def list_tickets(
                FROM support_ticket t
                JOIN app_user u  ON u.id  = t.raised_by
                LEFT JOIN app_user ru ON ru.id = t.resolved_by
+               WHERE u.tenant_id = %s
                ORDER BY
                  CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
                  t.created_at DESC
                LIMIT %s OFFSET %s""",
-            [limit, offset],
+            [user.get("tenant_id"), limit, offset],
         )
     return query(
         """SELECT t.id, t.category, t.subject, t.description, t.status,
@@ -68,8 +69,16 @@ def list_tickets(
 def update_ticket(
     ticket_id: str, body: TicketUpdate, user: dict = Depends(get_current_user)
 ):
-    if user["role"] != "admin":
-        raise HTTPException(403, "Only TA Admin can update tickets")
+    if user["role"] not in ("admin", "platform_admin", "company_admin"):
+        raise HTTPException(403, "Only a Company Admin can update tickets")
+    ticket_scope = query_one(
+        """SELECT t.id FROM support_ticket t
+           JOIN app_user u ON u.id = t.raised_by
+           WHERE t.id = %s AND u.tenant_id = %s""",
+        [ticket_id, user.get("tenant_id")],
+    )
+    if not ticket_scope:
+        raise HTTPException(404, "Ticket not found")
     parts, params = [], []
     if body.status:
         parts.append("status = %s")
@@ -99,8 +108,11 @@ def update_ticket(
 
 @router.get("/admin/system-health")
 def system_health(user: dict = Depends(get_current_user)):
-    if user["role"] != "admin":
-        raise HTTPException(403, "Admin only")
+    # Deliberately platform-wide, not tenant-scoped -- this is Enternstech's
+    # own operator dashboard (every tenant's user/ticket/login volume), not a
+    # per-customer view, so only the Platform Admin tier sees it.
+    if user["role"] not in ("admin", "platform_admin"):
+        raise HTTPException(403, "Platform Admin only")
 
     # User counts by role
     user_counts = query(

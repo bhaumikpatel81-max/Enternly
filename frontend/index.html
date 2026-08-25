@@ -596,6 +596,7 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
       </div>
       <div class="form-row">
         <div class="form-group"><label>Hiring Manager</label><select id="rf-hm"><option value="">— none —</option></select></div>
+        <div class="form-group"><label>Hiring for (Client) <span style="font-weight:400;color:var(--muted)">— leave blank for an internal hire</span></label><select id="rf-client"><option value="">— internal hire —</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Min exp (yrs) <span class="sc-req">*</span></label><input id="rf-min-exp" type="number" min="0" step="0.5" placeholder="2"></div>
@@ -1747,8 +1748,19 @@ setInterval(refreshNotifBadge, 60000);
 
 // ── Per-recruiter module access delegation ─────────────────────────────────────
 // Populated at boot for role=='recruiter' from /api/admin/my-module-access.
-// Admin / ta_manager always see everything, so this stays {} for them.
+// Admin / Company Admin always see everything, so this stays {} for them.
 let MY_MODULE_ACCESS = {};
+
+// ── Per-tenant role display labels ──────────────────────────────────────────
+// Populated at boot from /api/admin/role-labels. The role VALUE
+// ('recruiter','bu_head','director','hrbp',...) never changes -- every
+// customer just calls that job something different, so this only swaps what
+// gets DISPLAYED for it. Falls back to a Title Case version of the raw role
+// key for anything not customised (or before boot has loaded).
+let ROLE_LABELS = {};
+function roleLabel(r) {
+  return ROLE_LABELS[r] || (r || '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
 const MODULE_NAV_META = {
   vendors:         {id:'vendors',          icon:'🤝', label:'Vendors'},
   form_fields:     {id:'form_fields',      icon:'🧾', label:'Form Fields'},
@@ -1759,7 +1771,7 @@ const MODULE_NAV_META = {
   email_templates: {id:'email_templates',  icon:'✉️', label:'Email Templates'},
 };
 function hasModuleAccess(key) {
-  return ME.role === 'admin' || ME.role === 'ta_manager' || !!MY_MODULE_ACCESS[key];
+  return ['admin','platform_admin','company_admin'].includes(ME.role) || !!MY_MODULE_ACCESS[key];
 }
 function moduleRestrictedHtml(label) {
   return `<div class="card" style="text-align:center;padding:60px 40px;max-width:480px;margin:40px auto">
@@ -5305,7 +5317,7 @@ async function hmFeedback(id,approved){
 }
 
 // ── SCREEN: Admin — Users & Access ────────────────────────────────────────────
-const ALL_ROLES=['admin','ta_manager','recruiter','hiring_manager','bu_head','director','interviewer','hrbp'];
+const ALL_ROLES=['platform_admin','company_admin','admin','ta_manager','recruiter','hiring_manager','bu_head','director','interviewer','hrbp'];
 let _resetUid=null, _emailCfgUid=null, _editUserUid=null;
 
 let _usersScreenBUs=[];
@@ -5348,7 +5360,7 @@ async function screenUsers(){
 
   const rows=users.map(u=>{
     const isSelf=u.id===ME.sub;
-    const sel=`<select style="padding:4px 8px;border:1px solid var(--border);border-radius:3px;font-size:12px" onchange="changeRole('${u.id}',this.value)">${ALL_ROLES.map(r=>'<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+r.split('_').join(' ')+'</option>').join('')}</select>`;
+    const sel=`<select style="padding:4px 8px;border:1px solid var(--border);border-radius:3px;font-size:12px" onchange="changeRole('${u.id}',this.value)">${ALL_ROLES.map(r=>'<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+esc(roleLabel(r))+'</option>').join('')}</select>`;
     const deact=u.is_active&&!isSelf?`<button class="btn btn-danger btn-sm" onclick="deactivateUser('${u.id}','${escAttr(u.full_name)}')">Deactivate</button>`:'';
     const act=!u.is_active?`<button class="btn btn-ghost btn-sm" onclick="activateUser('${u.id}')">Activate</button>`:'';
     const del=!u.is_active&&!isSelf?`<button class="btn btn-danger btn-sm" onclick="deleteUserPermanent('${u.id}','${escAttr(u.full_name)}')">Delete</button>`:'';
@@ -5379,7 +5391,7 @@ async function screenUsers(){
         <div class="form-group"><label>Work email (login ID)</label><input id="nu-email" type="email" placeholder="priya@enternly.com"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Role</label><select id="nu-role" onchange="_toggleNuBu()">${ALL_ROLES.map(r=>'<option value="'+r+'">'+r.split('_').join(' ')+'</option>').join('')}</select></div>
+        <div class="form-group"><label>Role</label><select id="nu-role" onchange="_toggleNuBu()">${ALL_ROLES.map(r=>'<option value="'+r+'">'+esc(roleLabel(r))+'</option>').join('')}</select></div>
         <div class="form-group"><label>Password</label><div class="pw-wrap"><input id="nu-pw" type="password" placeholder="min 6 characters"><button type="button" class="pw-toggle" tabindex="-1" aria-label="Show password" onclick="togglePw('nu-pw', this)">👁</button></div></div>
       </div>
       <div class="form-row" id="nu-bu-group" style="display:none">
@@ -6448,24 +6460,29 @@ async function rejectAppeal(appealId) {
   }
 }
 
-// ── SCREEN: Organisation (admin + ta_manager) ────────────────────────────────
+// ── SCREEN: Organisation (Company Admin) ─────────────────────────────────────
 async function screenOrganisation(){
   setTitle('Organisation');
   document.getElementById('content').innerHTML='<p class="empty">Loading…</p>';
   try {
-  const canManageGCal = ['admin','ta_manager'].includes(ME.role);
-  const canManageBands = ['admin','ta_manager'].includes(ME.role);
-  const [gcs, bus, hrbpUsers, gcalStatus, bands] = await Promise.all([
+  const canManageGCal = ['admin','platform_admin','company_admin'].includes(ME.role);
+  const canManageBands = ['admin','platform_admin','company_admin'].includes(ME.role);
+  const isCompanyAdmin = canManageBands;
+  const [gcs, bus, hrbpUsers, gcalStatus, bands, clients, roleLabels] = await Promise.all([
     api('/api/org/group-companies'),
     api('/api/org/business-units'),
     apiOrWarn('/api/org/hrbp-users', {}, [], 'HRBP users'),
     canManageGCal ? api('/api/google/status') : Promise.resolve(null),
     canManageBands ? apiOrWarn('/api/bands/all', {}, [], 'bands') : Promise.resolve([]),
+    isCompanyAdmin ? apiOrWarn('/api/clients', {}, [], 'clients') : Promise.resolve([]),
+    isCompanyAdmin ? apiOrWarn('/api/admin/role-labels', {}, {}, 'role labels') : Promise.resolve({}),
   ]);
   if(!gcs||!bus){showErr('Could not load organisation data. If this is a first run, restart the server to apply migrations.');return;}
   _orgHrbpUsers = hrbpUsers||[];
   _orgBands = bands||[];
   _orgGCsCache = gcs||[];
+  _orgClients = clients||[];
+  ROLE_LABELS = roleLabels||ROLE_LABELS;
 
   const gcalCardHtml = !canManageGCal ? '' : `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -6562,6 +6579,59 @@ async function screenOrganisation(){
       <button class="btn btn-primary btn-sm" onclick="_orgAddBand()">Add band</button>
     </div>`;
 
+  function _clientRows(){
+    if(!_orgClients.length) return '<tr><td colspan="2" style="text-align:center;color:var(--muted);padding:20px">No clients yet. If this company hires only for itself, you can ignore this section.</td></tr>';
+    return _orgClients.map(c=>`<tr>
+      <td><strong>${esc(c.name)}</strong> ${c.is_active?'':'<span class="pill cancelled">Inactive</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="_orgRenameClient('${c.id}','${escAttr(c.name)}')">Rename</button>
+        ${c.is_active
+          ?`<button class="btn btn-ghost btn-sm" style="color:#e2455a" onclick="_orgToggleClient('${c.id}',false,'${escAttr(c.name)}')">Deactivate</button>`
+          :`<button class="btn btn-ghost btn-sm" onclick="_orgToggleClient('${c.id}',true,'${escAttr(c.name)}')">Reactivate</button>`}
+      </td>
+    </tr>`).join('');
+  }
+
+  const clientsSectionHtml = !isCompanyAdmin ? '' : `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h2 style="font-size:16px;font-weight:700;margin:0">Clients</h2>
+    </div>
+    <div class="card" style="padding:16px 20px;margin-bottom:16px">
+      <p style="color:var(--muted);font-size:13px;margin:0">
+        If your team hires on behalf of external clients (staffing / RPO) rather than only for your own roles, add them here — a requisition can then be tagged "Hiring for" one of these clients. Leave this empty if every requisition is an internal hire.
+      </p>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <table><thead><tr><th>Client Name</th><th>Actions</th></tr></thead>
+        <tbody id="org-client-tbody">${_clientRows()}</tbody>
+      </table>
+    </div>
+    <div class="card" style="padding:16px 20px;margin-bottom:32px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Add client</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="org-client-name" class="form-control" style="width:260px" placeholder="Client name (e.g. Acme Corp)" />
+        <button class="btn btn-primary btn-sm" onclick="_orgAddClient()">Add client</button>
+      </div>
+    </div>`;
+
+  const roleLabelsSectionHtml = !isCompanyAdmin ? '' : `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h2 style="font-size:16px;font-weight:700;margin:0">Role Labels</h2>
+    </div>
+    <div class="card" style="padding:16px 20px;margin-bottom:32px">
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+        Rename what each role is called across the app — the underlying permissions never change, only the label. For example, call "Recruiter" a "Talent Partner", or "BU Head" a "Department Head", to match your own org's vocabulary.
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px">
+        ${_ROLE_LABEL_KEYS.map(k=>`
+          <div class="form-group" style="margin:0">
+            <label style="font-size:11px;color:var(--muted)">${esc(k.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '))}</label>
+            <input id="org-rl-${k}" class="form-control" value="${escAttr(ROLE_LABELS[k]||'')}" />
+          </div>`).join('')}
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="_orgSaveRoleLabels()">Save labels</button>
+    </div>`;
+
   document.getElementById('content').innerHTML=`
     <div class="page-header">
       <h1>Organisation</h1>
@@ -6609,6 +6679,8 @@ async function screenOrganisation(){
     </div>
 
     ${bandsSectionHtml}
+    ${clientsSectionHtml}
+    ${roleLabelsSectionHtml}
     ${gcalCardHtml}`;
   } catch(e) { showErr('Organisation failed to load: ' + (e.message||e)); console.error('[org]',e); }
 }
@@ -6684,6 +6756,43 @@ async function _orgEditBU(id,name,company_id){
 }
 
 let _orgBands=[];
+let _orgClients=[];
+
+// ── Clients (staffing/RPO: hiring on behalf of an external client) ──────────
+async function _orgAddClient(){
+  const name=(document.getElementById('org-client-name').value||'').trim();
+  if(!name){alert('Enter a client name.');return;}
+  const r=await api('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  if(r)screenOrganisation(); else flash(_lastApiError||'Could not add client.',false);
+}
+async function _orgToggleClient(id, active, name){
+  if(!active && !confirm(`Deactivate client "${name}"? Requisitions already linked to it are unaffected, but it won't be selectable for new ones.`)) return;
+  const r = active
+    ? await api(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:true})})
+    : await api(`/api/clients/${id}`,{method:'DELETE'});
+  if(r)screenOrganisation(); else flash(_lastApiError||'Could not update client.',false);
+}
+async function _orgRenameClient(id, oldName){
+  const name=prompt('Rename client:', oldName);
+  if(name===null) return;
+  const trimmed=name.trim();
+  if(!trimmed){alert('Client name cannot be empty.');return;}
+  const r=await api(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:trimmed})});
+  if(r)screenOrganisation(); else flash(_lastApiError||'Could not rename client.',false);
+}
+
+// ── Role labels (what each system role is CALLED for this company) ─────────
+const _ROLE_LABEL_KEYS = ['ta_manager','recruiter','hiring_manager','bu_head','director','interviewer','hrbp'];
+async function _orgSaveRoleLabels(){
+  const labels={};
+  _ROLE_LABEL_KEYS.forEach(k=>{
+    const el=document.getElementById('org-rl-'+k);
+    if(el) labels[k]=el.value;
+  });
+  const r=await api('/api/admin/role-labels',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({labels})});
+  if(r){ ROLE_LABELS=r; flash('Role labels saved.'); try{buildNav();}catch(e){} }
+  else flash(_lastApiError||'Could not save role labels.',false);
+}
 async function _orgAddBand(){
   const code=(document.getElementById('org-band-code').value||'').trim();
   const description=(document.getElementById('org-band-desc').value||'').trim();
@@ -8510,7 +8619,7 @@ function reqNextTab(){if(_reqCurrentTab<3)reqGoTab(_reqCurrentTab+1);}
 function reqPrevTab(){if(_reqCurrentTab>0)reqGoTab(_reqCurrentTab-1);}
 
 async function _loadReqModalDropdowns(){
-  const [bus,companies,bands,users,hrbps,feedbackForms]=await Promise.all([api('/api/business-units'),api('/api/group-companies'),api('/api/bands'),api('/api/users'),api('/api/hrbp'),api('/api/feedback-forms')]);
+  const [bus,companies,bands,users,hrbps,feedbackForms,clients]=await Promise.all([api('/api/business-units'),api('/api/group-companies'),api('/api/bands'),api('/api/users'),api('/api/hrbp'),api('/api/feedback-forms'),apiOrWarn('/api/clients',{},[],'clients')]);
   _allBUs=bus||[];
   _allGCs=companies||[];
   _allBands=bands||[];
@@ -8523,6 +8632,12 @@ async function _loadReqModalDropdowns(){
   const hms=(users||[]).filter(u=>u.role==='hiring_manager'&&u.is_active!==false);
   document.getElementById('rf-hm').innerHTML='<option value="">— none —</option>'+
     hms.map(u=>`<option value="${u.id}" data-email="${escAttr(u.email||'')}">${esc(u.full_name)}</option>`).join('');
+  const rfClient=document.getElementById('rf-client');
+  if(rfClient){
+    const activeClients=(clients||[]).filter(c=>c.is_active!==false);
+    rfClient.innerHTML='<option value="">— internal hire —</option>'+
+      activeClients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  }
   const approverRoles=['ta_manager','recruiter','hiring_manager','bu_head','director','admin'];
   document.getElementById('rf-approver-pick').innerHTML=
     '<option value="">— select approver to add —</option>'+
@@ -8603,6 +8718,8 @@ async function openEditReq(reqId){
   document.getElementById('rf-jd').value=detail.job_description||'';
   const jdExisting=document.getElementById('rf-jd-file-existing');
   if(jdExisting)jdExisting.textContent=detail.jd_file_name?`Currently attached: ${detail.jd_file_name} — choose a new file above to replace it.`:'';
+
+  const clientEl=document.getElementById('rf-client');if(clientEl)clientEl.value=detail.client_id||'';
 
   // Roll type
   const rollEl=document.getElementById('rf-roll');if(rollEl&&detail.roll_type)rollEl.value=detail.roll_type;
@@ -9214,6 +9331,7 @@ async function submitReq(){
     title,bu_id:document.getElementById('rf-bu').value,band_id:document.getElementById('rf-band').value,
     hrbp_id:document.getElementById('rf-hrbp').value||'',
     hiring_manager_id:document.getElementById('rf-hm').value||'',
+    client_id:document.getElementById('rf-client')?.value||'',
     roll_type:document.getElementById('rf-roll').value,
     capex_opex:document.getElementById('rf-capex-opex').value,
     openings:parseInt(document.getElementById('rf-openings').value)||1,
@@ -12120,7 +12238,6 @@ async function openRoundPanelModal(roundConfigId, roundLabel){
   const round=(det?.rounds||[]).find(r=>r.id===roundConfigId);
   const current=new Set(((round&&round.panelist_emails)||[]).map(e=>(e||'').toLowerCase()));
   const active=users||[];  // panelist-options already filters to is_active=TRUE server-side
-  const roleLabel=r=>(r||'').split('_').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
   document.getElementById('rp-search').value='';
   document.getElementById('rp-user-list').innerHTML = active.length
     ? active.map(u=>`
@@ -14240,6 +14357,7 @@ _resetIdle();
   if (ME.role === 'recruiter') {
     try { MY_MODULE_ACCESS = await api('/api/admin/my-module-access') || {}; } catch(e){ MY_MODULE_ACCESS = {}; }
   }
+  try { ROLE_LABELS = await api('/api/admin/role-labels') || {}; } catch(e){ ROLE_LABELS = {}; }
   try { buildNav(); } catch(e){ console.error('buildNav:',e); }
   refreshNotifBadge();
   const hp=(location.hash||'').split(/[#\/]/);

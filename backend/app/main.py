@@ -56,6 +56,7 @@ from .routers.candidate_portal_api import router as _candidate_portal_router
 from .routers.gamification_api import router as _gamification_router
 from .routers.bands_api import router as _bands_router
 from .routers.org_api import router as _org_router
+from .routers.client_api import router as _client_router
 from .routers.hrbp_api import router as _hrbp_router
 from .routers.scheduling_api import router as _scheduling_router
 from .routers.activity_log_api import router as _activity_log_router
@@ -92,6 +93,7 @@ app.include_router(_candidate_portal_router)
 app.include_router(_gamification_router)
 app.include_router(_bands_router)
 app.include_router(_org_router)
+app.include_router(_client_router)
 app.include_router(_hrbp_router)
 app.include_router(_scheduling_router)
 app.include_router(_activity_log_router)
@@ -534,7 +536,7 @@ END $$""",
         )""",
         # Step 7: Reseed sla_config with corrected key names
         "DELETE FROM sla_config WHERE config_key IN ('stage_ai_screening','stage_hm_screening','stage_panel_interview','stage_hr_round','stage_offer_approval')",
-        "INSERT INTO sla_config (config_key, days) VALUES ('stage_screen',3),('stage_interview',5),('stage_documentation',5) ON CONFLICT (config_key) DO NOTHING",
+        "INSERT INTO sla_config (config_key, days) VALUES ('stage_screen',3),('stage_interview',5),('stage_documentation',5) ON CONFLICT (tenant_id, config_key) DO NOTHING",
         # ── Migration 32: Hiring Plan rows table ─────────────────────────────────
         """CREATE TABLE IF NOT EXISTS hiring_plan_rows (
             id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -688,14 +690,14 @@ END $$""",
            VALUES
              ('about_company_text', 'About EnternsTech: [Configure in Settings]'),
              ('auto_jd_email', 'true')
-           ON CONFLICT (key) DO NOTHING""",
+           ON CONFLICT (tenant_id, key) DO NOTHING""",
 
         # ── Migration 37: seed company_name + ta_default_signature settings ───────
         """INSERT INTO system_settings (key, value)
            VALUES
              ('company_name',          'EnternsTech Pvt. Ltd.'),
              ('ta_default_signature',  'Talent Acquisition Team')
-           ON CONFLICT (key) DO NOTHING""",
+           ON CONFLICT (tenant_id, key) DO NOTHING""",
 
         # ── Migration 38: guarantee final application.status constraint ──────────
         # Drops the old constraint first (safe with IF EXISTS), migrates any
@@ -926,7 +928,7 @@ END $$""",
              ('tier.silver',               '900'),
              ('tier.gold',                 '2200'),
              ('tier.platinum',             '4500')
-           ON CONFLICT (key) DO NOTHING""",
+           ON CONFLICT (tenant_id, key) DO NOTHING""",
         # Named achievements
         """CREATE TABLE IF NOT EXISTS gamification_badge (
             id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1629,11 +1631,18 @@ END $$""",
         # up on the requisition form -- admin_users.py now does this on every
         # create/update going forward; this backfills accounts created before
         # that fix (2026-07).
+        # Rewritten as a NOT EXISTS guard rather than ON CONFLICT (email) --
+        # Migration 96 later widens hrbp's unique constraint to
+        # (tenant_id, email), which this statement (unlike Migration 44's
+        # guarded one-time block) re-runs on every single boot, so it must
+        # not depend on any particular constraint shape at all. This was
+        # always a one-time drift catch-up anyway (admin_users.py's
+        # _sync_hrbp_directory keeps hrbp in sync going forward), so it no
+        # longer needs the DO UPDATE half either.
         """INSERT INTO hrbp (full_name, email, is_active)
-           SELECT full_name, email, is_active FROM app_user
-           WHERE role = 'hrbp'
-           ON CONFLICT (email) DO UPDATE
-             SET full_name = EXCLUDED.full_name, is_active = EXCLUDED.is_active""",
+           SELECT au.full_name, au.email, au.is_active FROM app_user au
+           WHERE au.role = 'hrbp'
+             AND NOT EXISTS (SELECT 1 FROM hrbp h WHERE h.email = au.email)""",
 
         # ── Migration 74: fix cv_repository.source CHECK — cv_api.py's
         # per-recruiter IMAP scan (_run_imap_ingest) has always inserted with
@@ -1985,6 +1994,360 @@ END $$""",
         # repeated startups _auto_migrate() runs on every boot.
         "ALTER TABLE proctoring_appeal DROP CONSTRAINT IF EXISTS proctoring_appeal_nexai_invite_id_key",
         "ALTER TABLE proctoring_appeal ADD CONSTRAINT proctoring_appeal_nexai_invite_id_key UNIQUE (nexai_invite_id)",
+
+        # ── Migration 94: multi-tenant platform roles (2026-08) -- Enternly is
+        # moving from a single-customer deployment to a sellable multi-tenant
+        # platform. Adds a `tenant` table (one row per customer company) and a
+        # tenant_id column on app_user/group_company so a future customer's users
+        # and org structure can be kept separate from this deployment's; every
+        # existing row backfills onto a single seeded tenant so nothing changes
+        # for the current deployment. Also widens app_user.role to add
+        # platform_admin (Enternstech -- manages the tenant roster) and
+        # company_admin (a customer's own super admin: user management, org
+        # settings, integrations), and narrows what the existing ta_manager role
+        # can reach (see auth_utils.py require_company_admin / admin_users.py,
+        # org_api.py, bands_api.py, google_calendar_api.py, password_api.py).
+        # See database/57_*.sql for the doc-only snapshot of this block.
+        """CREATE TABLE IF NOT EXISTS tenant (
+            id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name                  TEXT NOT NULL,
+            slug                  TEXT NOT NULL UNIQUE,
+            status                TEXT NOT NULL DEFAULT 'active'
+                                  CHECK (status IN ('active','trial','suspended')),
+            plan                  TEXT NOT NULL DEFAULT 'standard',
+            primary_contact_email TEXT,
+            created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        """INSERT INTO tenant (id, name, slug, status, plan)
+           VALUES ('00000000-0000-0000-0000-000000000001',
+                   'EnternsTech Pvt. Ltd.', 'enternstech', 'active', 'standard')
+           ON CONFLICT (slug) DO NOTHING""",
+        "ALTER TABLE app_user ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE app_user SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE app_user ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE app_user ALTER COLUMN tenant_id SET NOT NULL",
+        "ALTER TABLE group_company ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE group_company SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE group_company ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE group_company ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_app_user_tenant ON app_user(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_group_company_tenant ON group_company(tenant_id)",
+        # Widen app_user.role CHECK to add platform_admin + company_admin, and
+        # reconcile the pre-existing drift where 'hrbp' (Migration 49) was
+        # added to this constraint here but never mirrored into a committed
+        # database/*.sql snapshot -- drop whatever the live constraint is
+        # actually named, then re-add it under a fixed name with the full,
+        # current role list.
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'app_user'::regclass AND contype = 'c'
+               AND pg_get_constraintdef(oid) ILIKE '%role%'
+    LOOP
+        EXECUTE 'ALTER TABLE app_user DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        """ALTER TABLE app_user ADD CONSTRAINT app_user_role_check
+           CHECK (role IN ('platform_admin','company_admin','admin','ta_manager',
+                            'recruiter','hiring_manager','bu_head','director',
+                            'interviewer','hrbp'))""",
+
+        # ── Migration 95: session freshness, per-tenant role labels, and a
+        # client/RPO provision (2026-08).
+        #
+        # 1) token_version on app_user -- a staff JWT is valid for up to
+        #    TOKEN_HOURS after login; auth_utils._refresh_staff_claims() now
+        #    re-reads role/tenant_id/token_version live on every request
+        #    instead of trusting the (up to 8h stale) JWT claims, and rejects
+        #    the request outright if this counter has been bumped since the
+        #    token was issued (an admin forcing one user's sessions to end
+        #    without waiting for natural expiry).
+        # 2) tenant.role_labels -- every customer uses different job titles
+        #    for the same underlying role (recruiter/bu_head/director/hrbp/
+        #    etc. are fixed system role KEYS that permission checks key off
+        #    of; role_labels only overrides what each is CALLED for that
+        #    tenant -- see admin_users.py get_role_labels/save_role_labels).
+        # 3) client table + requisition.client_id -- some customers are
+        #    staffing/RPO agencies who hire on behalf of external clients,
+        #    not only for their own internal roles. client is tenant-scoped
+        #    (each customer manages its own client roster); a requisition's
+        #    client_id is nullable -- NULL means an internal hire, set means
+        #    hiring on behalf of that client. See client_api.py.
+        # See database/58_*.sql for the doc-only snapshot of this block.
+        "ALTER TABLE app_user ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE tenant ADD COLUMN IF NOT EXISTS role_labels JSONB NOT NULL DEFAULT '{}'::jsonb",
+        """CREATE TABLE IF NOT EXISTS client (
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id   UUID NOT NULL REFERENCES tenant(id),
+            name        TEXT NOT NULL,
+            is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (tenant_id, name)
+        )""",
+        "ALTER TABLE requisition ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES client(id)",
+        "CREATE INDEX IF NOT EXISTS idx_requisition_client ON requisition(client_id)",
+        "CREATE INDEX IF NOT EXISTS idx_client_tenant ON client(tenant_id)",
+
+        # ── Migration 96: tenant_id everywhere it was still missing, and every
+        # unique constraint that could plausibly collide across two different
+        # customers re-scoped from global to per-tenant (2026-08). This is the
+        # follow-through on Migration 94/95 -- those added tenant_id to
+        # app_user/group_company/client only; every other tenant-owned table
+        # (requisitions, candidates, vendors, bands, HRBPs, templates, config)
+        # was still one shared pool across every customer. With a single
+        # tenant in production today every backfill below is unconditionally
+        # correct (there is nothing else a row could belong to); this must
+        # land before a second customer's data enters the system, or the two
+        # customers would see each other's candidates/requisitions/config.
+        # See database/59_*.sql for the doc-only snapshot of this block.
+        "ALTER TABLE requisition ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE requisition SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE requisition ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE requisition ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_requisition_tenant ON requisition(tenant_id)",
+
+        "ALTER TABLE candidate ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE candidate SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE candidate ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE candidate ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_candidate_tenant ON candidate(tenant_id)",
+        # candidate.email was globally unique -- the same person applying to
+        # two different customers must be two separate rows, one per tenant.
+        "DROP INDEX IF EXISTS uidx_candidate_email",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uidx_candidate_email ON candidate (tenant_id, LOWER(email))",
+
+        "ALTER TABLE candidate_user ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE candidate_user SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE candidate_user ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE candidate_user ALTER COLUMN tenant_id SET NOT NULL",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'candidate_user'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE candidate_user DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE candidate_user ADD CONSTRAINT candidate_user_tenant_email_key UNIQUE (tenant_id, email)",
+
+        "ALTER TABLE vendor ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE vendor SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE vendor ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE vendor ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_vendor_tenant ON vendor(tenant_id)",
+
+        "ALTER TABLE vendor_user ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE vendor_user SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE vendor_user ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE vendor_user ALTER COLUMN tenant_id SET NOT NULL",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'vendor_user'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE vendor_user DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE vendor_user ADD CONSTRAINT vendor_user_tenant_email_key UNIQUE (tenant_id, email)",
+
+        "ALTER TABLE band ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE band SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE band ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE band ALTER COLUMN tenant_id SET NOT NULL",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'band'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE band DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE band ADD CONSTRAINT band_tenant_code_key UNIQUE (tenant_id, code)",
+
+        "ALTER TABLE hrbp ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE hrbp SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE hrbp ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE hrbp ALTER COLUMN tenant_id SET NOT NULL",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'hrbp'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE hrbp DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE hrbp ADD CONSTRAINT hrbp_tenant_email_key UNIQUE (tenant_id, email)",
+
+        "ALTER TABLE former_employee ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE former_employee SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE former_employee ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE former_employee ALTER COLUMN tenant_id SET NOT NULL",
+        "DROP INDEX IF EXISTS idx_former_employee_email",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_former_employee_email ON former_employee(tenant_id, LOWER(email))",
+
+        "ALTER TABLE no_poach_company ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE no_poach_company SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE no_poach_company ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE no_poach_company ALTER COLUMN tenant_id SET NOT NULL",
+        "DROP INDEX IF EXISTS idx_no_poach_normalized",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_no_poach_normalized ON no_poach_company(tenant_id, normalized_name)",
+
+        "ALTER TABLE email_template ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE email_template SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE email_template ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE email_template ALTER COLUMN tenant_id SET NOT NULL",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'email_template'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE email_template DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE email_template ADD CONSTRAINT email_template_tenant_key_key UNIQUE (tenant_id, template_key)",
+
+        "ALTER TABLE offer_chain_template ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE offer_chain_template SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE offer_chain_template ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE offer_chain_template ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_offer_chain_template_tenant ON offer_chain_template(tenant_id)",
+
+        "ALTER TABLE feedback_form ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE feedback_form SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE feedback_form ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE feedback_form ALTER COLUMN tenant_id SET NOT NULL",
+        "DROP INDEX IF EXISTS idx_feedback_form_name_ci",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_form_name_ci ON feedback_form (tenant_id, LOWER(name))",
+
+        "ALTER TABLE cv_repository ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE cv_repository SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE cv_repository ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE cv_repository ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_cv_repository_tenant ON cv_repository(tenant_id)",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'cv_repository'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE cv_repository DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE cv_repository ADD CONSTRAINT cv_repository_tenant_hash_key UNIQUE (tenant_id, file_hash)",
+
+        "ALTER TABLE hiring_plan_rows ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE hiring_plan_rows SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE hiring_plan_rows ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE hiring_plan_rows ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_hiring_plan_rows_tenant ON hiring_plan_rows(tenant_id)",
+
+        "ALTER TABLE gamification_event ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE gamification_event SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE gamification_event ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE gamification_event ALTER COLUMN tenant_id SET NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_gev_tenant ON gamification_event(tenant_id)",
+
+        "ALTER TABLE gamification_badge ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE gamification_badge SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE gamification_badge ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE gamification_badge ALTER COLUMN tenant_id SET NOT NULL",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'gamification_badge'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE gamification_badge DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        """ALTER TABLE gamification_badge ADD CONSTRAINT gamification_badge_tenant_subject_key
+           UNIQUE (tenant_id, subject_type, subject_id, badge_key)""",
+
+        "ALTER TABLE google_calendar_connection ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE google_calendar_connection SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE google_calendar_connection ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE google_calendar_connection ALTER COLUMN tenant_id SET NOT NULL",
+        # Was an implicit single-row-for-the-whole-deployment table (deleted +
+        # re-inserted on every (re)connect) -- one row per tenant from here on.
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_gcal_conn_tenant ON google_calendar_connection(tenant_id)",
+
+        # system_settings / sla_config / gamification_config were single
+        # shared-platform-wide config -- one customer's SMTP/SLA/scoring
+        # settings must not be every other customer's too.
+        "ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE system_settings SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE system_settings ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE system_settings ALTER COLUMN tenant_id SET NOT NULL",
+        "ALTER TABLE system_settings DROP CONSTRAINT IF EXISTS system_settings_pkey",
+        "ALTER TABLE system_settings ADD CONSTRAINT system_settings_pkey PRIMARY KEY (tenant_id, key)",
+
+        "ALTER TABLE sla_config ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE sla_config SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE sla_config ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE sla_config ALTER COLUMN tenant_id SET NOT NULL",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'sla_config'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE sla_config DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE sla_config ADD CONSTRAINT sla_config_tenant_key_key UNIQUE (tenant_id, config_key)",
+
+        "ALTER TABLE gamification_config ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenant(id)",
+        "UPDATE gamification_config SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL",
+        "ALTER TABLE gamification_config ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000001'",
+        "ALTER TABLE gamification_config ALTER COLUMN tenant_id SET NOT NULL",
+        "ALTER TABLE gamification_config DROP CONSTRAINT IF EXISTS gamification_config_pkey",
+        "ALTER TABLE gamification_config ADD CONSTRAINT gamification_config_pkey PRIMARY KEY (tenant_id, key)",
+
+        # group_company.name was globally unique even though the column has
+        # carried tenant_id since Migration 94 -- two tenants couldn't both
+        # name a division "Corporate".
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'group_company'::regclass AND contype = 'u'
+    LOOP
+        EXECUTE 'ALTER TABLE group_company DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        "ALTER TABLE group_company ADD CONSTRAINT group_company_tenant_name_key UNIQUE (tenant_id, name)",
+
+        # ── Migration 97: system_status -- a genuinely global (not per-tenant)
+        # key/value table for deployment-level background-worker status
+        # (email/CV ingest pollers, heartbeats, kill-switches). Migration 96
+        # widened system_settings' primary key to (tenant_id, key) for real
+        # per-customer settings (SMTP, company name, ...); several background
+        # services were reusing that same table as a generic global KV store
+        # for things that have nothing to do with any one tenant (e.g. "is
+        # the CV scanner paused" is one on/off switch for the whole
+        # deployment) -- those call sites now point at this table instead.
+        # See database/60_*.sql for the doc-only snapshot of this block.
+        """CREATE TABLE IF NOT EXISTS system_status (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL DEFAULT '',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        # Carry forward any values already written under the old keys before
+        # this table existed, so an in-flight kill-switch/heartbeat isn't
+        # silently reset by the migration itself.
+        """INSERT INTO system_status (key, value, updated_at)
+           SELECT key, value, updated_at FROM system_settings
+           WHERE key IN ('email_ingest_status', 'cv_scan_paused',
+                         'cv_enricher_heartbeat', 'recruiter_email_scan_status',
+                         'activity_log_last_failure', 'bg_lock_last_error')
+              OR key LIKE 'bg_task_status:%'
+           ON CONFLICT (key) DO NOTHING""",
     ]
     for sql in migrations:
         try:
@@ -2032,7 +2395,7 @@ def _track_bg_task(task, name: str) -> None:
             # discoverable later, same pattern as email_ingest.py's status.
             try:
                 query(
-                    """INSERT INTO system_settings (key, value) VALUES (%s, %s)
+                    """INSERT INTO system_status (key, value) VALUES (%s, %s)
                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
                     [f"bg_task_status:{name}", f"crashed|{exc}"[:500]],
                     fetch=False,
@@ -2103,7 +2466,7 @@ def _try_acquire_bg_worker_lock() -> bool:
         if acquired:
             _bg_worker_lock_conn = conn  # keep open — releasing it drops the lock
             try:
-                query("DELETE FROM system_settings WHERE key = 'bg_lock_last_error'", [], fetch=False)
+                query("DELETE FROM system_status WHERE key = 'bg_lock_last_error'", [], fetch=False)
             except Exception:
                 pass
         else:
@@ -2119,7 +2482,7 @@ def _try_acquire_bg_worker_lock() -> bool:
         # visible via GET /api/cv/stats without needing server log access.
         try:
             query(
-                """INSERT INTO system_settings (key, value, updated_at) VALUES (%s, %s, now())
+                """INSERT INTO system_status (key, value, updated_at) VALUES (%s, %s, now())
                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()""",
                 ["bg_lock_last_error", str(exc)[:500]],
                 fetch=False,
@@ -2527,10 +2890,12 @@ def _maybe_issue_candidate_invite(cand_id: str, email: str, full_name: str) -> N
         )
         if existing:
             return
+        cand_row = query_one("SELECT tenant_id FROM candidate WHERE id=%s", [cand_id])
+        tenant_id = (cand_row or {}).get("tenant_id")
         cu = query_one(
-            """INSERT INTO candidate_user (candidate_id, email)
-               VALUES (%s, %s) ON CONFLICT (email) DO NOTHING RETURNING id""",
-            [cand_id, email.lower().strip()],
+            """INSERT INTO candidate_user (candidate_id, email, tenant_id)
+               VALUES (%s, %s, %s) ON CONFLICT (tenant_id, email) DO NOTHING RETURNING id""",
+            [cand_id, email.lower().strip(), tenant_id],
         )
         if cu:
             from .routers.password_api import issue_invite_for_external_user
