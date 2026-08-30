@@ -344,7 +344,7 @@ def hm_dashboard(user: dict = Depends(get_current_user)):
             )) / 86400.0                             AS open_days,
             COUNT(a.id) FILTER (WHERE a.status = 'applied')       AS cnt_applied,
             COUNT(a.id) FILTER (WHERE a.status = 'screen')        AS cnt_screen,
-            COUNT(a.id) FILTER (WHERE a.status = 'nexai_bot')     AS cnt_nexai_bot,
+            COUNT(a.id) FILTER (WHERE a.status = 'enteri_ai_bot')     AS cnt_enteri_ai_bot,
             COUNT(a.id) FILTER (WHERE a.status = 'shortlisted')   AS cnt_shortlisted,
             COUNT(a.id) FILTER (WHERE a.status = 'interview')     AS cnt_interview,
             COUNT(a.id) FILTER (WHERE a.status = 'documentation') AS cnt_documentation,
@@ -376,7 +376,7 @@ def hm_dashboard(user: dict = Depends(get_current_user)):
             "stage_counts": {
                 "applied":       int(r["cnt_applied"] or 0),
                 "screen":        int(r["cnt_screen"] or 0),
-                "nexai_bot":     int(r["cnt_nexai_bot"] or 0),
+                "enteri_ai_bot":     int(r["cnt_enteri_ai_bot"] or 0),
                 "shortlisted":   int(r["cnt_shortlisted"] or 0),
                 "interview":     int(r["cnt_interview"] or 0),
                 "documentation": int(r["cnt_documentation"] or 0),

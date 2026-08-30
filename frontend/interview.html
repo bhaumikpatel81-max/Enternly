@@ -92,13 +92,13 @@ canvas#orb{border-radius:50%}
 .conv-tr-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#596A83;margin-bottom:10px}
 #conv-transcript{max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding-right:2px}
 .ct-turn{display:flex;flex-direction:column;max-width:88%}
-.ct-turn.nexai{align-self:flex-start}
+.ct-turn.enteri-ai{align-self:flex-start}
 .ct-turn.candidate{align-self:flex-end;align-items:flex-end}
 .ct-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.ct-turn.nexai .ct-lbl{color:#2563EB}
+.ct-turn.enteri-ai .ct-lbl{color:#2563EB}
 .ct-turn.candidate .ct-lbl{color:#5FB4FF}
 .ct-bubble{font-size:13px;line-height:1.55;padding:8px 11px;border-radius:8px;word-break:break-word}
-.ct-turn.nexai .ct-bubble{background:#EAF0FF;border:1px solid #D7E0EC;color:#0A1F44;border-bottom-left-radius:2px}
+.ct-turn.enteri-ai .ct-bubble{background:#EAF0FF;border:1px solid #D7E0EC;color:#0A1F44;border-bottom-left-radius:2px}
 .ct-turn.candidate .ct-bubble{background:#EAF0FF;border:1px solid #D7E0EC;color:#0A1F44;border-bottom-right-radius:2px}
 
 /* ── Campus resume upload step ───────────────────────────────────────── */
@@ -112,7 +112,7 @@ canvas#orb{border-radius:50%}
 .rpt-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#596A83;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #D7E0EC}
 .rt-turn{margin-bottom:10px}
 .rt-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.rt-lbl.nexai{color:#2563EB}
+.rt-lbl.enteri-ai{color:#2563EB}
 .rt-lbl.candidate{color:#5FB4FF}
 .rt-text{font-size:13px;line-height:1.6;color:#0A1F44;background:#F8FCFE;border-radius:6px;padding:8px 10px}
 </style>
@@ -475,7 +475,7 @@ let _audioCtx = null, _analyser = null, _micStream = null, _analyserBuf = null;
 // The MediaRecorder always reads from _procWebcamStream so proctoring is unaffected.
 let _convAudioCtx = null, _convAnalyser = null, _convAnalyserBuf = null, _convMicStream = null;
 let _listenStartTime = 0; // timestamp when answer-capture opened (for MIN_LISTEN_MS guard)
-let _convTranscript = []; // [{speaker:'nexai'|'candidate', text:str}, ...]
+let _convTranscript = []; // [{speaker:'enteri_ai'|'candidate', text:str}, ...]
 
 // ── Strike enforcement state ──────────────────────────────────────────────────
 let _strikes           = 0;    // cumulative strike count for this session
@@ -1723,8 +1723,8 @@ async function convTurn(candidateText, possiblyTruncated) {
   const { reply, is_complete, audio_b64 } = res;
 
   // Push NexAI turn to live transcript
-  _convTranscript.push({ speaker: 'nexai', text: reply });
-  _appendConvTurn('nexai', 'NexAI', reply);
+  _convTranscript.push({ speaker: 'enteri_ai', text: reply });
+  _appendConvTurn('enteri-ai', 'Enteri AI', reply);
 
   // Show bot's text on screen while it speaks
   document.getElementById('conv-bot-text').textContent = reply;
@@ -2206,9 +2206,9 @@ function _buildDoneReport() {
   if (!_convTranscript.length) { rt.innerHTML = ''; return; }
   let html = '<div class="rpt-head">Interview Transcript</div>';
   for (const t of _convTranscript) {
-    const isNexai = t.speaker === 'nexai';
-    const lbl  = isNexai ? 'NexAI' : 'You';
-    const cls  = isNexai ? 'nexai' : 'candidate';
+    const isEnteriAi = t.speaker === 'enteri_ai';
+    const lbl  = isEnteriAi ? 'Enteri AI' : 'You';
+    const cls  = isEnteriAi ? 'enteri-ai' : 'candidate';
     const safe = t.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     html += `<div class="rt-turn"><div class="rt-lbl ${cls}">${lbl}</div><div class="rt-text">${safe}</div></div>`;
   }

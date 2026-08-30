@@ -6,7 +6,7 @@ Endpoints (all scoped to TA + Admin roles except two public session endpoints):
   GET  /api/campus/batch/{batch_id}            — paginated candidate list
   POST /api/campus/batch/{batch_id}/invite     — bulk invite selected candidates
   GET  /api/campus/batches                     — list batches for a requisition
-  POST /api/campus/session/{token}/resume      — PUBLIC: candidate resume upload during NexAI
+  POST /api/campus/session/{token}/resume      — PUBLIC: candidate resume upload during Enteri AI
   GET  /api/campus/session/{token}/is-campus   — PUBLIC: does this token belong to a campus batch?
 """
 import io
@@ -431,25 +431,25 @@ async def upload_excel(
 
 # ── Batch detail (paginated) ──────────────────────────────────────────────────
 
-# Joins in the real interview outcome (nexai_session / application) alongside
+# Joins in the real interview outcome (enteri_ai_session / application) alongside
 # the campus_candidate staging row, so Candidate Preview can show what actually
 # happened to an invited candidate — not just that an invite was queued.
 # `invite_status` on campus_candidate only ever reaches 'invite_queued'/'invited'
 # in practice (nothing sets it to 'interview_started'/'completed' even though
 # the CHECK constraint allows those values) — the real progress lives on
-# nexai_session.status once the candidate's application is linked.
+# enteri_ai_session.status once the candidate's application is linked.
 _CANDIDATE_JOIN_SELECT_BASE = """
     SELECT cc.id, cc.name, cc.email, cc.phone, cc.college, cc.branch,
            cc.cgpa, cc.graduation_year, cc.current_company,
            cc.invite_status, cc.invite_sent_at, cc.resume_uploaded, cc.resume_url,
-           cc.nexai_session_id, cc.created_at, cc.batch_id,
+           cc.enteri_ai_session_id, cc.created_at, cc.batch_id,
            cub.file_name AS batch_file_name,
            ns.status AS session_status, ns.completed_at AS interview_completed_at,
            a.combined_score, a.bot_score, ns.raw_score
     FROM campus_candidate cc
     JOIN campus_upload_batch cub ON cub.id = cc.batch_id
     LEFT JOIN application   a  ON a.id = cc.application_id
-    LEFT JOIN nexai_session ns ON ns.application_id = cc.application_id
+    LEFT JOIN enteri_ai_session ns ON ns.application_id = cc.application_id
     WHERE {where}
     ORDER BY cc.created_at, cc.id
 """
@@ -497,9 +497,9 @@ def _serialize_candidate(c: dict) -> dict:
         "interview_completed_at": c["interview_completed_at"].isoformat() if c["interview_completed_at"] else None,
         "resume_uploaded":   c["resume_uploaded"],
         "resume_url":        c["resume_url"],
-        "nexai_link":        (
-            c["nexai_session_id"]
-            if c["invite_status"] == "invite_queued" and c["nexai_session_id"]
+        "enteri_ai_link":        (
+            c["enteri_ai_session_id"]
+            if c["invite_status"] == "invite_queued" and c["enteri_ai_session_id"]
             else None
         ),
     }
@@ -735,7 +735,7 @@ def bulk_invite(
     """
     For each candidate_id:
       1. Upsert candidate + application records.
-      2. Generate NexAI invite token.
+      2. Generate Enteri AI invite token.
       3. Queue the invite email — actual sending happens off-request in
          campus_email_worker.py, which sends in throttled batches of 20
          so a 1000+ row campus drive doesn't fire all its emails at once.
@@ -767,7 +767,7 @@ def bulk_invite(
     failed: list[dict] = []
 
     # Lazy import to avoid circular dependency
-    from ..routers.nexai_api import _generate_questions
+    from ..routers.enteri_ai_api import _generate_questions
     from ..services.pipeline import _check_no_poach_block, NoPoachBlockedError
 
     blocked: list[dict] = []
@@ -843,7 +843,7 @@ def bulk_invite(
             new_app = query_one(
                 """INSERT INTO application
                        (candidate_id, requisition_id, status, applied_at)
-                   VALUES (%s, %s, 'nexai_bot', now()) RETURNING id""",
+                   VALUES (%s, %s, 'enteri_ai_bot', now()) RETURNING id""",
                 [cand_id, body.requisition_id],
             )
             if not new_app:
@@ -853,7 +853,7 @@ def bulk_invite(
 
         # 3 — generate invite token (skip if active invite already exists)
         active = query_one(
-            """SELECT id FROM nexai_invite
+            """SELECT id FROM enteri_ai_invite
                WHERE application_id=%s AND used_at IS NULL AND expires_at > now()
                LIMIT 1""",
             [app_id],
@@ -861,14 +861,14 @@ def bulk_invite(
         if active:
             # Re-use existing token for the link
             token_row = query_one(
-                "SELECT token FROM nexai_invite WHERE id=%s", [active["id"]]
+                "SELECT token FROM enteri_ai_invite WHERE id=%s", [active["id"]]
             )
             token = token_row["token"] if token_row else secrets.token_urlsafe(32)
         else:
             token = secrets.token_urlsafe(32)
             try:
                 query(
-                    """INSERT INTO nexai_invite (application_id, token, created_by)
+                    """INSERT INTO enteri_ai_invite (application_id, token, created_by)
                        VALUES (%s, %s, %s)""",
                     [app_id, token, user["sub"]],
                     fetch=False,
@@ -877,7 +877,7 @@ def bulk_invite(
                 failed.append({"id": cid, "reason": f"token_error: {exc}"})
                 continue
 
-        # 4 — upsert nexai_session for avatar pre-render
+        # 4 — upsert enteri_ai_session for avatar pre-render
         _saved_qs = query_one(
             "SELECT questions FROM requisition_questions WHERE requisition_id=%s",
             [body.requisition_id],
@@ -890,13 +890,13 @@ def bulk_invite(
             )
         )
         existing_sess = query_one(
-            "SELECT id FROM nexai_session WHERE application_id=%s", [app_id]
+            "SELECT id FROM enteri_ai_session WHERE application_id=%s", [app_id]
         )
         if existing_sess:
             session_id = str(existing_sess["id"])
         else:
             sess_row = query_one(
-                """INSERT INTO nexai_session
+                """INSERT INTO enteri_ai_session
                        (application_id, requisition_id, questions, status)
                    VALUES (%s, %s, %s::jsonb, 'pending') RETURNING id""",
                 [app_id, body.requisition_id, json.dumps(questions)],
@@ -905,12 +905,12 @@ def bulk_invite(
 
         background_tasks.add_task(_prerender_svc.prerender_interview_videos, session_id)
 
-        invite_url = f"{base_url}/nexai-interview?token={token}"
+        invite_url = f"{base_url}/enteri-ai-interview?token={token}"
 
         # 5 — update campus_candidate with application_id + link
         query(
             """UPDATE campus_candidate
-               SET application_id=%s, nexai_session_id=%s, invite_sent_at=now()
+               SET application_id=%s, enteri_ai_session_id=%s, invite_sent_at=now()
                WHERE id=%s""",
             [app_id, invite_url if is_local else token, cid],
             fetch=False,
@@ -1056,7 +1056,7 @@ def delete_batch(batch_id: str, user: dict = Depends(get_current_user)):
     Delete a wrongly-uploaded batch and its staged candidate rows.
 
     Only ever deletes campus_candidate staging rows + the batch itself — any
-    application/candidate/nexai_invite already created for a candidate whose
+    application/candidate/enteri_ai_invite already created for a candidate whose
     invite was sent is left untouched, so this can't accidentally remove a
     real candidate from the pipeline.
     """
@@ -1087,7 +1087,7 @@ def delete_candidate(candidate_id: str, user: dict = Depends(get_current_user)):
     it without discarding the rest of the batch.
 
     Same rule as batch delete: only the campus_candidate staging row is
-    removed — any application/candidate/nexai_invite already created for a
+    removed — any application/candidate/enteri_ai_invite already created for a
     candidate whose invite was already sent is left untouched.
     """
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
@@ -1120,12 +1120,12 @@ async def upload_campus_resume(
     file: UploadFile = File(...),
 ):
     """
-    Public (no JWT) — candidate uploads resume during a campus NexAI session.
+    Public (no JWT) — candidate uploads resume during a campus Enteri AI session.
     Runs intake_and_screen with is_fresher_role forced True, updates campus_candidate.
     """
     invite = query_one(
         """SELECT ni.application_id, a.requisition_id, r.tenant_id
-           FROM nexai_invite ni
+           FROM enteri_ai_invite ni
            JOIN application a ON a.id = ni.application_id
            JOIN requisition r ON r.id = a.requisition_id
            WHERE ni.token=%s AND ni.expires_at > now()""",
@@ -1245,7 +1245,7 @@ async def upload_campus_resume(
 def is_campus_session(session_token: str):
     """Public (no JWT) — returns whether this invite belongs to a campus bulk batch."""
     invite = query_one(
-        "SELECT application_id FROM nexai_invite WHERE token=%s",
+        "SELECT application_id FROM enteri_ai_invite WHERE token=%s",
         [session_token],
     )
     if not invite:

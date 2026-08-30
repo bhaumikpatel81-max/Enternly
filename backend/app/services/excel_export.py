@@ -30,7 +30,7 @@ def _cell_value(val):
         # openpyxl only accepts str/number/date/bool/None -- psycopg2 returns
         # UUID columns as uuid.UUID objects (register_uuid() in db.py), and
         # any export sheet that includes a raw id/*_id column (recent_reqs,
-        # gender_split, nexai_recent, recruiter_load, ...) previously 500'd
+        # gender_split, enteri_ai_recent, recruiter_load, ...) previously 500'd
         # here with "Cannot convert UUID(...) to Excel" -- this one helper is
         # shared by every Excel export in the app, so this single fix covers
         # all of them at once.

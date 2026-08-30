@@ -87,7 +87,7 @@ def _pivot4(year, ps: date, rjoin: str, rp: list, xwhere: str = "", xp: list | N
         SELECT
           CASE
             WHEN a.status = 'applied'  THEN 'Sourcing'
-            WHEN a.status IN ('screen','nexai_bot','shortlisted') THEN 'Screening'
+            WHEN a.status IN ('screen','enteri_ai_bot','shortlisted') THEN 'Screening'
             WHEN a.status = 'interview' THEN 'Interview'
             WHEN a.status IN ('documentation','offered','hired') THEN 'Selected'
             ELSE 'Other'

@@ -13,114 +13,157 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #0A1F44; --paper: #F8FCFE; --card: #ffffff;
-    --line: #D7E0EC; --accent: #2563EB; --navy: #0A1F44; --muted: #596A83;
+    --ink: #0A1F44; --accent: #2563EB; --muted: #596A83;
     --font-head: 'Space Grotesk', system-ui, sans-serif;
     --font-body: 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', monospace;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  html, body {
-    height: 100%; overflow: hidden;
-  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid #22D3EE; outline-offset: 2px; }
+  html, body { height: 100%; }
   body {
-    font-family: var(--font-body);
-    background: var(--paper); color: var(--ink);
-    height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 16px;
+    font-family: var(--font-body); color: #F2F7FF;
+    background: radial-gradient(1200px 760px at 50% -10%, #14316B 0%, #0A1F44 48%, #050F24 100%);
+    min-height: 100vh; overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
   }
-  .box {
-    background: var(--card); width: 100%; max-width: 620px;
-    border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
-    box-shadow: 0 4px 24px rgba(37,99,235,0.10);
+  button { touch-action: manipulation; -webkit-appearance: none; appearance: none; }
+
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes popIn { from { opacity: 0; transform: scale(.9) } to { opacity: 1; transform: scale(1) } }
+  @keyframes orbA { 0%,100% { transform: translate3d(0,0,0) scale(1) } 50% { transform: translate3d(60px,-40px,0) scale(1.12) } }
+  @keyframes orbB { 0%,100% { transform: translate3d(0,0,0) scale(1.05) } 50% { transform: translate3d(-70px,50px,0) scale(.92) } }
+  @keyframes driftUp { from { transform: translateY(0) } to { transform: translateY(-33.33%) } }
+  @keyframes driftDown { from { transform: translateY(-33.33%) } to { transform: translateY(0) } }
+  @keyframes pulseRing { 0% { box-shadow: 0 0 0 0 rgba(34,211,238,.45) } 70% { box-shadow: 0 0 0 13px rgba(34,211,238,0) } 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0) } }
+
+  .login-scene { position: relative; min-height: 100vh; overflow: hidden; animation: fadeIn .4s ease both; }
+  .orb { position: absolute; border-radius: 50%; pointer-events: none; }
+  .orb-a { width: 760px; height: 760px; left: -220px; top: -260px; background: radial-gradient(circle, rgba(37,99,235,.4), transparent 68%); filter: blur(56px); animation: orbA 28s ease-in-out infinite; }
+  .orb-b { width: 560px; height: 560px; right: -150px; bottom: -190px; background: radial-gradient(circle, rgba(34,211,238,.24), transparent 70%); filter: blur(60px); animation: orbB 34s ease-in-out infinite; }
+
+  .bg-columns {
+    position: absolute; inset: 0; display: flex; gap: 18px; justify-content: center;
+    padding: 0 26px; opacity: .5;
+    mask-image: radial-gradient(closest-side at 50% 50%, transparent 34%, #000 78%);
+    -webkit-mask-image: radial-gradient(closest-side at 50% 50%, transparent 34%, #000 78%);
   }
-  .box-top {
-    padding: 28px 44px 22px; text-align: center;
-    border-bottom: 4px solid transparent;
-    border-image: linear-gradient(90deg, var(--accent), var(--navy)) 1;
+  .bg-col { flex: 0 0 190px; overflow: hidden; }
+  .bg-col-track { display: flex; flex-direction: column; gap: 12px; }
+  .bg-col:nth-child(odd) .bg-col-track { animation: driftUp 34s linear infinite; }
+  .bg-col:nth-child(even) .bg-col-track { animation: driftDown 40s linear infinite; }
+  .bg-card { border-radius: 13px; padding: 12px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); }
+  .bg-card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .bg-card-name { font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.82); }
+  .bg-card-score { font-family: var(--font-head); font-size: 12px; font-weight: 700; color: #7FB0FF; }
+  .bg-card-score.hi { color: #22D3EE; }
+  .bg-card-stage { font-family: var(--font-mono); font-size: 9px; letter-spacing: .9px; text-transform: uppercase; color: rgba(255,255,255,.42); margin-top: 7px; }
+  @media (prefers-reduced-motion: reduce) {
+    .orb-a, .orb-b, .bg-col-track { animation: none !important; }
   }
-  .logo-row {
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-    gap: 28px; margin-bottom: 10px;
+
+  .login-wrap { position: relative; min-height: 100vh; display: grid; place-items: center; padding: 44px 24px; }
+  .login-card {
+    width: min(430px, 100%); border-radius: 24px; padding: 32px;
+    background: rgba(9,24,52,.62); border: 1px solid rgba(255,255,255,.14);
+    backdrop-filter: blur(26px) saturate(160%); -webkit-backdrop-filter: blur(26px) saturate(160%);
+    box-shadow: 0 34px 80px rgba(3,10,26,.6);
+    display: flex; flex-direction: column; gap: 17px;
+    animation: popIn .5s cubic-bezier(.2,.8,.25,1) both;
   }
-  .logo { width: auto; }
-  .logo-enternly { height: 130px; }
-  .tagline {
-    font-family: var(--font-head); font-size: 15px; letter-spacing: 3px;
-    text-transform: uppercase; font-weight: 700;
-    background: linear-gradient(90deg, var(--accent), var(--navy));
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: transparent;
+  .login-card-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .logo-chip { background: #fff; border-radius: 12px; padding: 9px 13px; display: inline-flex; flex-shrink: 0; }
+  .logo-chip img { width: 88px; height: auto; display: block; }
+  .live-chip {
+    display: flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 20px;
+    background: rgba(34,211,238,.14); border: 1px solid rgba(34,211,238,.3);
+    font-size: 10.5px; font-weight: 700; color: #22D3EE; white-space: nowrap;
   }
-  .box-body { padding: 28px 44px 24px; }
-  h1 { font-family: var(--font-head); font-size: 24px; font-weight: 700; margin-bottom: 16px; color: var(--navy); }
-  .error-box {
-    background: #fdeaee; border: 1px solid #f6c9d1; color: #e2455a;
-    font-size: 14px; padding: 10px 14px; border-radius: 4px; margin-bottom: 14px;
-  }
-  label {
-    display: block; font-size: 12px; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--muted); margin: 14px 0 5px; font-weight: 600;
-  }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22D3EE; animation: pulseRing 2.6s ease-out infinite; }
+
+  .login-title { font-family: var(--font-head); font-size: 25px; font-weight: 700; color: #fff; line-height: 1.22; }
+  .login-sub { font-size: 12.5px; color: #AFC0CD; margin-top: 7px; }
+
+  .error-box { background: rgba(224,90,90,.16); border: 1px solid rgba(224,90,90,.4); color: #ff9fae; font-size: 13px; padding: 10px 14px; border-radius: 10px; }
+  .error-box.success { background: rgba(14,159,110,.16); border-color: rgba(14,159,110,.4); color: #6fe0b8; }
+
+  label { display: flex; flex-direction: column; gap: 7px; font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase; color: #AFC0CD; }
   input {
-    width: 100%; padding: 11px 14px; border: 1px solid var(--line);
-    border-radius: 6px; font-family: inherit; font-size: 16px;
-    background: #f7f8fc; outline: none; transition: border-color 0.15s;
+    width: 100%; height: 44px; padding: 0 13px; margin-top: 7px;
+    border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
+    background: rgba(5,15,36,.5); font-family: inherit; font-size: 13px; color: #fff;
+    outline: none; transition: border-color .25s;
   }
-  input:focus { border-color: var(--accent); background: #fff; }
+  input::placeholder { color: rgba(255,255,255,.35); }
+  input:focus { border-color: #22D3EE; }
   .pw-wrap { position: relative; }
   .pw-wrap input { padding-right: 42px; }
   .pw-toggle {
-    position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
-    background: none; border: none; cursor: pointer; padding: 6px;
-    line-height: 0; font-size: 18px; color: var(--muted);
+    position: absolute; top: calc(50% + 3px); right: 6px; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; padding: 10px;
+    line-height: 0; font-size: 17px; color: #AFC0CD;
   }
-  .pw-toggle:hover { color: var(--ink); }
-  .btn {
-    width: 100%; margin-top: 22px; padding: 14px; background: var(--accent);
-    color: #fff; border: none; border-radius: 6px; font-family: inherit;
-    font-size: 17px; cursor: pointer; font-weight: 600; letter-spacing: 0.3px; transition: background 0.15s;
-  }
-  .btn:hover { background: var(--navy); }
-  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  .hint { font-size: 13px; color: var(--muted); text-align: center; margin-top: 14px; }
+  .pw-toggle:hover { color: #fff; }
 
-  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-  @media (max-width: 540px) {
-    body { padding: 0; justify-content: flex-start; overflow-y: auto; }
-    .box { max-width: 100%; border-radius: 0; border-left: none; border-right: none; box-shadow: none; }
-    .box-top { padding: 24px 24px 18px; }
-    .box-body { padding: 20px 24px 20px; }
-    .logo-row { gap: 16px; }
-    .logo-enternly { height: 90px; }
-    .tagline { font-size: 12px; letter-spacing: 2px; }
-    h1 { font-size: 22px; }
+  .btn {
+    width: 100%; margin-top: 5px; height: 46px; border: 0; border-radius: 12px;
+    background: linear-gradient(90deg, #2563EB, #22D3EE); color: #04142E;
+    font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+    transition: filter .25s, transform .25s;
   }
-  @media screen and (-webkit-min-device-pixel-ratio: 0) { input { font-size: 16px; } }
-  button { touch-action: manipulation; -webkit-appearance: none; appearance: none; }
+  .btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn:disabled { opacity: .6; cursor: not-allowed; }
+
+  .login-foot { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #AFC0CD; }
+  .login-foot a { color: #7FB0FF; text-decoration: none; }
+  .login-foot a:hover { color: #22D3EE; }
+  .login-foot-brand { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.1px; text-transform: uppercase; color: rgba(255,255,255,.42); }
+
+  @media (max-width: 540px) {
+    .bg-columns { display: none; }
+    .login-wrap { padding: 24px 16px; }
+    .login-card { padding: 24px 22px; border-radius: 18px; }
+    .login-title { font-size: 21px; }
+  }
 </style>
 </head>
 <body>
-<div class="box">
-  <div class="box-top">
-    <div class="logo-row">
-      <img src="/assets/Enternly_logo.png" alt="Enternly" class="logo logo-enternly">
+<div class="login-scene">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="bg-columns" aria-hidden="true" id="bg-columns"></div>
+
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-card-top">
+        <span class="logo-chip"><img src="/assets/Enternly_logo.png" alt="Enternly ATS"></span>
+        <span class="live-chip"><span class="live-dot"></span><span id="live-count">41</span> live</span>
+      </div>
+
+      <div>
+        <div class="login-title">The pipeline is already moving.</div>
+        <div class="login-sub">Sign in to step into it. Your role is detected automatically.</div>
+      </div>
+
+      <div id="err" class="error-box" style="display:none"></div>
+
+      <label for="email">Work email
+        <input id="email" type="email" autocomplete="username" placeholder="name@company.com">
+      </label>
+      <label for="pw">Password
+        <div class="pw-wrap">
+          <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••••">
+          <button type="button" class="pw-toggle" tabindex="-1" aria-label="Show password" onclick="togglePw('pw', this)">👁</button>
+        </div>
+      </label>
+
+      <button class="btn" id="btn" onclick="doLogin()">Sign in</button>
+
+      <div class="login-foot">
+        <a href="#" onclick="doForgot(event)">Forgot password</a>
+        <span class="login-foot-brand">EnternsTech</span>
+      </div>
     </div>
-    <div class="tagline">Applicant Tracking System</div>
-  </div>
-  <div class="box-body">
-    <h1>Sign in</h1>
-    <div id="err" class="error-box" style="display:none"></div>
-    <label for="email">Work email</label>
-    <input id="email" type="email" autocomplete="username" placeholder="you@enternly.com">
-    <label for="pw">Password</label>
-    <div class="pw-wrap">
-      <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
-      <button type="button" class="pw-toggle" tabindex="-1" aria-label="Show password" onclick="togglePw('pw', this)">👁</button>
-    </div>
-    <button class="btn" id="btn" onclick="doLogin()">Sign in</button>
-    <p class="hint"><a href="#" onclick="doForgot(event)" style="color:var(--accent);text-decoration:none">Forgot password?</a></p>
   </div>
 </div>
 
@@ -133,6 +176,36 @@ function _postLoginQS() {
   return qs || '';
 }
 if (localStorage.getItem('enternly_token')) window.location.replace('/' + _postLoginQS());
+
+// Purely decorative backdrop -- placeholder pipeline activity, not real data
+// (this page renders before any authentication, so no API call is made here).
+(function renderBgColumns() {
+  const mount = document.getElementById('bg-columns');
+  if (!mount) return;
+  const NAMES = [
+    ['Aarav Menon', 86, 'Screening'], ['Priya Sharma', 91, 'NexAI interview'],
+    ['Nikhil Rao', 79, 'Applications'], ['Deepa Nair', 88, 'Shortlisted'],
+    ['Ishita Sen', 81, 'Level 1 panel'], ['Rohit Bansal', 69, 'NexAI interview'],
+    ['Ananya Gupta', 93, 'Final panel'], ['Karthik Reddy', 87, 'HM screening'],
+    ['Sneha Iyer', 84, 'Level 1 panel'], ['Meera Krishnan', 90, 'Offer'],
+    ['Vikram Joshi', 81, 'Level 2 panel'], ['Sahil Verma', 85, 'Joined'],
+  ];
+  const cols = 4;
+  for (let c = 0; c < cols; c++) {
+    const col = document.createElement('div');
+    col.className = 'bg-col';
+    const track = document.createElement('div');
+    track.className = 'bg-col-track';
+    const rotated = NAMES.slice(c * 3 % NAMES.length).concat(NAMES.slice(0, c * 3 % NAMES.length));
+    const cards = rotated.concat(rotated).concat(rotated).map(([n, s, stage]) => {
+      const hi = s >= 88 ? ' hi' : '';
+      return `<div class="bg-card"><div class="bg-card-row"><span class="bg-card-name">${n}</span><span class="bg-card-score${hi}">${s}</span></div><div class="bg-card-stage">${stage}</div></div>`;
+    }).join('');
+    track.innerHTML = cards;
+    col.appendChild(track);
+    mount.appendChild(col);
+  }
+})();
 
 document.getElementById('email').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('pw').focus();
@@ -155,6 +228,7 @@ async function doForgot(e) {
   if (!email) return;
   const err = document.getElementById('err');
   err.style.display = 'none';
+  err.classList.remove('success');
   try {
     const res = await fetch('/api/auth/forgot-password', {
       method: 'POST',
@@ -163,14 +237,12 @@ async function doForgot(e) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      err.style.background = '#fdeaee'; err.style.borderColor = '#f6c9d1'; err.style.color = '#e2455a';
       err.textContent = data.detail || 'Account does not exist';
     } else {
-      err.style.background = '#e8f7f0'; err.style.borderColor = '#b7e6d4'; err.style.color = '#0e9f6e';
+      err.classList.add('success');
       err.textContent = data.message || 'If that account exists, a reset link has been sent.';
     }
   } catch {
-    err.style.background = '#fdeaee'; err.style.borderColor = '#f6c9d1'; err.style.color = '#e2455a';
     err.textContent = 'Something went wrong. Please try again.';
   }
   err.style.display = 'block';
@@ -183,6 +255,7 @@ async function doLogin() {
   const btn   = document.getElementById('btn');
 
   err.style.display = 'none';
+  err.classList.remove('success');
   if (!email || !pw) {
     err.textContent = 'Please enter your email and password.';
     err.style.display = 'block';

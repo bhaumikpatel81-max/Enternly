@@ -20,8 +20,8 @@ _PH_RE = re.compile(r'\{\{(\w+)\}\}')
 # They are inserted into the DB if the row is absent (idempotent via template_key).
 
 DEFAULTS: dict[str, dict] = {
-    "nexai_invite": {
-        "name":    "NexAI Interview Invite (Candidate)",
+    "enteri_ai_invite": {
+        "name":    "Enteri AI Interview Invite (Candidate)",
         "subject": "AI Interview Invitation: {{job_title}} — {{company_name}}",
         "body": (
             "Hi {{candidate_name}},\n\n"
@@ -34,7 +34,7 @@ DEFAULTS: dict[str, dict] = {
             "Important:\n"
             "- Once you start, you have 48 hours to complete the interview\n"
             "- You can close and re-open the link within that window if needed\n"
-            "- NexAI never auto-rejects — all scores are reviewed by a human recruiter\n\n"
+            "- Enteri AI never auto-rejects — all scores are reviewed by a human recruiter\n\n"
             "Best regards,\n"
             "{{recruiter_name}} | {{company_name}}"
         ),
@@ -44,11 +44,11 @@ DEFAULTS: dict[str, dict] = {
         ],
         "category": "candidate",
     },
-    "nexai_completion": {
-        "name":    "NexAI Interview Completed (Recruiter)",
-        "subject": "NexAI interview completed — {{candidate_name}} — {{job_title}}",
+    "enteri_ai_completion": {
+        "name":    "Enteri AI Interview Completed (Recruiter)",
+        "subject": "Enteri AI interview completed — {{candidate_name}} — {{job_title}}",
         "body": (
-            "NexAI Interview Completed\n\n"
+            "Enteri AI Interview Completed\n\n"
             "Candidate: {{candidate_name}}\n"
             "Role: {{job_title}}\n"
             "AI Score: {{ai_score}}\n\n"
@@ -86,7 +86,7 @@ DEFAULTS: dict[str, dict] = {
         "name":    "Proctoring Integrity Alert (Recruiter/TA Digest)",
         "subject": "⚠ Proctoring review needed — {{candidate_name}} — {{job_title}}",
         "body": (
-            "A NexAI proctoring session has integrity signals that need human review.\n\n"
+            "A Enteri AI proctoring session has integrity signals that need human review.\n\n"
             "Candidate: {{candidate_name}}\n"
             "Role: {{job_title}}\n\n"
             "What was flagged:\n"
@@ -359,7 +359,7 @@ SAMPLE_VALUES: dict[str, str] = {
     "candidate_name":     "Rimjhim Rai",
     "job_title":          "Account Manager – Sales",
     "company_name":       "EnternsTech Pvt. Ltd.",
-    "interview_link":     "https://your-enternly-domain.example/nexai-interview?token=preview_sample",
+    "interview_link":     "https://your-enternly-domain.example/enteri-ai-interview?token=preview_sample",
     "ai_score":           "78/100",
     "strengths":          "Strong communication, relevant industry experience, clear articulation of achievements.",
     "concerns":           "Limited enterprise CRM experience — probe on technical sales cycle management.",

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from ..db import query, query_one
 from ..auth_utils import get_current_user
-from .nexai_api import _recruiter_owns_req, _application_req_id
+from .enteri_ai_api import _recruiter_owns_req, _application_req_id
 
 router = APIRouter(prefix="/api/applications", tags=["documentation"])
 

@@ -6,7 +6,7 @@ sender, email_templates.render_template + the 'proctoring_integrity_alert'
 DEFAULTS entry is the template. Does not add a new background worker — it's
 triggered synchronously (best-effort) from the same call sites that record
 integrity flags (see proctoring_api.candidate_complete_session and
-nexai_api.terminate_invite_session), mirroring campus_email_worker's atomic
+enteri_ai_api.terminate_invite_session), mirroring campus_email_worker's atomic
 claim-then-send shape but adapted to a per-session trigger instead of a
 polling loop over a queue table.
 """
@@ -63,7 +63,7 @@ def _resolve_recipients(session_id, tenant_id=None):
     creator = query_one(
         """SELECT cu.email AS creator_email
            FROM proctoring_session ps
-           JOIN nexai_invite ni ON ni.application_id = ps.application_id
+           JOIN enteri_ai_invite ni ON ni.application_id = ps.application_id
            LEFT JOIN app_user cu ON cu.id = ni.created_by
            WHERE ps.id = %s
            ORDER BY ni.invited_at DESC LIMIT 1""",

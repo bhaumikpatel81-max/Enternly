@@ -107,7 +107,7 @@ FAKE_TRANSCRIPT = [
 async def main() -> None:
     SEP = "=" * 62
     print(f"\n{SEP}")
-    print("  NexAI LLM Interviewer -- Live Test")
+    print("  Enteri AI LLM Interviewer -- Live Test")
     print(SEP)
 
     if not os.environ.get("GROQ_API_KEY"):

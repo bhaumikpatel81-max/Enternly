@@ -1,10 +1,10 @@
 """
-NexAI Avatar Pre-render Pipeline — Step 4.
+Enteri AI Avatar Pre-render Pipeline — Step 4.
 
 Pre-renders per-question lip-sync MP4 videos using:
   edge-tts (via tts.py) → MP3 → ffmpeg WAV → SadTalker GPU → GCS (or local)
 
-Triggered as a FastAPI BackgroundTask when a nexai_invite is created.
+Triggered as a FastAPI BackgroundTask when a enteri_ai_invite is created.
 The candidate-facing interview flow is completely independent — if pre-rendering
 fails or the GPU is not deployed, the orb animation takes over seamlessly.
 
@@ -33,8 +33,8 @@ log = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-AVATAR_IMAGE_MALE = "nexai-male.png"
-AVATAR_IMAGE_FEMALE = "nexai-female.png"
+AVATAR_IMAGE_MALE = "enteri-ai-male.png"
+AVATAR_IMAGE_FEMALE = "enteri-ai-female.png"
 
 
 # ── Config helpers ────────────────────────────────────────────────────────────
@@ -48,13 +48,13 @@ def _avatar_image_path() -> str:
             )
         ),
     )
-    gender = os.environ.get("NEXAI_VOICE_GENDER", "female").lower().strip()
+    gender = os.environ.get("ENTERI_AI_VOICE_GENDER", "female").lower().strip()
     image_name = AVATAR_IMAGE_MALE if gender == "male" else AVATAR_IMAGE_FEMALE
     return os.path.join(base, image_name)
 
 
 def _voice_id() -> str:
-    gender = os.environ.get("NEXAI_VOICE_GENDER", "female").lower().strip()
+    gender = os.environ.get("ENTERI_AI_VOICE_GENDER", "female").lower().strip()
     return VOICE_MALE if gender == "male" else VOICE_FEMALE
 
 
@@ -118,7 +118,7 @@ def _upload_to_gcs(local_path: str, dest_name: str) -> str:
     bucket = _gcs_bucket()
     from google.cloud import storage as gcs
     client = gcs.Client()
-    blob = client.bucket(bucket).blob(f"nexai-avatars/{dest_name}")
+    blob = client.bucket(bucket).blob(f"enteri-ai-avatars/{dest_name}")
     blob.upload_from_filename(local_path, content_type="video/mp4")
     blob.make_public()
     return blob.public_url
@@ -219,7 +219,7 @@ def _call_sadtalker(face_path: str, wav_path: str) -> str:
 
 def _update_render_state(session_id: str, render_status: str, question_videos: list):
     query(
-        """UPDATE nexai_session
+        """UPDATE enteri_ai_session
            SET render_status = %s, question_videos = %s::jsonb
            WHERE id = %s""",
         [render_status, json.dumps(question_videos), session_id],
@@ -233,7 +233,7 @@ async def prerender_interview_videos(session_id: str):
     """
     Background task: pre-render a lip-sync MP4 for every question in the session.
 
-    Fired immediately after nexai_invite is created. The candidate interview flow
+    Fired immediately after enteri_ai_invite is created. The candidate interview flow
     is unaffected — the frontend checks question_videos and falls back to the orb
     for any question whose video_url is None or status is 'failed'.
 
@@ -246,7 +246,7 @@ async def prerender_interview_videos(session_id: str):
     log.info("prerender: starting session=%s", session_id)
 
     sess = query_one(
-        "SELECT id, questions FROM nexai_session WHERE id = %s", [session_id]
+        "SELECT id, questions FROM enteri_ai_session WHERE id = %s", [session_id]
     )
     if not sess or not sess.get("questions"):
         log.warning("prerender: session=%s not found or has no questions", session_id)

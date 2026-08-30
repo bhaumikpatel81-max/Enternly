@@ -15,7 +15,7 @@ from ..db import query
 PIPELINE_STAGES = [
     "applied",
     "screen",
-    "nexai_bot",
+    "enteri_ai_bot",
     "shortlisted",
     "interview",
     "documentation",
@@ -25,7 +25,7 @@ PIPELINE_STAGES = [
 PIPELINE_STAGE_LABELS = {
     "applied":       "Applied",
     "screen":        "Screening",
-    "nexai_bot":     "NexAI Interview",
+    "enteri_ai_bot":     "Enteri AI Interview",
     "shortlisted":   "Shortlisted",
     "interview":     "Interview",
     "documentation": "Documentation",
@@ -54,8 +54,8 @@ def derive_pending_from(app_status: str, isr_status: str | None) -> str:
 # based on the requisition's round_config (number of panel levels configured).
 NEXT_STAGE = {
     "applied":       "screen",
-    "screen":        "nexai_bot",
-    "nexai_bot":     "shortlisted",
+    "screen":        "enteri_ai_bot",
+    "enteri_ai_bot":     "shortlisted",
     "shortlisted":   "interview",
     "documentation": "offered",
 }
@@ -65,7 +65,7 @@ NEXT_STAGE = {
 SLA_DEFAULTS = {
     "stage_applied":       5,
     "stage_screen":        3,
-    "stage_nexai_bot":     3,
+    "stage_enteri_ai_bot":     3,
     "stage_shortlisted":   2,
     "stage_interview":     5,
     "stage_documentation": 5,
@@ -79,7 +79,7 @@ SLA_DEFAULTS = {
 STAGE_SLA_KEY = {
     "applied":       "stage_applied",
     "screen":        "stage_screen",
-    "nexai_bot":     "stage_nexai_bot",
+    "enteri_ai_bot":     "stage_enteri_ai_bot",
     "shortlisted":   "stage_shortlisted",
     "interview":     "stage_interview",
     "documentation": "stage_documentation",

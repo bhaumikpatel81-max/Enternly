@@ -107,7 +107,7 @@ CREATE TABLE requisition (
     resume_weight       NUMERIC(4,2) DEFAULT 0.40,
     interview_weight    NUMERIC(4,2) DEFAULT 0.60,
     criticality         TEXT NOT NULL DEFAULT 'Medium',
-    screening_questions TEXT[] DEFAULT '{}',            -- recruiter-set questions for NexAI
+    screening_questions TEXT[] DEFAULT '{}',            -- recruiter-set questions for Enteri AI
     is_internal_movement BOOLEAN NOT NULL DEFAULT FALSE
 );
 

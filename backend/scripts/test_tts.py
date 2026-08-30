@@ -1,5 +1,5 @@
 """
-Quick smoke-test for the NexAI TTS pipeline.
+Quick smoke-test for the Enteri AI TTS pipeline.
 Synthesizes a sample sentence and saves it to test_output_v2.mp3 in this directory.
 Run from the backend/ folder:
 
@@ -14,14 +14,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.services.tts import VOICE_MALE, VOICE_FEMALE, synthesize_speech, _normalize_pronunciation
 
-# Must contain "NexAI" to verify the pronunciation fix.
-SAMPLE_TEXT = "Welcome to your NexAI interview. NexAI will ask you a few questions."
+# Must contain "Enteri AI" to verify the pronunciation fix.
+SAMPLE_TEXT = "Welcome to your Enteri AI interview. Enteri AI will ask you a few questions."
 
 OUT_PATH = os.path.join(os.path.dirname(__file__), "test_output.mp3")
 
 
 async def main():
-    voice = os.environ.get("NEXAI_VOICE_GENDER", "female")
+    voice = os.environ.get("ENTERI_AI_VOICE_GENDER", "female")
     selected = VOICE_MALE if voice.lower() == "male" else VOICE_FEMALE
 
     normalized = _normalize_pronunciation(SAMPLE_TEXT)
@@ -34,10 +34,10 @@ async def main():
     print(f"NORMALIZED    : {normalized}")
     print("=" * 60)
 
-    if "NexAI" in normalized:
-        print("WARNING: 'NexAI' still present in normalized text — substitution did NOT apply!")
+    if "Enteri AI" in normalized:
+        print("WARNING: 'Enteri AI' still present in normalized text — substitution did NOT apply!")
     else:
-        print("OK: 'NexAI' was substituted before synthesis.")
+        print("OK: 'Enteri AI' was substituted before synthesis.")
 
     print("Synthesizing …")
     await synthesize_speech(SAMPLE_TEXT, OUT_PATH, voice=selected)

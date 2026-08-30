@@ -50,7 +50,7 @@ _TTL_HOURS = 8
 _STAGE_LABELS = {
     **PIPELINE_STAGE_LABELS,
     "applied":       "Applied",
-    "nexai_bot":     "NexAI Interview",
+    "enteri_ai_bot":     "Enteri AI Interview",
     "hired":         "Offer Accepted",
     "offered":       "Offer Received",
     "rejected":      "Not Progressing",
@@ -172,7 +172,7 @@ def portal_applications(candidate: dict = Depends(get_current_candidate)):
 _CANDIDATE_STAGE_DEFS = [
     {"key": "submitted", "label": "Submitted", "statuses": ["applied"],
      "description": "Your application has been received."},
-    {"key": "screening", "label": "Screening", "statuses": ["screen", "nexai_bot", "shortlisted"],
+    {"key": "screening", "label": "Screening", "statuses": ["screen", "enteri_ai_bot", "shortlisted"],
      "description": "Our team is reviewing your profile and screening responses."},
     {"key": "interview", "label": "Interview", "statuses": ["interview"],
      "description": "You'll be scheduled for an interview with the hiring team."},
@@ -181,14 +181,14 @@ _CANDIDATE_STAGE_DEFS = [
     {"key": "offered", "label": "Offered", "statuses": ["offered", "hired"],
      "description": "An offer has been extended to you."},
 ]
-_PIPELINE_STATUS_ORDER = ["applied", "screen", "nexai_bot", "shortlisted", "interview", "documentation", "offered", "hired"]
+_PIPELINE_STATUS_ORDER = ["applied", "screen", "enteri_ai_bot", "shortlisted", "interview", "documentation", "offered", "hired"]
 
 
 @router.get("/portal/applications/{application_id}/pipeline")
 def portal_application_pipeline(application_id: str, candidate: dict = Depends(get_current_candidate)):
     """
     Candidate-facing stepper for one of their own applications. Collapses
-    internal stages (screen/nexai_bot/shortlisted) into a single "Screening"
+    internal stages (screen/enteri_ai_bot/shortlisted) into a single "Screening"
     step -- candidates were never meant to see that internal granularity,
     same invariant as everywhere else in this router: no score column, and
     here also no internal-only stage names.

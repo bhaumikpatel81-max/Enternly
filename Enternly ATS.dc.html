@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%}
+  body{font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#F8FCFE;color:#0A1F44;
+    --bg:linear-gradient(180deg,#F4FAFF 0%,#F8FCFE 48%,#FFFFFF 100%);
+    --surface:#FFFFFF;--surface2:#F8FCFE;--glass:rgba(255,255,255,.78);--bd:#D7E0EC;--bd2:#EDF2F8;
+    --ink:#0A1F44;--ink2:#33445F;--ink3:#596A83;--ink4:#9AA7BD;
+    --side:linear-gradient(190deg,#0A1F44 0%,#11305C 58%,#0A1F44 100%);
+    --wash:#EAF0FF;--washfg:#2563EB;--hov:#F4FAFF;--signal:#0E9BB4;
+    --orb1:rgba(37,99,235,.10);--orb2:rgba(34,211,238,.08);
+    --shadow:0 1px 2px rgba(10,31,68,.05);--lift:0 18px 40px rgba(10,31,68,.13);--track:#E4EDF9}
+  body[data-theme="dark"]{background:#050F24;color:#F2F7FF;
+    --bg:radial-gradient(1000px 620px at 16% -6%,#14316B 0%,#0A1F44 46%,#050F24 100%);
+    --surface:rgba(255,255,255,.06);--surface2:rgba(5,15,36,.34);--glass:rgba(255,255,255,.07);--bd:rgba(255,255,255,.13);--bd2:rgba(255,255,255,.08);
+    --ink:#F2F7FF;--ink2:#C3D0E6;--ink3:#AFC0CD;--ink4:#7E93B4;
+    --side:linear-gradient(190deg,#081A3A 0%,#0C2350 60%,#050F24 100%);
+    --wash:rgba(34,211,238,.16);--washfg:#22D3EE;--hov:rgba(255,255,255,.05);--signal:#22D3EE;
+    --orb1:rgba(37,99,235,.26);--orb2:rgba(34,211,238,.18);
+    --shadow:0 1px 2px rgba(0,0,0,.3);--lift:0 22px 50px rgba(3,10,26,.55);--track:rgba(255,255,255,.12)}
+  a{color:#2563EB;text-decoration:none}
+  body[data-theme="dark"] a{color:#7FB0FF}
+  a:hover{color:#0E9BB4}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(130,155,195,.45);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+  input,button,select,textarea{font-family:inherit}
+  .rail::-webkit-scrollbar{height:0}
+  @keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes orbA{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(60px,-40px,0) scale(1.12)}}
+  @keyframes orbB{0%,100%{transform:translate3d(0,0,0) scale(1.05)}50%{transform:translate3d(-70px,50px,0) scale(.92)}}
+  @keyframes flow{from{transform:translateX(0);opacity:0}14%{opacity:1}86%{opacity:1}to{transform:translateX(62px);opacity:0}}
+  @keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(34,211,238,.45)}70%{box-shadow:0 0 0 13px rgba(34,211,238,0)}100%{box-shadow:0 0 0 0 rgba(34,211,238,0)}}
+  @keyframes tick{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+  @keyframes driftUp{from{transform:translateY(0)}to{transform:translateY(-33.33%)}}
+  @keyframes driftDown{from{transform:translateY(-33.33%)}to{transform:translateY(0)}}
+  @media (max-width:860px){
+    [data-shell]{grid-template-columns:1fr !important}
+    [data-side]{position:fixed;bottom:0;left:0;right:0;z-index:20;flex-direction:row !important;align-items:center;padding:0 !important;border-top:1px solid rgba(255,255,255,.12)}
+    [data-side-brand],[data-side-foot]{display:none !important}
+    [data-side-nav]{flex:1;flex-direction:row !important;overflow-x:auto;gap:0 !important;padding:6px 8px}
+    [data-side-nav]::-webkit-scrollbar{height:0}
+    [data-side-nav] button{flex:0 0 auto;flex-direction:column !important;gap:5px !important;border-left:0 !important;border-radius:14px;padding:8px 12px !important;font-size:10px !important;background:transparent !important}
+    [data-main]{max-height:none !important;padding-bottom:74px}
+    [data-mobile-brand]{display:flex !important}
+    [data-head]{flex-wrap:wrap;gap:10px !important;padding:12px 16px !important}
+    [data-head-actions]{width:100%;justify-content:space-between}
+    [data-screen-label]{padding-left:16px !important;padding-right:16px !important}
+  }
+</style>
+</helmet>
+
+<sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="Login" style="position:relative;min-height:100vh;overflow:hidden;background:radial-gradient(1200px 760px at 50% -10%,#14316B 0%,#0A1F44 48%,#050F24 100%);animation:fadeIn .4s ease both">
+  <div style="position:absolute;width:760px;height:760px;left:-220px;top:-260px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.4),transparent 68%);filter:blur(56px);animation:orbA 28s ease-in-out infinite"></div>
+  <div style="position:absolute;width:560px;height:560px;right:-150px;bottom:-190px;border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,.24),transparent 70%);filter:blur(60px);animation:orbB 34s ease-in-out infinite"></div>
+
+  <div style="position:absolute;inset:0;display:flex;gap:18px;justify-content:center;padding:0 26px;opacity:.5;mask-image:radial-gradient(closest-side at 50% 50%,transparent 34%,#000 78%);-webkit-mask-image:radial-gradient(closest-side at 50% 50%,transparent 34%,#000 78%)">
+    <sc-for list="{{ columnsBg }}" as="col" hint-placeholder-count="6">
+      <div style="flex:0 0 190px;overflow:hidden">
+        <div style="display:flex;flex-direction:column;gap:12px;animation:{{ col.anim }} {{ col.dur }} linear infinite">
+          <sc-for list="{{ col.cards }}" as="c" hint-placeholder-count="9">
+            <div style="border-radius:13px;padding:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <span style="font-size:11.5px;font-weight:600;color:rgba(255,255,255,.82)">{{ c.n }}</span>
+                <span style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;color:{{ c.sc }}">{{ c.s }}</span>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.9px;text-transform:uppercase;color:rgba(255,255,255,.42);margin-top:7px">{{ c.stage }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="position:relative;min-height:100vh;display:grid;place-items:center;padding:44px 24px">
+    <div style="width:min(430px,100%);border-radius:24px;padding:32px;background:rgba(9,24,52,.62);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(26px) saturate(160%);-webkit-backdrop-filter:blur(26px) saturate(160%);box-shadow:0 34px 80px rgba(3,10,26,.6);display:flex;flex-direction:column;gap:17px;animation:popIn .5s cubic-bezier(.2,.8,.25,1) both">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+        <div style="background:#fff;border-radius:12px;padding:9px 13px">
+          <img src="assets/enternly-logo.png" alt="Enternly ATS" style="width:88px;height:auto;display:block">
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:20px;background:rgba(34,211,238,.14);border:1px solid rgba(34,211,238,.3);font-size:10.5px;font-weight:700;color:#22D3EE">
+          <span style="width:6px;height:6px;border-radius:50%;background:#22D3EE;animation:pulseRing 2.6s ease-out infinite"></span>{{ liveCount }} live
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:25px;font-weight:700;color:#fff;line-height:1.22;text-wrap:pretty">The pipeline is already moving.</div>
+        <div style="font-size:12.5px;color:#AFC0CD;margin-top:7px">Sign in to step into it. Your role is detected automatically.</div>
+      </div>
+
+      <label style="display:flex;flex-direction:column;gap:7px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;color:#AFC0CD">Work email</span>
+        <input type="email" placeholder="name@company.com" style="height:44px;padding:0 13px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(5,15,36,.5);font-size:13px;color:#fff;outline:none;transition:border-color .25s" style-focus="border-color:#22D3EE">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:7px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;color:#AFC0CD">Password</span>
+        <input type="password" placeholder="••••••••••" style="height:44px;padding:0 13px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(5,15,36,.5);font-size:13px;color:#fff;outline:none;transition:border-color .25s" style-focus="border-color:#22D3EE">
+      </label>
+      <button onClick="{{ signIn }}" style="height:46px;border:0;border-radius:12px;background:linear-gradient(90deg,#2563EB,#22D3EE);color:#04142E;font-size:13.5px;font-weight:700;cursor:pointer;transition:filter .25s,transform .25s" style-hover="filter:brightness(1.1);transform:translateY(-1px)">Sign in</button>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#AFC0CD">
+        <a href="#" style="color:#7FB0FF">Forgot password</a>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:rgba(255,255,255,.42)">EnternsTech</span>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isApp }}">
+<div data-shell="true" style="position:relative;min-height:100vh;display:grid;grid-template-columns:214px 1fr;background:var(--bg);color:var(--ink);overflow:hidden">
+  <div style="position:absolute;width:680px;height:680px;left:120px;top:-260px;border-radius:50%;background:radial-gradient(circle,var(--orb1),transparent 68%);filter:blur(46px);animation:orbA 28s ease-in-out infinite;pointer-events:none"></div>
+  <div style="position:absolute;width:520px;height:520px;right:-140px;bottom:-180px;border-radius:50%;background:radial-gradient(circle,var(--orb2),transparent 70%);filter:blur(52px);animation:orbB 34s ease-in-out infinite;pointer-events:none"></div>
+
+  <aside data-side="true" style="position:relative;z-index:2;background:var(--side);display:flex;flex-direction:column;padding:20px 0">
+    <div data-side-brand="true" style="padding:0 18px 20px">
+      <div style="background:#fff;border-radius:10px;padding:8px 10px;display:inline-block">
+        <img src="assets/enternly-logo.png" alt="Enternly" style="width:76px;height:auto;display:block">
+      </div>
+    </div>
+    <nav data-side-nav="true" style="display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ navItems }}" as="item" hint-placeholder-count="9">
+        <button onClick="{{ item.go }}" style="display:flex;align-items:center;gap:10px;text-align:left;border:0;border-left:3px solid transparent;padding:8px 15px;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .25s,color .25s;border-left-color:{{ item.bar }};background:{{ item.bg }};color:{{ item.fg }}">
+          <span style="width:21px;height:21px;border-radius:7px;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:500;background:{{ item.markBg }};color:{{ item.markFg }}">{{ item.mark }}</span>
+          {{ item.label }}
+        </button>
+      </sc-for>
+    </nav>
+    <div data-side-foot="true" style="margin-top:auto;padding:16px 18px 0;display:flex;flex-direction:column;gap:9px;border-top:1px solid rgba(255,255,255,.1)">
+      <button onClick="{{ signOut }}" style="background:none;border:0;padding:0;text-align:left;font-size:12px;color:#C3D0E6;cursor:pointer">Sign out</button>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.34)">Powered by EnternsTech</div>
+    </div>
+  </aside>
+
+  <main data-main="true" style="position:relative;z-index:2;overflow:auto;max-height:100vh">
+    <header data-head="true" style="position:sticky;top:0;z-index:6;background:var(--glass);backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);border-bottom:1px solid var(--bd);padding:13px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div data-mobile-brand="true" style="display:none;background:#fff;border-radius:9px;padding:6px 8px;flex:0 0 auto">
+          <img src="assets/enternly-logo.png" alt="Enternly" style="width:58px;height:auto;display:block">
+        </div>
+        <div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700">{{ title }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink4);margin-top:3px">{{ subtitle }}</div>
+        </div>
+      </div>
+      <div data-head-actions="true" style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 12px;border-radius:20px;background:var(--wash);border:1px solid var(--bd);font-size:11.5px;font-weight:700;color:var(--washfg)">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--signal);animation:pulseRing 2.6s ease-out infinite"></span>
+          {{ streakLabel }}
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--ink3)">{{ pointsLabel }}</span>
+        </div>
+        <button onClick="{{ toggleTheme }}" style="height:32px;padding:0 13px;border:1px solid var(--bd);border-radius:20px;background:transparent;color:var(--ink2);font-size:11.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;transition:border-color .25s,color .25s" style-hover="border-color:#2563EB;color:#2563EB">
+          <span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(90deg,#2563EB,#22D3EE)"></span>{{ themeLabel }}
+        </button>
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,#0A1F44,#2563EB);color:#fff;display:grid;place-items:center;font-size:11.5px;font-weight:700">{{ initials }}</div>
+          <div style="font-size:12.5px;font-weight:600">{{ userName }}</div>
+        </div>
+      </div>
+    </header>
+
+    <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+    <section data-screen-label="Home launcher" style="padding:26px 26px 44px;display:flex;flex-direction:column;gap:18px;animation:popIn .38s cubic-bezier(.2,.8,.25,1) both">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:23px;font-weight:700">{{ greeting }}</div>
+          <div style="font-size:13px;color:var(--ink3);margin-top:4px">{{ homeLine }}</div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <sc-for list="{{ homeStats }}" as="h" hint-placeholder-count="3">
+            <div style="padding:10px 15px;border-radius:13px;background:var(--surface);border:1px solid var(--bd);text-align:right">
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">{{ h.v }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-top:3px">{{ h.k }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:15px">
+        <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="9">
+          <button onClick="{{ t.open }}" style="text-align:left;border:1px solid var(--bd);border-radius:22px;padding:17px;cursor:pointer;background:var(--surface);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:var(--ink);box-shadow:var(--shadow);transition:transform .38s cubic-bezier(.2,.8,.25,1),box-shadow .38s,border-color .38s;display:flex;flex-direction:column;gap:24px;min-height:152px" style-hover="transform:translateY(-7px) scale(1.025);box-shadow:var(--lift);border-color:#2563EB">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between">
+              <div style="width:44px;height:44px;border-radius:15px;display:grid;place-items:center;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#04142E;background:{{ t.icon }};box-shadow:0 8px 18px rgba(37,99,235,.28)">{{ t.mark }}</div>
+              <sc-if value="{{ t.hasBadge }}" hint-placeholder-val="{{ true }}">
+                <span style="padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;background:{{ t.badgeBg }};color:{{ t.badgeFg }}">{{ t.badge }}</span>
+              </sc-if>
+            </div>
+            <div>
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:15.5px;font-weight:700">{{ t.name }}</div>
+              <div style="font-size:11.5px;color:var(--ink3);margin-top:4px">{{ t.meta }}</div>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isDash }}">
+    <section data-screen-label="Dashboard" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+
+      <sc-if value="{{ quiz.show }}" hint-placeholder-val="{{ true }}">
+      <div style="border-radius:18px;padding:20px 22px;background:linear-gradient(112deg,#0A1F44,#14316B 58%,#2563EB 150%);color:#fff;display:flex;gap:22px;align-items:center;flex-wrap:wrap;animation:riseIn .4s ease both">
+        <div style="flex:1;min-width:280px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:#22D3EE">Daily HR question · +10 points</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;margin-top:7px;text-wrap:pretty">{{ quiz.q }}</div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <sc-for list="{{ quiz.options }}" as="o" hint-placeholder-count="3">
+              <button onClick="{{ o.pick }}" style="padding:8px 14px;border-radius:11px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .25s;border:1px solid {{ o.bd }};background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ quiz.answered }}">
+            <div style="margin-top:12px;font-size:12.5px;color:#AFC0CD">{{ quiz.feedback }}</div>
+          </sc-if>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px;align-items:flex-end">
+          <div style="text-align:right">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700">{{ points }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:#AFC0CD;margin-top:3px">Points · rank {{ rank }}</div>
+          </div>
+          <button onClick="{{ quiz.skip }}" style="padding:7px 13px;border-radius:10px;border:1px solid rgba(255,255,255,.24);background:transparent;color:#C3D0E6;font-size:12px;font-weight:600;cursor:pointer" style-hover="border-color:#22D3EE;color:#22D3EE">Skip for today</button>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ quiz.paused }}">
+      <div style="border-radius:14px;padding:12px 16px;background:var(--surface);border:1px dashed var(--bd);display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:12.5px;color:var(--ink3)">
+        <span>{{ quiz.pausedNote }}</span>
+        <button onClick="{{ quiz.showAnyway }}" style="background:none;border:0;font-size:12px;font-weight:700;color:#2563EB;cursor:pointer">Show anyway</button>
+      </div>
+      </sc-if>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="8">
+          <div style="background:var(--surface);border:1px solid var(--bd);border-radius:15px;padding:15px 16px;border-top:3px solid {{ k.accent }};box-shadow:var(--shadow);transition:transform .3s,box-shadow .3s" style-hover="transform:translateY(-4px);box-shadow:var(--lift)">
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:{{ k.color }}">{{ k.n }}</span>
+              <span style="font-size:11px;font-weight:700;color:#0e9f6e">{{ k.delta }}</span>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-top:7px">{{ k.label }}</div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:22px;margin-top:10px">
+              <sc-for list="{{ k.spark }}" as="b" hint-placeholder-count="10">
+                <div style="flex:1;border-radius:2px;height:{{ b.h }};background:{{ b.c }};transition:height .7s cubic-bezier(.2,.8,.25,1)"></div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px 22px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700">Funnel · live movement</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--signal)"><span style="width:8px;height:8px;border-radius:50%;background:var(--signal);animation:pulseRing 2.4s ease-out infinite"></span>Updating</div>
+        </div>
+        <div style="display:flex;align-items:stretch">
+          <sc-for list="{{ funnel }}" as="f" hint-placeholder-count="5">
+            <div style="flex:1;display:flex;align-items:center">
+              <div style="flex:1;text-align:center">
+                <div style="margin:0 auto;width:{{ f.dia }};height:{{ f.dia }};border-radius:50%;display:grid;place-items:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:{{ f.fs }};color:#fff;background:{{ f.bg }};box-shadow:0 10px 24px rgba(10,31,68,.22)">{{ f.n }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-top:10px">{{ f.name }}</div>
+              </div>
+              <sc-if value="{{ f.hasLink }}" hint-placeholder-val="{{ true }}">
+                <div style="position:relative;width:62px;height:2px;background:var(--track);border-radius:2px">
+                  <div style="position:absolute;top:-2px;left:0;width:6px;height:6px;border-radius:50%;background:#22D3EE;animation:flow 2.6s linear infinite;animation-delay:{{ f.delay }}"></div>
+                  <div style="position:absolute;top:-2px;left:0;width:6px;height:6px;border-radius:50%;background:#2563EB;animation:flow 2.6s linear infinite;animation-delay:{{ f.delay2 }}"></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.45fr 1fr;gap:16px;align-items:start">
+        <div style="background:linear-gradient(120deg,#0A1F44,#14316B 60%,#2563EB 155%);border-radius:18px;padding:20px 22px;color:#fff;overflow:hidden">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:#22D3EE;margin-bottom:14px">Live activity</div>
+          <div style="height:126px;overflow:hidden">
+            <div style="display:flex;flex-direction:column;gap:11px;animation:tick 18s linear infinite">
+              <sc-for list="{{ ticker }}" as="t" hint-placeholder-count="8">
+                <div style="display:flex;align-items:center;gap:11px;font-size:12.5px">
+                  <span style="width:7px;height:7px;border-radius:50%;background:{{ t.c }};flex:0 0 auto"></span>
+                  <span style="font-weight:600">{{ t.who }}</span>
+                  <span style="color:#AFC0CD">{{ t.what }}</span>
+                  <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:rgba(255,255,255,.5)">{{ t.at }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Time to hire</div>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span style="font-family:'Space Grotesk',sans-serif;font-size:38px;font-weight:700;font-variant-numeric:tabular-nums">3.8</span>
+            <span style="font-size:13px;color:var(--ink3)">days · target 3–4</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:5px;height:70px;margin-top:16px">
+            <sc-for list="{{ trend }}" as="b" hint-placeholder-count="12">
+              <div style="flex:1;border-radius:3px 3px 0 0;height:{{ b.h }};background:{{ b.c }};transition:height .8s cubic-bezier(.2,.8,.25,1)"></div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isReqs }}">
+    <section data-screen-label="Requisitions" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px">
+          <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+            <button onClick="{{ f.pick }}" style="padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;transition:all .25s;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }}">{{ f.label }}</button>
+          </sc-for>
+        </div>
+        <button style="height:38px;padding:0 16px;border:0;border-radius:11px;background:linear-gradient(90deg,#2563EB,#0E9BB4);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:filter .25s" style-hover="filter:brightness(1.1)">New requisition</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:13px">
+        <sc-for list="{{ reqCards }}" as="r" hint-placeholder-count="6">
+          <div onClick="{{ r.open }}" style="cursor:pointer;background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:17px;box-shadow:var(--shadow);transition:transform .35s cubic-bezier(.2,.8,.25,1),box-shadow .35s,border-color .35s;display:flex;flex-direction:column;gap:14px" style-hover="transform:translateY(-6px);box-shadow:var(--lift);border-color:#2563EB">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+              <div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:15.5px;font-weight:700">{{ r.role }}</div>
+                <div style="font-size:11.5px;color:var(--ink3);margin-top:4px">{{ r.bu }} · Band {{ r.band }}</div>
+              </div>
+              <span style="padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;background:{{ r.pillBg }};color:{{ r.pillFg }}">{{ r.status }}</span>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink3);margin-bottom:6px"><span>{{ r.pipeline }} in pipeline</span><span>{{ r.levels }}</span></div>
+              <div style="height:6px;border-radius:99px;background:var(--track);overflow:hidden"><div style="height:100%;width:{{ r.pct }};border-radius:99px;background:linear-gradient(90deg,#2563EB,#22D3EE)"></div></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex">
+                <sc-for list="{{ r.faces }}" as="f" hint-placeholder-count="3">
+                  <div style="width:25px;height:25px;border-radius:50%;margin-left:-7px;border:2px solid var(--surface);background:linear-gradient(150deg,#0A1F44,#2563EB);color:#fff;display:grid;place-items:center;font-size:9.5px;font-weight:700">{{ f.i }}</div>
+                </sc-for>
+              </div>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink4)">{{ r.code }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isKanban }}">
+    <section data-screen-label="Requisition detail" style="padding:24px 0 44px;display:flex;flex-direction:column;gap:18px;animation:riseIn .38s ease both">
+      <div style="padding:0 26px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <button onClick="{{ goReqs }}" style="background:none;border:0;padding:0;font-size:12px;font-weight:700;color:#2563EB;cursor:pointer">← Requisitions</button>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-top:8px">{{ req.role }}</div>
+          <div style="display:flex;gap:16px;margin-top:7px;font-size:12.5px;color:var(--ink2);flex-wrap:wrap">
+            <span>{{ req.bu }}</span><span>Band {{ req.band }}</span><span>3 openings</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink4)">{{ req.code }}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onClick="{{ railPrev }}" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bd);background:transparent;color:var(--ink);font-size:15px;cursor:pointer;transition:all .25s" style-hover="border-color:#2563EB;color:#2563EB">←</button>
+          <button onClick="{{ railNext }}" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bd);background:transparent;color:var(--ink);font-size:15px;cursor:pointer;transition:all .25s" style-hover="border-color:#2563EB;color:#2563EB">→</button>
+          <button style="height:38px;padding:0 15px;border:0;border-radius:11px;background:linear-gradient(90deg,#2563EB,#0E9BB4);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">Add candidate</button>
+        </div>
+      </div>
+
+      <div class="rail" style="display:flex;gap:15px;padding:6px 26px 16px;overflow-x:auto;scroll-snap-type:x mandatory;align-items:flex-start">
+        <sc-for list="{{ stages }}" as="s" hint-placeholder-count="6">
+          <div onDragOver="{{ s.over }}" onDrop="{{ s.drop }}" onClick="{{ s.focus }}" style="scroll-snap-align:start;flex:0 0 {{ s.w }};min-height:244px;border-radius:20px;padding:17px;cursor:pointer;transition:flex-basis .45s cubic-bezier(.2,.8,.25,1),transform .45s cubic-bezier(.2,.8,.25,1),box-shadow .45s,background .45s;transform:{{ s.tf }};background:{{ s.bg }};color:{{ s.fg }};border:1px solid {{ s.bd }};box-shadow:{{ s.sh }};display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;opacity:.75">{{ s.name }}</div>
+              <div style="min-width:23px;height:23px;padding:0 8px;border-radius:20px;display:grid;place-items:center;font-size:11px;font-weight:700;background:{{ s.chipBg }};color:{{ s.chipFg }}">{{ s.count }}</div>
+            </div>
+            <div style="height:5px;border-radius:99px;background:{{ s.trackBg }};overflow:hidden"><div style="height:100%;width:{{ s.pct }};border-radius:99px;background:{{ s.barBg }}"></div></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ s.cards }}" as="p" hint-placeholder-count="2">
+                <div draggable="true" onDragStart="{{ p.drag }}" style="border-radius:12px;padding:11px;cursor:grab;border:1px solid {{ p.bd }};background:{{ p.bg }};transition:transform .25s" style-hover="transform:translateX(3px)">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                    <span style="font-size:12.5px;font-weight:600">{{ p.name }}</span>
+                    <span style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:{{ p.scoreColor }}">{{ p.score }}</span>
+                  </div>
+                  <sc-if value="{{ s.open }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:11px;opacity:.75;margin-top:5px">{{ p.hint }}</div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:0 26px;font-size:12px;color:var(--ink4)">Click a stage to expand it; drag a candidate card onto another stage to advance them.</div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isCands }}">
+    <section data-screen-label="Candidates" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:14px;animation:riseIn .38s ease both">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input placeholder="Search candidates, skills, requisition code" style="flex:1;min-width:240px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--bd);background:var(--surface);color:var(--ink);font-size:13px;outline:none;transition:border-color .25s" style-focus="border-color:#2563EB">
+        <div style="display:flex;gap:7px">
+          <sc-for list="{{ candFilters }}" as="c" hint-placeholder-count="4">
+            <span style="padding:7px 13px;border-radius:20px;font-size:11.5px;font-weight:600;border:1px solid var(--bd);color:var(--ink2);background:var(--surface)">{{ c.l }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <sc-for list="{{ candidates }}" as="c" hint-placeholder-count="7">
+          <div onClick="{{ c.open }}" style="cursor:pointer;display:grid;grid-template-columns:34px 1.4fr 1fr 1fr 100px 74px;gap:14px;align-items:center;padding:13px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--bd);transition:transform .3s,border-color .3s,box-shadow .3s" style-hover="transform:translateX(5px);border-color:#2563EB;box-shadow:var(--lift)">
+            <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,#0A1F44,#2563EB);color:#fff;display:grid;place-items:center;font-size:11.5px;font-weight:700">{{ c.ini }}</div>
+            <div>
+              <div style="font-size:13px;font-weight:600">{{ c.name }}</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">{{ c.exp }}</div>
+            </div>
+            <div style="font-size:12px;color:var(--ink2)">{{ c.role }}</div>
+            <div style="font-size:12px;color:var(--ink3)">{{ c.stage }}</div>
+            <div>
+              <div style="height:5px;border-radius:99px;background:var(--track);overflow:hidden"><div style="height:100%;width:{{ c.pct }};border-radius:99px;background:{{ c.bar }}"></div></div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink3);margin-top:5px">Fit {{ c.score }}</div>
+            </div>
+            <span style="justify-self:end;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:{{ c.pillBg }};color:{{ c.pillFg }}">{{ c.tag }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isProfile }}">
+    <section data-screen-label="Candidate profile" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+      <button onClick="{{ goCands }}" style="align-self:flex-start;background:none;border:0;padding:0;font-size:12px;font-weight:700;color:#2563EB;cursor:pointer">← Candidates</button>
+      <div style="border-radius:20px;padding:22px;background:linear-gradient(115deg,#0A1F44,#14316B 58%,#2563EB 155%);color:#fff;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div style="width:64px;height:64px;border-radius:22px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);display:grid;place-items:center;font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700">{{ profile.ini }}</div>
+        <div style="flex:1;min-width:220px">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700">{{ profile.name }}</div>
+          <div style="font-size:12.5px;color:#AFC0CD;margin-top:5px">{{ profile.sub }}</div>
+        </div>
+        <div style="display:flex;gap:18px">
+          <sc-for list="{{ profile.stats }}" as="s" hint-placeholder-count="3">
+            <div style="text-align:right">
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700">{{ s.v }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:#AFC0CD;margin-top:3px">{{ s.k }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start">
+        <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:16px">Journey</div>
+          <div style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ profile.timeline }}" as="t" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:22px 1fr;gap:13px">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <div style="width:11px;height:11px;border-radius:50%;background:{{ t.dot }};margin-top:4px"></div>
+                  <div style="flex:1;width:2px;background:var(--track)"></div>
+                </div>
+                <div style="padding-bottom:16px">
+                  <div style="font-size:12.5px;font-weight:600">{{ t.title }}</div>
+                  <div style="font-size:11.5px;color:var(--ink3);margin-top:3px">{{ t.note }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:13px">Skill match</div>
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <sc-for list="{{ profile.skills }}" as="s" hint-placeholder-count="4">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-bottom:5px"><span>{{ s.k }}</span><span style="font-weight:700">{{ s.v }}</span></div>
+                  <div style="height:6px;border-radius:99px;background:var(--track);overflow:hidden"><div style="height:100%;width:{{ s.pct }};border-radius:99px;background:linear-gradient(90deg,#2563EB,#22D3EE)"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px;display:flex;gap:9px;flex-wrap:wrap">
+            <button style="flex:1;min-width:120px;height:38px;border:0;border-radius:11px;background:linear-gradient(90deg,#2563EB,#0E9BB4);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">Advance stage</button>
+            <button style="flex:1;min-width:120px;height:38px;border:1px solid var(--bd);border-radius:11px;background:transparent;color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer" style-hover="border-color:#2563EB;color:#2563EB">Schedule panel</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isInterviews }}">
+    <section data-screen-label="Interviews" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <sc-for list="{{ ivStats }}" as="s" hint-placeholder-count="4">
+          <div style="background:var(--surface);border:1px solid var(--bd);border-radius:15px;padding:15px">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700">{{ s.v }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-top:7px">{{ s.k }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ interviews }}" as="i" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:80px 1fr auto;gap:16px;align-items:center;padding:15px 17px;border-radius:16px;background:var(--surface);border:1px solid var(--bd);border-left:3px solid {{ i.accent }};transition:transform .3s,box-shadow .3s" style-hover="transform:translateX(5px);box-shadow:var(--lift)">
+            <div>
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700">{{ i.time }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-top:3px">{{ i.day }}</div>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600">{{ i.who }} · {{ i.round }}</div>
+              <div style="font-size:11.5px;color:var(--ink3);margin-top:3px">{{ i.panel }}</div>
+            </div>
+            <span style="padding:5px 11px;border-radius:20px;font-size:10.5px;font-weight:700;background:{{ i.pillBg }};color:{{ i.pillFg }}">{{ i.state }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isNexAI }}">
+    <section data-screen-label="NexAI results" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+      <div style="border-radius:18px;padding:20px 22px;background:linear-gradient(112deg,#0A1F44,#0E9BB4 160%);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:#22D3EE">NexAI interview engine</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-top:6px">41 rounds completed today</div>
+        </div>
+        <div style="display:flex;gap:22px">
+          <sc-for list="{{ aiStats }}" as="a" hint-placeholder-count="3">
+            <div style="text-align:right">
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700">{{ a.v }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:#AFC0CD;margin-top:3px">{{ a.k }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:13px">
+        <sc-for list="{{ aiResults }}" as="r" hint-placeholder-count="6">
+          <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:17px;transition:transform .35s,box-shadow .35s" style-hover="transform:translateY(-5px);box-shadow:var(--lift)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div>
+                <div style="font-size:13.5px;font-weight:700">{{ r.name }}</div>
+                <div style="font-size:11px;color:var(--ink3);margin-top:3px">{{ r.role }}</div>
+              </div>
+              <div style="width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#fff;background:{{ r.ring }}">{{ r.score }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+              <sc-for list="{{ r.bars }}" as="b" hint-placeholder-count="3">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:4px"><span>{{ b.k }}</span><span>{{ b.v }}</span></div>
+                  <div style="height:5px;border-radius:99px;background:var(--track);overflow:hidden"><div style="height:100%;width:{{ b.pct }};border-radius:99px;background:linear-gradient(90deg,#2563EB,#22D3EE)"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isReports }}">
+    <section data-screen-label="Reports" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start">
+        <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:16px">Hires by month</div>
+          <div style="display:flex;align-items:flex-end;gap:9px;height:150px">
+            <sc-for list="{{ bars }}" as="b" hint-placeholder-count="8">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end">
+                <div style="width:100%;border-radius:6px 6px 0 0;height:{{ b.h }};background:{{ b.c }};transition:height .9s cubic-bezier(.2,.8,.25,1)"></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink4)">{{ b.m }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700">Diversity (gender)</div>
+            <div style="display:flex;height:10px;border-radius:99px;overflow:hidden;margin:16px 0 12px">
+              <div style="width:38%;background:#2563EB"></div>
+              <div style="width:62%;background:#22D3EE"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink2)"><span><b style="color:var(--ink)">38%</b> female</span><span><b style="color:var(--ink)">62%</b> male</span></div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ sourceMix }}" as="s" hint-placeholder-count="4">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-bottom:5px"><span>{{ s.k }}</span><span style="font-weight:700">{{ s.v }}</span></div>
+                <div style="height:6px;border-radius:99px;background:var(--track);overflow:hidden"><div style="height:100%;width:{{ s.v }};border-radius:99px;background:{{ s.c }}"></div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isTeam }}">
+    <section data-screen-label="Team" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+        <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:15px">Recruiter load</div>
+          <div style="display:flex;flex-direction:column;gap:13px">
+            <sc-for list="{{ load }}" as="l" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(150deg,#0A1F44,#2563EB);color:#fff;display:grid;place-items:center;font-size:10.5px;font-weight:700">{{ l.ini }}</div>
+                <div style="flex:1">
+                  <div style="font-size:12.5px;font-weight:600">{{ l.name }}</div>
+                  <div style="height:5px;border-radius:99px;background:var(--track);margin-top:5px;overflow:hidden"><div style="height:100%;width:{{ l.pct }};border-radius:99px;background:linear-gradient(90deg,#2563EB,#22D3EE)"></div></div>
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink3)">{{ l.stat }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700">Learning leaderboard</div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink4)">This quarter</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ leaderboard }}" as="p" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:13px;background:{{ p.rowBg }};border:1px solid {{ p.rowBd }}">
+                <div style="width:22px;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:{{ p.rankColor }}">{{ p.rank }}</div>
+                <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(150deg,#0A1F44,#2563EB);color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700">{{ p.ini }}</div>
+                <div style="flex:1;font-size:12.5px;font-weight:600">{{ p.name }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink3)">{{ p.streak }}</div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:13.5px;font-weight:700;color:{{ p.ptsColor }}">{{ p.pts }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ isSettings }}">
+    <section data-screen-label="Settings" style="padding:24px 26px 44px;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;animation:riseIn .38s ease both">
+      <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:15px">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700">Preferences</div>
+        <sc-for list="{{ toggles }}" as="t" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+            <div>
+              <div style="font-size:12.5px;font-weight:600">{{ t.label }}</div>
+              <div style="font-size:11.5px;color:var(--ink3);margin-top:3px">{{ t.note }}</div>
+            </div>
+            <button onClick="{{ t.toggle }}" style="width:44px;height:25px;border-radius:20px;border:1px solid var(--bd);cursor:pointer;position:relative;transition:background .3s;background:{{ t.trackBg }}">
+              <span style="position:absolute;top:2px;left:{{ t.knobX }};width:19px;height:19px;border-radius:50%;background:#fff;transition:left .3s cubic-bezier(.2,.8,.25,1);box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+            </button>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--bd);border-radius:18px;padding:20px">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Badges</div>
+        <div style="font-size:11.5px;color:var(--ink3);margin-bottom:15px">Earned from daily HR questions and pipeline milestones.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:11px">
+          <sc-for list="{{ badges }}" as="b" hint-placeholder-count="6">
+            <div style="border-radius:15px;padding:14px 10px;text-align:center;border:1px solid {{ b.bd }};background:{{ b.bg }};opacity:{{ b.op }}">
+              <div style="width:38px;height:38px;margin:0 auto;border-radius:13px;display:grid;place-items:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:{{ b.markFg }};background:{{ b.mark }}">{{ b.abbr }}</div>
+              <div style="font-size:11px;font-weight:600;margin-top:9px">{{ b.name }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+    </sc-if>
+  </main>
+</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;role&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Recruiter&quot;,&quot;TA Admin&quot;],&quot;default&quot;:&quot;Recruiter&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Light&quot;,&quot;Dark&quot;],&quot;default&quot;:&quot;Light&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const REQS = [
+  {code:'REQ-2041', role:'Senior Backend Engineer', bu:'Digital Platforms', band:'B4', pipeline:38, levels:'3 + final', status:'Open', urgent:true, pct:'72%'},
+  {code:'REQ-2039', role:'Data Analyst', bu:'Transport Analytics', band:'B3', pipeline:24, levels:'2 + final', status:'Open', urgent:true, pct:'54%'},
+  {code:'REQ-2035', role:'DevOps Engineer', bu:'Cloud Infrastructure', band:'B4', pipeline:17, levels:'2 + final', status:'Open', pct:'41%'},
+  {code:'REQ-2030', role:'UX Designer', bu:'Product Design', band:'B3', pipeline:12, levels:'1 + final', status:'On hold', pct:'28%'},
+  {code:'REQ-2028', role:'QA Automation Lead', bu:'Digital Platforms', band:'B5', pipeline:9, levels:'3 + final', status:'Open', urgent:true, pct:'33%'},
+  {code:'REQ-2019', role:'Project Manager', bu:'Smart Cities', band:'B5', pipeline:21, levels:'2 + final', status:'Open', pct:'61%'},
+  {code:'REQ-2011', role:'GIS Specialist', bu:'Geospatial', band:'B3', pipeline:6, levels:'1 + final', status:'Closed', pct:'100%'}
+];
+
+const KPIS = [
+  ['My positions', 12, '+2', '#2563EB'], ['Total applicants', 348, '+24', '#5FB4FF'],
+  ['Under screening', 64, '+8', '#2563EB'], ['Screening cleared', 52, '+6', '#5FB4FF'],
+  ['NexAI interview', 41, '+11', '#22D3EE'], ['Panel interview', 23, '+4', '#5FB4FF'],
+  ['Offer approval', 7, '+1', '#2563EB'], ['Joined', 9, '+2', '#0e9f6e']
+];
+
+const STAGE_SEED = [
+  ['Applications', [['Aarav Menon',86,'CV parsed · 6 yrs'],['Nikhil Rao',79,'CV parsed · 4 yrs'],['Ishita Sen',81,'CV parsed · 5 yrs']], '72%'],
+  ['Screening', [['Priya Sharma',91,'Recruiter call done'],['Imran Qureshi',74,'Awaiting call']], '48%'],
+  ['NexAI Interview', [['Deepa Nair',88,'Score 88 · shortlisted'],['Rohit Bansal',69,'In progress']], '55%'],
+  ['Level 1 Panel', [['Sneha Iyer',84,'Scheduled Tue 11:00']], '39%'],
+  ['Level 2 Panel', [['Vikram Joshi',81,'Feedback pending']], '30%'],
+  ['Final Panel', [['Ananya Gupta',93,'Final round today']], '44%'],
+  ['Offer', [['Meera Krishnan',90,'Approval L2']], '61%'],
+  ['Joined', [['Sahil Verma',85,'Joined 12 Aug']], '100%']
+];
+
+const CANDS = [
+  ['Priya Sharma','PS','6 yrs · Python, Django','Senior Backend Engineer','Screening',91,'Shortlist'],
+  ['Deepa Nair','DN','5 yrs · React, TypeScript','UX Engineer','NexAI interview',88,'Shortlist'],
+  ['Ananya Gupta','AG','8 yrs · Java, Kafka','Senior Backend Engineer','Final panel',93,'Strong'],
+  ['Karthik Reddy','KR','7 yrs · AWS, Terraform','DevOps Engineer','HM screening',87,'Strong'],
+  ['Vikram Joshi','VJ','4 yrs · SQL, Power BI','Data Analyst','Level 2 panel',81,'Review'],
+  ['Imran Qureshi','IQ','3 yrs · Selenium','QA Automation Lead','Screening',74,'Review'],
+  ['Meera Krishnan','MK','9 yrs · Programme delivery','Project Manager','Offer',90,'Strong']
+];
+
+const TICKER = [
+  ['Priya Sharma','cleared screening · Data Analyst','2m','#22D3EE'],
+  ['NexAI','scored Deepa Nair 88 · shortlisted','6m','#2563EB'],
+  ['Vikram Joshi','L2 panel feedback submitted','14m','#5FB4FF'],
+  ['Meera Krishnan','offer sent for approval','22m','#0e9f6e'],
+  ['REQ-2041','moved to final panel stage','31m','#2563EB'],
+  ['Sahil Verma','joined · Digital Platforms','48m','#0e9f6e'],
+  ['Karthik Reddy','HM screening scheduled Tue','1h','#5FB4FF'],
+  ['REQ-2030','put on hold by hiring manager','1h','#E9BF57']
+];
+
+const QUESTIONS = [
+  ['Under Indian labour law, what is the maximum probation period typically specified in standing orders?',['3 months','6 months','12 months'],1,'Six months is the usual ceiling, extendable once in most state rules.'],
+  ['What does a structured interview primarily improve?',['Speed of hiring','Predictive validity','Candidate volume'],1,'Structured, scored questions raise predictive validity over unstructured chats.'],
+  ['Which metric best signals a bottleneck in one pipeline stage?',['Offer accept rate','Stage ageing','Source mix'],1,'Ageing per stage exposes where candidates sit still.']
+];
+
+const TILES = [
+  ['Dashboard','DB','Live pipeline view','dashboard','linear-gradient(140deg,#22D3EE,#2563EB)','',''],
+  ['Requisitions','RQ','12 open · 3 urgent','requisitions','linear-gradient(140deg,#7FB0FF,#2563EB)','3 urgent','warn'],
+  ['Candidates','CN','348 in pipeline','candidates','linear-gradient(140deg,#22D3EE,#7FB0FF)','',''],
+  ['NexAI results','AI','41 rounds today','nexai','linear-gradient(140deg,#22D3EE,#0E9BB4)','New','info'],
+  ['Interviews','IV','23 panels scheduled','interviews','linear-gradient(140deg,#5FB4FF,#22D3EE)','7 today','info'],
+  ['Reports','RP','FY 2026–27','reports','linear-gradient(140deg,#2563EB,#0A1F44)','',''],
+  ['Team','TM','9 recruiters','team','linear-gradient(140deg,#22D3EE,#0E9BB4)','',''],
+  ['Settings','ST','Theme, badges, alerts','settings','linear-gradient(140deg,#7FB0FF,#0A1F44)','','']
+];
+
+class Component extends DCLogic {
+  state = {
+    screen:'login', reqIndex:0, stageIndex:2, filter:'Open', board:null, dragging:null,
+    theme:null, t:0, points:1240, streak:12, quizPick:null, quizSkipped:false, quizForce:false,
+    prefs:{ quiz:true, urgentMute:true, digest:true, sounds:false }
+  };
+
+  theme() { return this.state.theme || this.props.theme || 'Light'; }
+  applyTheme() { if (document.body) document.body.setAttribute('data-theme', this.theme() === 'Dark' ? 'dark' : 'light'); }
+  componentDidMount() {
+    this.applyTheme();
+    let n = 0;
+    this.timer = setInterval(() => { n += 1; this.setState({ t: n }); if (n >= 24) clearInterval(this.timer); }, 45);
+  }
+  componentDidUpdate() { this.applyTheme(); }
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  board() {
+    if (this.state.board) return this.state.board;
+    return STAGE_SEED.map(([name, cards, pct]) => ({
+      name, pct, cards: cards.map(([n, s, h], i) => ({ id: name + i, name: n, score: s, hint: h }))
+    }));
+  }
+
+  go(screen) { return () => this.setState({ screen }); }
+
+  drop(colName) {
+    return e => {
+      e.preventDefault();
+      const id = this.state.dragging;
+      if (!id) return;
+      const cols = this.board().map(c => ({ name: c.name, pct: c.pct, cards: c.cards.slice() }));
+      let moved = null;
+      cols.forEach(c => { const i = c.cards.findIndex(x => x.id === id); if (i > -1) moved = c.cards.splice(i, 1)[0]; });
+      if (moved) cols.find(c => c.name === colName).cards.push(moved);
+      this.setState({ board: cols, dragging: null });
+    };
+  }
+
+  renderVals() {
+    const role = this.props.role || 'Recruiter';
+    const isAdmin = role === 'TA Admin';
+    const dark = this.theme() === 'Dark';
+    const s = this.state.screen;
+    const p = Math.min(1, this.state.t / 24);
+    const ease = 1 - Math.pow(1 - p, 3);
+
+    const titles = {
+      home:'Home', dashboard: isAdmin ? 'Admin dashboard' : 'Dashboard', requisitions:'Requisitions',
+      kanban:'Requisition detail', candidates:'Candidates', profile:'Candidate profile',
+      interviews:'Interviews', nexai:'NexAI results', reports:'Reports', team:'Team', settings:'Settings'
+    };
+    const marks = { home:'HM', dashboard:'DB', requisitions:'RQ', candidates:'CN', nexai:'AI', interviews:'IV', reports:'RP', team:'TM', settings:'ST' };
+
+    const navKeys = ['home','dashboard','requisitions','candidates','nexai','interviews','reports']
+      .concat(isAdmin ? ['team'] : []).concat(['settings']);
+    const activeKey = s === 'kanban' ? 'requisitions' : (s === 'profile' ? 'candidates' : s);
+
+    const navItems = navKeys.map(k => {
+      const on = k === activeKey;
+      return {
+        label: titles[k], mark: marks[k], go: this.go(k),
+        bar: on ? '#22D3EE' : 'transparent',
+        bg: on ? 'rgba(37,99,235,.24)' : 'transparent',
+        fg: on ? '#ffffff' : 'rgba(255,255,255,.7)',
+        markBg: on ? 'linear-gradient(140deg,#22D3EE,#2563EB)' : 'rgba(255,255,255,.08)',
+        markFg: on ? '#04142E' : 'rgba(255,255,255,.6)'
+      };
+    });
+
+    const req = REQS[this.state.reqIndex] || REQS[0];
+    const openReq = i => () => this.setState({ screen:'kanban', reqIndex:i, stageIndex:2 });
+    const pill = st => st === 'Open'
+      ? { pillBg: dark ? 'rgba(37,99,235,.24)' : '#EAF0FF', pillFg: dark ? '#7FB0FF' : '#2563EB' }
+      : st === 'On hold'
+        ? { pillBg: dark ? 'rgba(233,191,87,.18)' : '#FFF3D6', pillFg: dark ? '#E9BF57' : '#B07D00' }
+        : { pillBg: dark ? 'rgba(255,255,255,.08)' : '#EEF1F6', pillFg: dark ? '#AFC0CD' : '#596A83' };
+
+    const counts = { Open:0, 'On hold':0, Closed:0 };
+    REQS.forEach(r => counts[r.status]++);
+    const rows = REQS.filter(r => r.status === this.state.filter);
+    const urgentCount = REQS.filter(r => r.urgent).length;
+
+    const spark = seed => Array.from({ length: 10 }, (_, i) => {
+      const v = 30 + ((Math.sin(seed + i * 1.1) + 1) / 2) * 70;
+      return { h: Math.round(v * ease) + '%', c: i === 9 ? '#22D3EE' : (dark ? 'rgba(255,255,255,.16)' : '#D9E6F7') };
+    });
+
+    const qi = 0;
+    const [qText, qOpts, qAnswer, qWhy] = QUESTIONS[qi];
+    const picked = this.state.quizPick;
+    const answered = picked !== null;
+    const correct = picked === qAnswer;
+    const muted = this.state.prefs.urgentMute && urgentCount > 0 && !this.state.quizForce;
+    const quizOn = this.state.prefs.quiz && !this.state.quizSkipped;
+
+    const cols = this.board();
+    const focus = this.state.stageIndex;
+
+    return {
+      isLogin: s === 'login',
+      isApp: s !== 'login',
+      isHome: s === 'home',
+      isDash: s === 'dashboard',
+      isReqs: s === 'requisitions',
+      isKanban: s === 'kanban',
+      isCands: s === 'candidates',
+      isProfile: s === 'profile',
+      isInterviews: s === 'interviews',
+      isNexAI: s === 'nexai',
+      isReports: s === 'reports',
+      isTeam: s === 'team',
+      isSettings: s === 'settings',
+      navItems,
+      title: titles[s] || '',
+      subtitle: 'FY 2026–27 · ' + role,
+      userName: isAdmin ? 'Ritu Malhotra' : 'Arjun Pillai',
+      initials: isAdmin ? 'RM' : 'AP',
+      themeLabel: dark ? 'Light mode' : 'Dark mode',
+      toggleTheme: () => this.setState({ theme: dark ? 'Light' : 'Dark' }),
+      signIn: () => this.setState({ screen:'home' }),
+      signOut: () => this.setState({ screen:'login' }),
+      goReqs: this.go('requisitions'),
+      goCands: this.go('candidates'),
+      streakLabel: this.state.streak + ' day streak',
+      pointsLabel: this.state.points + ' pts',
+      points: this.state.points,
+      rank: 2,
+
+      loginStats: [{ v:'348', k:'In pipeline' }, { v:'3.8d', k:'Time to hire' }, { v:'12', k:'Open roles' }],
+      liveCount: 41,
+      columnsBg: [0,1,2,3,4,5].map(i => {
+        const base = CANDS.slice(i % CANDS.length).concat(CANDS.slice(0, i % CANDS.length));
+        const nine = Array.from({ length: 9 }, (_, j) => base[j % base.length]);
+        return {
+          anim: i % 2 ? 'driftDown' : 'driftUp',
+          dur: (26 + i * 5) + 's',
+          cards: nine.concat(nine).concat(nine).map(c => ({
+            n: c[0], s: c[5], stage: c[4],
+            sc: c[5] >= 88 ? '#22D3EE' : '#7FB0FF'
+          }))
+        };
+      }),
+
+      greeting: (isAdmin ? 'Good morning, Ritu.' : 'Good morning, Arjun.'),
+      homeLine: urgentCount === 1
+        ? '1 urgent requisition needs attention today. Tap a module to open it.'
+        : urgentCount + ' urgent requisitions need attention today. Tap a module to open it.',
+      homeStats: [{ v:'12', k:'Open reqs' }, { v:'348', k:'In pipeline' }, { v:'3.8d', k:'Time to hire' }],
+      tiles: TILES.map(([name, mark, meta, screen, icon, badge, kind]) => ({
+        name, mark, meta, icon,
+        hasBadge: !!badge, badge,
+        badgeBg: kind === 'warn' ? (dark ? 'rgba(233,191,87,.2)' : '#FFF3D6') : (dark ? 'rgba(34,211,238,.18)' : '#E6F8FB'),
+        badgeFg: kind === 'warn' ? (dark ? '#E9BF57' : '#B07D00') : (dark ? '#22D3EE' : '#0E9BB4'),
+        open: this.go(screen)
+      })),
+
+      kpis: KPIS.map(([label, n, delta, accent]) => ({
+        label, delta, accent,
+        n: Math.round(n * ease),
+        color: label === 'Joined' ? '#0e9f6e' : 'var(--ink)',
+        spark: spark(label.length)
+      })),
+      funnel: [['Applied',348,'#0A1F44'],['Screened',64,'#14316B'],['NexAI',41,'#2563EB'],['Panel',23,'#5FB4FF'],['Joined',9,'#22D3EE']].map(([name, n, bg], i) => ({
+        name, bg, n: Math.round(n * ease),
+        dia: [76,68,62,56,50][i] + 'px', fs: [18,17,16,15,15][i] + 'px',
+        hasLink: i < 4, delay: (i * 0.4) + 's', delay2: (i * 0.4 + 1.3) + 's'
+      })),
+      ticker: TICKER.concat(TICKER).map(([who, what, at, c]) => ({ who, what, at, c })),
+      trend: Array.from({ length: 12 }, (_, i) => {
+        const v = 46 + ((Math.cos(i * 0.7) + 1) / 2) * 54;
+        return { h: Math.round(v * ease) + '%', c: i === 11 ? 'linear-gradient(180deg,#22D3EE,#2563EB)' : (dark ? 'rgba(255,255,255,.14)' : '#E4EDF9') };
+      }),
+
+      quiz: {
+        show: quizOn && !muted,
+        paused: quizOn && muted,
+        pausedNote: urgentCount === 1
+          ? 'Daily question paused — 1 urgent requisition open.'
+          : 'Daily question paused — ' + urgentCount + ' urgent requisitions open.',
+        showAnyway: () => this.setState({ quizForce: true }),
+        q: qText,
+        answered,
+        feedback: correct ? 'Correct. ' + qWhy : 'Not quite. ' + qWhy,
+        skip: () => this.setState({ quizSkipped: true }),
+        options: qOpts.map((label, i) => {
+          const isPick = picked === i;
+          const right = answered && i === qAnswer;
+          const wrong = isPick && !correct;
+          return {
+            label,
+            pick: () => { if (!answered) this.setState(st => ({ quizPick: i, points: st.points + (i === qAnswer ? 10 : 0) })); },
+            bg: right ? 'rgba(14,159,110,.24)' : wrong ? 'rgba(224,90,90,.22)' : 'rgba(255,255,255,.08)',
+            bd: right ? '#0e9f6e' : wrong ? '#E05A5A' : 'rgba(255,255,255,.2)',
+            fg: '#ffffff'
+          };
+        })
+      },
+
+      filters: ['Open','On hold','Closed'].map(f => {
+        const on = f === this.state.filter;
+        return {
+          label: f + ' · ' + counts[f],
+          pick: () => this.setState({ filter: f }),
+          bg: on ? (dark ? 'rgba(34,211,238,.16)' : '#EAF0FF') : 'transparent',
+          bd: on ? '#2563EB' : 'var(--bd)',
+          fg: on ? (dark ? '#22D3EE' : '#2563EB') : 'var(--ink2)'
+        };
+      }),
+      reqCards: rows.map(r => ({
+        ...r, ...pill(r.status), open: openReq(REQS.indexOf(r)),
+        faces: [{ i:'AP' }, { i:'SK' }, { i:'DB' }]
+      })),
+
+      req,
+      railPrev: () => this.setState(st => ({ stageIndex: Math.max(0, st.stageIndex - 1) })),
+      railNext: () => this.setState(st => ({ stageIndex: Math.min(cols.length - 1, st.stageIndex + 1) })),
+      stages: cols.map((c, i) => {
+        const on = i === focus;
+        return {
+          name: c.name, count: c.cards.length, pct: c.pct, open: on,
+          focus: () => this.setState({ stageIndex: i }),
+          over: e => e.preventDefault(),
+          drop: this.drop(c.name),
+          w: on ? '316px' : '206px',
+          tf: on ? 'translateY(-7px)' : 'none',
+          bg: on ? 'linear-gradient(150deg,#0A1F44,#14316B 55%,#2563EB 145%)' : 'var(--surface)',
+          fg: on ? '#ffffff' : 'var(--ink)',
+          bd: on ? 'transparent' : 'var(--bd)',
+          sh: on ? 'var(--lift)' : 'var(--shadow)',
+          chipBg: on ? 'rgba(34,211,238,.24)' : 'var(--wash)',
+          chipFg: on ? '#22D3EE' : 'var(--washfg)',
+          trackBg: on ? 'rgba(255,255,255,.18)' : 'var(--track)',
+          barBg: on ? 'linear-gradient(90deg,#22D3EE,#7FB0FF)' : 'linear-gradient(90deg,#2563EB,#22D3EE)',
+          cards: c.cards.map(x => ({
+            ...x,
+            bg: on ? 'rgba(255,255,255,.10)' : 'var(--surface2)',
+            bd: on ? 'rgba(255,255,255,.16)' : 'var(--bd)',
+            scoreColor: x.score >= 88 ? '#22D3EE' : x.score >= 78 ? (on ? '#7FB0FF' : '#2563EB') : '#E9BF57',
+            drag: e => { e.dataTransfer.effectAllowed = 'move'; this.setState({ dragging: x.id }); }
+          }))
+        };
+      }),
+
+      candFilters: [{ l:'All stages' }, { l:'Fit 80+' }, { l:'This week' }, { l:'My reqs' }],
+      candidates: CANDS.map(([name, ini, exp, role2, stage, score, tag]) => ({
+        name, ini, exp, stage, score, tag, role: role2,
+        pct: score + '%',
+        bar: score >= 88 ? 'linear-gradient(90deg,#22D3EE,#2563EB)' : 'linear-gradient(90deg,#2563EB,#7FB0FF)',
+        pillBg: tag === 'Strong' ? 'rgba(14,159,110,.16)' : tag === 'Shortlist' ? (dark ? 'rgba(34,211,238,.16)' : '#E6F8FB') : (dark ? 'rgba(255,255,255,.08)' : '#EEF1F6'),
+        pillFg: tag === 'Strong' ? '#0e9f6e' : tag === 'Shortlist' ? (dark ? '#22D3EE' : '#0E9BB4') : 'var(--ink3)',
+        open: this.go('profile')
+      })),
+
+      profile: {
+        ini:'PS', name:'Priya Sharma',
+        sub:'Senior Backend Engineer · REQ-2041 · Digital Platforms · 6 yrs experience',
+        stats: [{ v:'91', k:'Fit score' }, { v:'88', k:'NexAI' }, { v:'4d', k:'In pipeline' }],
+        timeline: [
+          { title:'Applied via referral', note:'12 Aug · CV parsed automatically', dot:'#2563EB' },
+          { title:'Screening call completed', note:'13 Aug · Arjun Pillai · notes attached', dot:'#2563EB' },
+          { title:'NexAI interview · scored 88', note:'14 Aug · shortlisted automatically', dot:'#22D3EE' },
+          { title:'Level 1 panel scheduled', note:'Tue 11:00 · Meera Krishnan, Dev Bhatia', dot:'#5FB4FF' },
+          { title:'Offer approval', note:'Pending L2 sign-off', dot:'var(--track)' }
+        ],
+        skills: [
+          { k:'Python / Django', v:'94%', pct:'94%' }, { k:'System design', v:'88%', pct:'88%' },
+          { k:'PostgreSQL', v:'81%', pct:'81%' }, { k:'Communication', v:'76%', pct:'76%' }
+        ]
+      },
+
+      ivStats: [{ v:'23', k:'Scheduled' }, { v:'7', k:'Today' }, { v:'11', k:'Feedback due' }, { v:'92%', k:'Attendance' }],
+      interviews: [
+        ['09:30','Today','Ananya Gupta','Final panel','Ritu Malhotra, Dev Bhatia','Confirmed','#22D3EE'],
+        ['11:00','Today','Sneha Iyer','Level 1 panel','Meera Krishnan','Confirmed','#2563EB'],
+        ['14:15','Today','Rohit Bansal','NexAI round','Automated','In progress','#5FB4FF'],
+        ['10:00','Tomorrow','Karthik Reddy','HM screening','Sana Kapoor','Pending','#E9BF57'],
+        ['16:30','Tomorrow','Vikram Joshi','Level 2 panel','Leena Thomas','Confirmed','#2563EB']
+      ].map(([time, day, who, round, panel, state, accent]) => ({
+        time, day, who, round, panel, state, accent,
+        pillBg: state === 'Confirmed' ? 'rgba(14,159,110,.16)' : state === 'Pending' ? (dark ? 'rgba(233,191,87,.18)' : '#FFF3D6') : (dark ? 'rgba(34,211,238,.16)' : '#E6F8FB'),
+        pillFg: state === 'Confirmed' ? '#0e9f6e' : state === 'Pending' ? (dark ? '#E9BF57' : '#B07D00') : (dark ? '#22D3EE' : '#0E9BB4')
+      })),
+
+      aiStats: [{ v:'86', k:'Avg score' }, { v:'18', k:'Shortlisted' }, { v:'4', k:'Flagged' }],
+      aiResults: [
+        ['Deepa Nair','UX Engineer',88], ['Ananya Gupta','Senior Backend Engineer',93],
+        ['Rohit Bansal','Data Analyst',69], ['Priya Sharma','Senior Backend Engineer',91],
+        ['Imran Qureshi','QA Automation Lead',74], ['Karthik Reddy','DevOps Engineer',87]
+      ].map(([name, role2, score]) => ({
+        name, role: role2, score,
+        ring: score >= 88 ? 'linear-gradient(140deg,#22D3EE,#2563EB)' : score >= 78 ? 'linear-gradient(140deg,#5FB4FF,#2563EB)' : 'linear-gradient(140deg,#E9BF57,#B07D00)',
+        bars: [
+          { k:'Technical', v: score, pct: score + '%' },
+          { k:'Communication', v: score - 6, pct: (score - 6) + '%' },
+          { k:'Role fit', v: score - 3, pct: (score - 3) + '%' }
+        ]
+      })),
+
+      bars: ['Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'].map((m, i) => {
+        const v = 40 + ((Math.sin(i * 0.9) + 1) / 2) * 58;
+        return { m, h: Math.round(v * ease) + '%', c: i === 7 ? 'linear-gradient(180deg,#22D3EE,#2563EB)' : (dark ? 'rgba(255,255,255,.14)' : '#DCE8F7') };
+      }),
+      sourceMix: [
+        { k:'Referrals', v:'42%', c:'linear-gradient(90deg,#2563EB,#22D3EE)' },
+        { k:'Job boards', v:'28%', c:'#5FB4FF' },
+        { k:'Campus', v:'19%', c:'#7FB0FF' },
+        { k:'Agency', v:'11%', c:'#0E9BB4' }
+      ],
+
+      load: [
+        { name:'Arjun Pillai', ini:'AP', pct:'82%', stat:'12 reqs · 148' },
+        { name:'Sana Kapoor', ini:'SK', pct:'64%', stat:'9 reqs · 96' },
+        { name:'Dev Bhatia', ini:'DB', pct:'45%', stat:'6 reqs · 61' },
+        { name:'Leena Thomas', ini:'LT', pct:'30%', stat:'4 reqs · 43' }
+      ],
+      leaderboard: [
+        ['1','Sana Kapoor','SK','18 day streak','1,860'],
+        ['2','Arjun Pillai','AP','12 day streak','1,240'],
+        ['3','Leena Thomas','LT','9 day streak','980'],
+        ['4','Dev Bhatia','DB','6 day streak','720'],
+        ['5','Ritu Malhotra','RM','4 day streak','540']
+      ].map(([rank, name, ini, streak, pts]) => ({
+        rank, name, ini, streak, pts,
+        rowBg: rank === '2' ? 'var(--wash)' : 'transparent',
+        rowBd: rank === '2' ? '#2563EB' : 'var(--bd)',
+        rankColor: rank === '1' ? '#22D3EE' : 'var(--ink3)',
+        ptsColor: rank === '1' ? '#22D3EE' : 'var(--ink)'
+      })),
+
+      toggles: [
+        ['quiz','Daily HR question','A skippable card on the dashboard, once a day.'],
+        ['urgentMute','Pause when urgent','Hide the question while urgent requisitions are open.'],
+        ['digest','Weekly digest','Pipeline summary every Monday at 9:00.'],
+        ['sounds','Interface sounds','Subtle feedback on stage changes.']
+      ].map(([key, label, note]) => {
+        const on = this.state.prefs[key];
+        return {
+          label, note,
+          trackBg: on ? 'linear-gradient(90deg,#2563EB,#22D3EE)' : 'var(--track)',
+          knobX: on ? '21px' : '2px',
+          toggle: () => this.setState(st => ({ prefs: { ...st.prefs, [key]: !st.prefs[key] } }))
+        };
+      }),
+      badges: [
+        ['Fast Mover','FM',true], ['Streak 10','S10',true], ['Panel Pro','PP',true],
+        ['Quiz Ace','QA',true], ['Zero Ageing','ZA',false], ['Century','100',false]
+      ].map(([name, abbr, earned]) => ({
+        name, abbr,
+        op: earned ? '1' : '.45',
+        bg: earned ? 'var(--wash)' : 'transparent',
+        bd: earned ? '#2563EB' : 'var(--bd)',
+        mark: earned ? 'linear-gradient(140deg,#22D3EE,#2563EB)' : 'var(--track)',
+        markFg: earned ? '#04142E' : 'var(--ink3)'
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

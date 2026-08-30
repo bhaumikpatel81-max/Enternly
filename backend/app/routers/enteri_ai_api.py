@@ -1,5 +1,5 @@
 """
-NexAI — voice-first interview bot (14a).
+Enteri AI — voice-first interview bot (14a).
 
 Question generation is rule-based (JD + key skills).
 Scoring is keyword + depth + communication weighted model.
@@ -29,7 +29,7 @@ from ..services.email_templates import render_template as _render_email_tmpl
 from ..services.activity_log import log_activity
 from ..services import proctoring_scorer as _proc_scorer
 
-router = APIRouter(prefix="/api/nexai", tags=["nexai"])
+router = APIRouter(prefix="/api/enteri-ai", tags=["enteri_ai"])
 
 # ── Phase 3, Part E — server-side proctoring judge, GATED OFF ─────────────
 # When False (must stay false in production until Phase 7), terminate_invite_
@@ -49,11 +49,11 @@ def _mark_invite_attempt_completed(application_id: str) -> None:
     """
     Close out the one-and-done attempt on whichever invite token drove this
     session (the currently in_progress one), so validate/begin permanently
-    block re-opening the same link. A recruiter reissue (resend_nexai_invite)
+    block re-opening the same link. A recruiter reissue (resend_enteri_ai_invite)
     is the only way to grant a fresh attempt afterwards.
     """
     query(
-        """UPDATE nexai_invite
+        """UPDATE enteri_ai_invite
            SET attempt_status = 'completed', attempt_completed_at = now()
            WHERE application_id = %s AND attempt_status = 'in_progress'""",
         [application_id], fetch=False,
@@ -98,7 +98,7 @@ def _build_invite_html(name: str, job: str, company: str, invite_url: str) -> st
             <tr><td style="padding:22px;font-size:14px;line-height:1.8;color:#4b5563;font-family:Arial,Helvetica,sans-serif">
               Rather than asking you to upload additional documents, we&#8217;ll guide you through a short adaptive interview. Your responses help our hiring team better understand your experience and communication style alongside your application.
               <br><br>
-              Please complete your interview within <strong>48 hours</strong>. You may use a desktop or mobile device with a stable internet connection. NexAI never auto-rejects &#8212; every score is reviewed by a human recruiter.
+              Please complete your interview within <strong>48 hours</strong>. You may use a desktop or mobile device with a stable internet connection. Enteri AI never auto-rejects &#8212; every score is reviewed by a human recruiter.
             </td></tr>
           </table>"""
 
@@ -298,8 +298,8 @@ class AppealUpdateIn(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _nexai_mode() -> str:
-    return os.environ.get("NEXAI_MODE", "scripted").lower()
+def _enteri_ai_mode() -> str:
+    return os.environ.get("ENTERI_AI_MODE", "scripted").lower()
 
 
 def _recruiter_owns_req(user: dict, requisition_id: str) -> bool:
@@ -353,12 +353,12 @@ def start_session(body: StartSessionIn, _user: dict = Depends(get_current_user))
 
     # Upsert session (one per application)
     existing = query_one(
-        "SELECT id FROM nexai_session WHERE application_id = %s",
+        "SELECT id FROM enteri_ai_session WHERE application_id = %s",
         [body.application_id],
     )
     if existing:
         query(
-            """UPDATE nexai_session
+            """UPDATE enteri_ai_session
                SET questions = %s::jsonb, status = 'in_progress',
                    started_at = now(), transcript = NULL,
                    raw_score = NULL, score_detail = NULL
@@ -369,7 +369,7 @@ def start_session(body: StartSessionIn, _user: dict = Depends(get_current_user))
         session_id = existing["id"]
     else:
         row = query_one(
-            """INSERT INTO nexai_session
+            """INSERT INTO enteri_ai_session
                (application_id, requisition_id, questions, status, started_at)
                VALUES (%s, %s, %s::jsonb, 'in_progress', now())
                RETURNING id""",
@@ -389,7 +389,7 @@ def submit_session(
     if _user.get("role") == "hrbp":
         raise HTTPException(403, "Not available to the HRBP role")
     sess = query_one(
-        "SELECT id, application_id, questions FROM nexai_session WHERE id = %s",
+        "SELECT id, application_id, questions FROM enteri_ai_session WHERE id = %s",
         [session_id],
     )
     if not sess:
@@ -400,7 +400,7 @@ def submit_session(
     raw_score, detail = _score_transcript(questions, transcript)
 
     query(
-        """UPDATE nexai_session
+        """UPDATE enteri_ai_session
            SET transcript = %s::jsonb, raw_score = %s, score_detail = %s::jsonb,
                status = 'completed', completed_at = now()
            WHERE id = %s""",
@@ -444,7 +444,7 @@ def submit_session(
 def get_session(session_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
-    row = query_one("SELECT * FROM nexai_session WHERE id = %s", [session_id])
+    row = query_one("SELECT * FROM enteri_ai_session WHERE id = %s", [session_id])
     if not row:
         raise HTTPException(404, "Session not found")
     if not _recruiter_owns_req(user, row["requisition_id"]):
@@ -462,7 +462,7 @@ def get_render_status(session_id: str, _user: dict = Depends(get_current_user)):
     question whose video_url is null or status is 'failed'.
     """
     row = query_one(
-        "SELECT render_status, question_videos FROM nexai_session WHERE id = %s",
+        "SELECT render_status, question_videos FROM enteri_ai_session WHERE id = %s",
         [session_id],
     )
     if not row:
@@ -481,12 +481,12 @@ def list_sessions(
     score_min: Optional[float] = None,
     score_max: Optional[float] = None,
 ):
-    """Role-scoped list of NexAI sessions with candidate info. Filterable."""
+    """Role-scoped list of Enteri AI sessions with candidate info. Filterable."""
     role = user["role"]
     uid  = user["sub"]
 
     if role not in ("recruiter", "hiring_manager", "ta_manager", "admin"):
-        raise HTTPException(403, "Not authorised to view NexAI sessions")
+        raise HTTPException(403, "Not authorised to view Enteri AI sessions")
 
     join_parts  = []
     where_parts = []
@@ -542,11 +542,11 @@ def list_sessions(
                ps.id         AS proctoring_session_id,
                ps.flag_count AS proctor_flag_count,
                (ps.id IS NOT NULL) AS has_proctoring
-        FROM nexai_session ns
+        FROM enteri_ai_session ns
         JOIN application  a   ON a.id  = ns.application_id
         JOIN candidate    c   ON c.id  = a.candidate_id
         JOIN requisition  r   ON r.id  = ns.requisition_id
-        LEFT JOIN proctoring_session ps ON ps.nexai_session_id = ns.id
+        LEFT JOIN proctoring_session ps ON ps.enteri_ai_session_id = ns.id
         {join_sql}
         LEFT JOIN LATERAL (
             SELECT u2.full_name
@@ -667,7 +667,7 @@ def delete_req_questions(req_id: str, user: dict = Depends(get_current_user)):
 @router.get("/sessions/{session_id}/transcript")
 def get_session_transcript(session_id: str, user: dict = Depends(get_current_user)):
     """
-    Return the full transcript or conversation for a completed NexAI session.
+    Return the full transcript or conversation for a completed Enteri AI session.
     Recruiter JWT required. Recruiters may only access sessions on their requisitions;
     TA managers and admins see all.
     """
@@ -692,7 +692,7 @@ def get_session_transcript(session_id: str, user: dict = Depends(get_current_use
                c.email      AS candidate_email,
                r.title      AS requisition,
                r.id         AS requisition_id
-        FROM nexai_session ns
+        FROM enteri_ai_session ns
         JOIN application a  ON a.id = ns.application_id
         JOIN candidate   c  ON c.id = a.candidate_id
         JOIN requisition r  ON r.id = a.requisition_id
@@ -723,12 +723,12 @@ def get_session_transcript(session_id: str, user: dict = Depends(get_current_use
     }
 
 
-# ── NexAI Invite Tracker ─────────────────────────────────────────────────────
+# ── Enteri AI Invite Tracker ─────────────────────────────────────────────────────
 
 @router.get("/invite-tracker")
 def invite_tracker(user: dict = Depends(get_current_user)):
     """
-    Returns all NexAI invites with status breakdown.
+    Returns all Enteri AI invites with status breakdown.
     Recruiters see only their requisitions; TA managers / admins see all.
     """
     role = user["role"]
@@ -774,22 +774,22 @@ def invite_tracker(user: dict = Depends(get_current_user)):
                   WHEN ns.status = 'completed'    THEN 'completed'
                   WHEN ni.used_at IS NOT NULL      THEN 'in_progress'
                   WHEN ni.expires_at < now()       THEN 'expired'
-                  WHEN latest_se.to_status = 'nexai_invite_failed' THEN 'send_failed'
+                  WHEN latest_se.to_status = 'enteri_ai_invite_failed' THEN 'send_failed'
                   ELSE 'pending'
                 END              AS invite_status,
                 pa.status        AS appeal_status
-            FROM nexai_invite ni
+            FROM enteri_ai_invite ni
             JOIN application  a  ON a.id  = ni.application_id
             JOIN candidate    c  ON c.id  = a.candidate_id
             JOIN requisition  r  ON r.id  = a.requisition_id
             {scope_join}
-            LEFT JOIN nexai_session     ns ON ns.application_id = a.id
-            LEFT JOIN proctoring_session ps ON ps.nexai_session_id = ns.id
+            LEFT JOIN enteri_ai_session     ns ON ns.application_id = a.id
+            LEFT JOIN proctoring_session ps ON ps.enteri_ai_session_id = ns.id
             LEFT JOIN proctoring_appeal pa ON pa.application_id = a.id
             LEFT JOIN app_user          ub ON ub.id = ni.created_by
             -- Latest stage_event per application — a since-resent candidate's
-            -- newer 'nexai_bot' (or another) event naturally outranks an older
-            -- 'nexai_invite_failed' one here, so a fixed candidate stops
+            -- newer 'enteri_ai_bot' (or another) event naturally outranks an older
+            -- 'enteri_ai_invite_failed' one here, so a fixed candidate stops
             -- reading as send_failed.
             LEFT JOIN LATERAL (
                 SELECT se.to_status
@@ -867,9 +867,9 @@ def _write_invite_failure_event(app_id: str, user: dict, email_error: str) -> No
     _cur = query_one("SELECT status FROM application WHERE id=%s", [app_id])
     if _cur and _cur["status"] in ("applied", "screen", "ai_screening", "screening", "screen_passed"):
         query(
-            "INSERT INTO stage_event (application_id, from_status, to_status, actor_id, note) VALUES (%s,%s,'nexai_invite_failed',%s,%s)",
+            "INSERT INTO stage_event (application_id, from_status, to_status, actor_id, note) VALUES (%s,%s,'enteri_ai_invite_failed',%s,%s)",
             [app_id, _cur["status"], user["sub"],
-             f"NexAI invite send failed — awaiting resend ({email_error})"],
+             f"Enteri AI invite send failed — awaiting resend ({email_error})"],
             fetch=False,
         )
 
@@ -902,7 +902,7 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
 
     # Skip if an active (non-expired, non-used) invite already exists
     active = query_one(
-        """SELECT id FROM nexai_invite
+        """SELECT id FROM enteri_ai_invite
            WHERE application_id=%s AND used_at IS NULL AND expires_at > now()
            LIMIT 1""",
         [app_id],
@@ -913,13 +913,13 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
 
     token = secrets.token_urlsafe(32)
     query(
-        """INSERT INTO nexai_invite (application_id, token, created_by)
+        """INSERT INTO enteri_ai_invite (application_id, token, created_by)
            VALUES (%s, %s, %s)""",
         [app_id, token, user["sub"]],
         fetch=False,
     )
 
-    # Create the nexai_session now (if not already present) so avatar videos can
+    # Create the enteri_ai_session now (if not already present) so avatar videos can
     # be pre-rendered before the candidate opens their link.
     # start_invited_session preserves these questions, keeping video URLs valid.
     #
@@ -936,13 +936,13 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
         else _generate_questions(app_row.get("key_skills") or [], app_row.get("job_description") or "")
     )
     _existing_sess = query_one(
-        "SELECT id FROM nexai_session WHERE application_id = %s", [app_id]
+        "SELECT id FROM enteri_ai_session WHERE application_id = %s", [app_id]
     )
     if _existing_sess:
         _prerender_session_id = _existing_sess["id"]
     else:
         _sess_row = query_one(
-            """INSERT INTO nexai_session
+            """INSERT INTO enteri_ai_session
                (application_id, requisition_id, questions, status)
                VALUES (%s, %s, %s::jsonb, 'pending') RETURNING id""",
             [app_id, app_row["requisition_id"], json.dumps(_questions)],
@@ -954,7 +954,7 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
     # not deployed — pipeline logs a warning and exits, leaving all
     # question_videos as failed so the frontend orb takes over.
     # If this in-process task is silently dropped by a worker restart before
-    # it runs, services/nexai_render_worker.py is a durable periodic sweep
+    # it runs, services/enteri_ai_render_worker.py is a durable periodic sweep
     # that retries any session stuck at render_status='pending' (or 'failed'
     # with attempts left) -- see migration 65.
     background_tasks.add_task(
@@ -965,11 +965,11 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
     base_url, _bu_source = _get_base_url()
     if _is_localhost(base_url):
         print(
-            f"[nexai-invite] WARNING: invite URL is localhost ({base_url}) — "
+            f"[enteri-ai-invite] WARNING: invite URL is localhost ({base_url}) — "
             f"candidate {app_row['email']} will receive a broken link. "
             f"Set Public Base URL in Admin → Settings before sending real invites."
         )
-    invite_url = f"{base_url}/nexai-interview?token={token}"
+    invite_url = f"{base_url}/enteri-ai-interview?token={token}"
 
     name    = app_row["full_name"]
     job     = app_row["job_title"]
@@ -980,7 +980,7 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
     _reply_to = _globals.get("recruiter_email") or None
 
     try:
-        email_subject, plain = _render_email_tmpl("nexai_invite", {
+        email_subject, plain = _render_email_tmpl("enteri_ai_invite", {
             "candidate_name": name,
             "job_title":      job,
             "company_name":   company,
@@ -990,11 +990,11 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
         email_sent  = False
         email_error = (
             f"Email template has unfillable placeholder: {_tmpl_err}. "
-            "Fix the 'NexAI Invite' template in Email Templates settings."
+            "Fix the 'Enteri AI Invite' template in Email Templates settings."
         )
-        print(f"[nexai-invite] {email_error}")
+        print(f"[enteri-ai-invite] {email_error}")
         log_activity(
-            "nexai_session", "nexai_invite_failed",
+            "enteri_ai_session", "enteri_ai_invite_failed",
             application_id=app_id, requisition_id=app_row["requisition_id"],
             actor_id=user["sub"], actor_role=user.get("role"),
             detail={"reason": "template_error", "error": email_error},
@@ -1018,16 +1018,16 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
     except Exception as exc:
         email_sent  = False
         email_error = str(exc)
-        print(f"[nexai-invite] Email delivery failed: {exc}")
+        print(f"[enteri-ai-invite] Email delivery failed: {exc}")
 
     log_activity(
-        "nexai_session", "nexai_invite_sent",
+        "enteri_ai_session", "enteri_ai_invite_sent",
         application_id=app_id, requisition_id=app_row["requisition_id"],
         actor_id=user["sub"], actor_role=user.get("role"),
         detail={"email_sent": email_sent, "email_error": email_error, "sent_to": app_row["email"]},
     )
 
-    # Advance application to nexai_bot stage only if the invite email actually went
+    # Advance application to enteri_ai_bot stage only if the invite email actually went
     # out — a failed send must not silently move the candidate forward. On failure,
     # log an honest stage_event with a synthetic to_status (not a real pipeline
     # stage) so SLA/time-in-stage queries, which match stage_event.to_status against
@@ -1036,10 +1036,10 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
     if _cur and _cur["status"] in ("applied", "screen", "ai_screening", "screening", "screen_passed"):
         if email_sent:
             query(
-                "INSERT INTO stage_event (application_id, from_status, to_status, actor_id, note) VALUES (%s,%s,'nexai_bot',%s,'NexAI invite sent')",
+                "INSERT INTO stage_event (application_id, from_status, to_status, actor_id, note) VALUES (%s,%s,'enteri_ai_bot',%s,'Enteri AI invite sent')",
                 [app_id, _cur["status"], user["sub"]], fetch=False,
             )
-            query("UPDATE application SET status='nexai_bot' WHERE id=%s", [app_id], fetch=False)
+            query("UPDATE application SET status='enteri_ai_bot' WHERE id=%s", [app_id], fetch=False)
         else:
             _write_invite_failure_event(app_id, user, email_error)
 
@@ -1054,7 +1054,7 @@ def _do_single_invite(app_id: str, user: dict, background_tasks: BackgroundTasks
 
 
 @router.post("/invite/send/{app_id}", status_code=201)
-def create_nexai_invite(
+def create_enteri_ai_invite(
     app_id: str,
     background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
@@ -1081,13 +1081,13 @@ class BulkInviteIn(BaseModel):
 
 
 @router.post("/bulk-invite")
-def bulk_nexai_invite(
+def bulk_enteri_ai_invite(
     body: BulkInviteIn,
     background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
 ):
     """
-    Send NexAI invites to multiple candidates.
+    Send Enteri AI invites to multiple candidates.
     Role scope: recruiter only for applications on their assigned reqs.
     Returns per-application results: sent / skipped(reason) / failed(error).
     """
@@ -1116,14 +1116,14 @@ def bulk_nexai_invite(
                 })
                 continue
 
-        # Check stage is appropriate for NexAI invites
+        # Check stage is appropriate for Enteri AI invites
         app_check = query_one(
             "SELECT status, id FROM application WHERE id=%s", [app_id]
         )
         if not app_check:
             results.append({"app_id": app_id, "status": "error", "reason": "not_found"})
             continue
-        if app_check["status"] not in ("applied", "screen", "nexai_bot"):
+        if app_check["status"] not in ("applied", "screen", "enteri_ai_bot"):
             results.append({
                 "app_id":  app_id,
                 "status":  "skipped",
@@ -1152,7 +1152,7 @@ def bulk_nexai_invite(
 
 
 @router.post("/resend-invite/{app_id}", status_code=201)
-def resend_nexai_invite(
+def resend_enteri_ai_invite(
     app_id: str,
     background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
@@ -1171,7 +1171,7 @@ def resend_nexai_invite(
     # token permanently blocks re-entry (validate_invite / start_invited_session
     # both key off attempt_status) even if the candidate still has it open.
     query(
-        """UPDATE nexai_invite
+        """UPDATE enteri_ai_invite
            SET attempt_status = 'revoked',
                expires_at = LEAST(expires_at, now() - interval '1 second')
            WHERE application_id = %s AND attempt_status != 'revoked'""",
@@ -1184,7 +1184,7 @@ def resend_nexai_invite(
     # Pre-rendered questions are intentionally left untouched so any already-
     # rendered avatar video URLs remain valid.
     query(
-        """UPDATE nexai_session
+        """UPDATE enteri_ai_session
            SET status = 'pending', started_at = NULL,
                conversation = NULL, transcript = NULL,
                raw_score = NULL, score_detail = NULL, termination_reason = NULL,
@@ -1194,13 +1194,13 @@ def resend_nexai_invite(
     )
 
     # Delegate to the main invite creator (re-triggers prerender; cache hits are instant)
-    result = create_nexai_invite(app_id, background_tasks, user)
+    result = create_enteri_ai_invite(app_id, background_tasks, user)
 
     # Link the revoked token(s) to their replacement for audit/support purposes
     new_token = (result.get("invite_url") or "").rsplit("token=", 1)[-1]
     if new_token:
         query(
-            """UPDATE nexai_invite
+            """UPDATE enteri_ai_invite
                SET superseded_by_token = %s
                WHERE application_id = %s AND attempt_status = 'revoked' AND token != %s""",
             [new_token, app_id, new_token], fetch=False,
@@ -1215,13 +1215,13 @@ def validate_invite(token: str):
         """SELECT ni.id, ni.expires_at, ni.used_at, ni.attempt_status,
                   c.full_name, r.title AS job_title, gc.name AS company,
                   ni.application_id, ns.status AS session_status
-           FROM nexai_invite ni
+           FROM enteri_ai_invite ni
            JOIN application  a  ON a.id  = ni.application_id
            JOIN candidate    c  ON c.id  = a.candidate_id
            JOIN requisition  r  ON r.id  = a.requisition_id
            JOIN business_unit bu ON bu.id = r.bu_id
            JOIN group_company gc ON gc.id = bu.company_id
-           LEFT JOIN nexai_session ns ON ns.application_id = ni.application_id
+           LEFT JOIN enteri_ai_session ns ON ns.application_id = ni.application_id
            WHERE ni.token = %s""",
         [token],
     )
@@ -1251,14 +1251,14 @@ def validate_invite(token: str):
         "job_title": row["job_title"],
         "company": row["company"],
         "application_id": str(row["application_id"]),
-        "mode": _nexai_mode(),
+        "mode": _enteri_ai_mode(),
         "is_campus": _campus_c is not None,
     }
 
 
 @router.post("/invite/begin")
 def start_invited_session(token: str):
-    """Public — candidate starts (or resumes) a NexAI session.
+    """Public — candidate starts (or resumes) a Enteri AI session.
 
     Policy — one attempt per invite token:
     - unused: first entry, flips to in_progress and creates a fresh session.
@@ -1266,12 +1266,12 @@ def start_invited_session(token: str):
       as-is (no reset). This is what makes a page refresh / duplicate tab safe:
       it never wipes progress or re-triggers the opening greeting.
     - completed / revoked: permanently blocked. A recruiter must issue a fresh
-      link via /api/nexai/resend-invite/{app_id}, which creates a new token and
+      link via /api/enteri-ai/resend-invite/{app_id}, which creates a new token and
       resets the session for a new attempt.
     """
     invite = query_one(
         """SELECT ni.id, ni.application_id, ni.expires_at, ni.used_at, ni.attempt_status
-           FROM nexai_invite ni WHERE ni.token = %s""",
+           FROM enteri_ai_invite ni WHERE ni.token = %s""",
         [token],
     )
     if not invite:
@@ -1297,7 +1297,7 @@ def start_invited_session(token: str):
         raise HTTPException(404, "Application not found")
 
     existing = query_one(
-        "SELECT id, status, questions FROM nexai_session WHERE application_id = %s",
+        "SELECT id, status, questions FROM enteri_ai_session WHERE application_id = %s",
         [invite["application_id"]],
     )
     # Belt-and-suspenders: a session can only be 'completed' if this invite's
@@ -1312,7 +1312,7 @@ def start_invited_session(token: str):
     _is_first_entry = invite["attempt_status"] == "unused"
     if _is_first_entry:
         query(
-            """UPDATE nexai_invite
+            """UPDATE enteri_ai_invite
                SET used_at = COALESCE(used_at, now()),
                    expires_at = now() + INTERVAL '48 hours',
                    attempt_status = 'in_progress',
@@ -1325,7 +1325,7 @@ def start_invited_session(token: str):
         # Resume in place — do NOT touch conversation/transcript/scores, so a
         # refresh or duplicate tab never wipes progress or replays the greeting.
         query(
-            """UPDATE nexai_session
+            """UPDATE enteri_ai_session
                SET status = 'in_progress', started_at = COALESCE(started_at, now())
                WHERE id = %s""",
             [existing["id"]], fetch=False,
@@ -1335,7 +1335,7 @@ def start_invited_session(token: str):
             sq = [q for q in (app_row["screening_questions"] or []) if q and q.strip()]
             questions = _generate_questions(app_row["key_skills"] or [], app_row["job_description"] or "", sq)
             query(
-                "UPDATE nexai_session SET questions = %s::jsonb WHERE id = %s",
+                "UPDATE enteri_ai_session SET questions = %s::jsonb WHERE id = %s",
                 [json.dumps(questions), existing["id"]], fetch=False,
             )
         session_id = existing["id"]
@@ -1343,7 +1343,7 @@ def start_invited_session(token: str):
         sq = [q for q in (app_row["screening_questions"] or []) if q and q.strip()]
         questions = _generate_questions(app_row["key_skills"] or [], app_row["job_description"] or "", sq)
         row = query_one(
-            """INSERT INTO nexai_session
+            """INSERT INTO enteri_ai_session
                (application_id, requisition_id, questions, status, started_at)
                VALUES (%s, %s, %s::jsonb, 'in_progress', now()) RETURNING id""",
             [invite["application_id"], app_row["requisition_id"], json.dumps(questions)],
@@ -1352,7 +1352,7 @@ def start_invited_session(token: str):
 
     if _is_first_entry:
         log_activity(
-            "nexai_session", "nexai_session_started",
+            "enteri_ai_session", "enteri_ai_session_started",
             entity_id=session_id, application_id=invite["application_id"],
             requisition_id=app_row["requisition_id"],
             actor_id=None, actor_role="candidate",
@@ -1366,7 +1366,7 @@ def get_invite_render_status(token: str):
     """Public — candidate polls avatar pre-render status using their invite token."""
     inv = query_one(
         """SELECT ni.application_id
-             FROM nexai_invite ni
+             FROM enteri_ai_invite ni
             WHERE ni.token = %s AND ni.used_at IS NOT NULL""",
         [token],
     )
@@ -1374,7 +1374,7 @@ def get_invite_render_status(token: str):
         raise HTTPException(404, "Session not found")
     row = query_one(
         """SELECT id, render_status, question_videos
-             FROM nexai_session
+             FROM enteri_ai_session
             WHERE application_id = %s""",
         [inv["application_id"]],
     )
@@ -1439,7 +1439,7 @@ def _build_completion_email_html(
         turn_rows = ""
         for turn in (conversation or []):
             spk   = turn.get("speaker", "")
-            label = "NexAI" if spk == "bot" else "Candidate"
+            label = "Enteri AI" if spk == "bot" else "Candidate"
             color = "#2d8cf0" if spk == "bot" else "#444"
             turn_rows += (
                 f"<tr style='border-bottom:1px solid #f0f0f0'>"
@@ -1479,14 +1479,14 @@ def _build_completion_email_html(
     return build_branded_email(
         eyebrow="Application Tracking System",
         hero_title_html="Interview<br>Completed.",
-        hero_subtitle="NexAI has finished the AI-assisted interview — the summary and full transcript are ready for your review.",
+        hero_subtitle="Enteri AI has finished the AI-assisted interview — the summary and full transcript are ready for your review.",
         detail_cells=[
             ("Candidate", candidate_name), ("Role", requisition_title),
             ("AI Score", score_str),
         ],
         extra_body_html=extra_html,
         cta_label=None, cta_link=None,
-        footer_note="This email was sent automatically by NexAI. Do not reply.",
+        footer_note="This email was sent automatically by Enteri AI. Do not reply.",
     )
 
 
@@ -1503,11 +1503,11 @@ def _fire_completion_email(session_id: str) -> None:
                       ns.raw_score, ns.score_detail,
                       ns.transcript, ns.conversation,
                       ns.email_sent
-               FROM nexai_session  ns
+               FROM enteri_ai_session  ns
                JOIN application    a  ON a.id  = ns.application_id
                JOIN candidate      c  ON c.id  = a.candidate_id
                JOIN requisition    r  ON r.id  = a.requisition_id
-               JOIN nexai_invite   ni ON ni.application_id = ns.application_id
+               JOIN enteri_ai_invite   ni ON ni.application_id = ns.application_id
                JOIN app_user       u  ON u.id  = ni.created_by
                WHERE ns.id = %s
                ORDER BY ni.invited_at DESC
@@ -1537,7 +1537,7 @@ def _fire_completion_email(session_id: str) -> None:
         _compl_actor = {"email": row["recruiter_email"], "full_name": row["recruiter_name"]}
         _compl_req_id = str(row["requisition_id"]) if row.get("requisition_id") else None
         try:
-            _et_subj, plain = _render_email_tmpl("nexai_completion", {
+            _et_subj, plain = _render_email_tmpl("enteri_ai_completion", {
                 "candidate_name": row["candidate_name"],
                 "job_title":      row["requisition_title"],
                 "ai_score":       score_display,
@@ -1545,7 +1545,7 @@ def _fire_completion_email(session_id: str) -> None:
                 "concerns":       sd.get("concerns") or "—",
             }, req_id=_compl_req_id, actor=_compl_actor)
         except ValueError as _te:
-            print(f"[nexai_email] template error for session {session_id}: {_te}")
+            print(f"[enteri_ai_email] template error for session {session_id}: {_te}")
             return
         send_email(
             to_email=row["recruiter_email"],
@@ -1556,16 +1556,16 @@ def _fire_completion_email(session_id: str) -> None:
             tenant_id=row.get("tenant_id"),
         )
         query(
-            "UPDATE nexai_session SET email_sent = TRUE WHERE id = %s",
+            "UPDATE enteri_ai_session SET email_sent = TRUE WHERE id = %s",
             [session_id],
             fetch=False,
         )
     except Exception as exc:
-        print(f"[nexai_email] completion email failed for session {session_id}: {exc}")
+        print(f"[enteri_ai_email] completion email failed for session {session_id}: {exc}")
         # email_sent stays FALSE forever with no retry -- log durably so it's
         # at least discoverable on the Activity Timeline instead of only stdout.
         log_activity(
-            "nexai_session", "nexai_completion_email_failed",
+            "enteri_ai_session", "enteri_ai_completion_email_failed",
             entity_id=session_id, actor_id=None, actor_role="system",
             detail={"error": str(exc)},
         )
@@ -1574,7 +1574,7 @@ def _fire_completion_email(session_id: str) -> None:
 @router.post("/invite/converse")
 async def converse_invite(token: str, body: ConverseIn, background_tasks: BackgroundTasks):
     """
-    Public — drive one turn of a conversational (LLM-led) NexAI interview.
+    Public — drive one turn of a conversational (LLM-led) Enteri AI interview.
 
     Call with an empty/absent candidate_text on the very first turn to get the
     bot's opening question. Subsequent calls should include the candidate's spoken
@@ -1582,14 +1582,14 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
     interview is complete (is_complete=true), at which point the session is scored
     and written to the database exactly as the scripted submit flow does.
 
-    Only active when NEXAI_MODE=conversational.
+    Only active when ENTERI_AI_MODE=conversational.
     """
-    if _nexai_mode() != "conversational":
-        raise HTTPException(400, "Conversational mode is not enabled (NEXAI_MODE=scripted)")
+    if _enteri_ai_mode() != "conversational":
+        raise HTTPException(400, "Conversational mode is not enabled (ENTERI_AI_MODE=scripted)")
 
     # ── Token validation (mirrors start_invited_session) ─────────────────────
     invite = query_one(
-        "SELECT id, application_id, expires_at, used_at FROM nexai_invite WHERE token = %s",
+        "SELECT id, application_id, expires_at, used_at FROM enteri_ai_invite WHERE token = %s",
         [token],
     )
     if not invite:
@@ -1604,7 +1604,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
                   r.title, r.key_skills, r.job_description, r.is_fresher_role,
                   c.full_name AS candidate_name,
                   gc.name     AS company
-           FROM nexai_session ns
+           FROM enteri_ai_session ns
            JOIN application   a  ON a.id  = ns.application_id
            JOIN candidate      c  ON c.id  = a.candidate_id
            JOIN requisition    r  ON r.id  = a.requisition_id
@@ -1614,7 +1614,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         [invite["application_id"]],
     )
     if not sess:
-        raise HTTPException(404, "Session not found — call /api/nexai/invite/begin first")
+        raise HTTPException(404, "Session not found — call /api/enteri-ai/invite/begin first")
     if sess["status"] in ("completed", "terminated_proctoring"):
         raise HTTPException(400, "This interview has already been completed")
 
@@ -1635,7 +1635,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         # candidate a beat after the self-introduction before the rest of the intro.
         # None of these TTS paths accept raw SSML <break> tags through this API.
         intro = (
-            f"{greeting} I'm NexAI, an AI interviewer from Enternly... "
+            f"{greeting} I'm Enteri AI, an AI interviewer from Enternly... "
             f"Thank you for applying for the {job_title} position at {company}. "
             f"I'll be conducting a brief screening interview today — it should take around "
             f"{_CONV_DURATION_ESTIMATE}, and I'll ask you a few questions about your experience and skills. "
@@ -1644,7 +1644,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         )
         turns.append({"speaker": "bot", "text": intro})
         query(
-            "UPDATE nexai_session SET conversation = %s::jsonb WHERE id = %s",
+            "UPDATE enteri_ai_session SET conversation = %s::jsonb WHERE id = %s",
             [json.dumps(turns), sess["id"]],
             fetch=False,
         )
@@ -1663,7 +1663,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         # only reached the DB after a successful reply, so an LLM hiccup lost
         # the turn from the transcript/scoring forever and raised a raw 500.
         query(
-            "UPDATE nexai_session SET conversation = %s::jsonb WHERE id = %s",
+            "UPDATE enteri_ai_session SET conversation = %s::jsonb WHERE id = %s",
             [json.dumps(turns), sess["id"]],
             fetch=False,
         )
@@ -1685,7 +1685,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         # appended to `turns`/DB for this failed attempt, so the candidate's
         # next submission retries next_turn() against the same saved state.
         log_activity(
-            "nexai_session", "nexai_turn_failed",
+            "enteri_ai_session", "enteri_ai_turn_failed",
             entity_id=str(sess["id"]), application_id=sess["application_id"],
             actor_id=None, actor_role="system",
             detail={"error": str(exc)},
@@ -1706,7 +1706,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         detail    = score_result["score_detail"]
 
         query(
-            """UPDATE nexai_session
+            """UPDATE enteri_ai_session
                SET conversation = %s::jsonb,
                    raw_score = %s, score_detail = %s::jsonb,
                    status = 'completed', completed_at = now()
@@ -1760,7 +1760,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         )
         if not _proc_row:
             log_activity(
-                "nexai_session", "nexai_completed_no_proctoring",
+                "enteri_ai_session", "enteri_ai_completed_no_proctoring",
                 entity_id=str(sess["id"]), application_id=sess["application_id"],
                 actor_id=None, actor_role="system",
                 detail={"reason": "no proctoring_session row exists for this application"},
@@ -1769,7 +1769,7 @@ async def converse_invite(token: str, body: ConverseIn, background_tasks: Backgr
         background_tasks.add_task(_fire_completion_email, str(sess["id"]))
     else:
         query(
-            "UPDATE nexai_session SET conversation = %s::jsonb WHERE id = %s",
+            "UPDATE enteri_ai_session SET conversation = %s::jsonb WHERE id = %s",
             [json.dumps(turns), sess["id"]],
             fetch=False,
         )
@@ -1786,11 +1786,11 @@ async def terminate_invite_session(body: TerminateSessionIn, background_tasks: B
     session as 'terminated_proctoring' so it cannot be resumed.  The recruiter
     dashboard will display the partial score alongside a termination indicator.
     """
-    if _nexai_mode() != "conversational":
+    if _enteri_ai_mode() != "conversational":
         raise HTTPException(400, "Conversational mode is not enabled")
 
     invite = query_one(
-        "SELECT id, application_id, expires_at FROM nexai_invite WHERE token = %s",
+        "SELECT id, application_id, expires_at FROM enteri_ai_invite WHERE token = %s",
         [body.token],
     )
     if not invite:
@@ -1799,7 +1799,7 @@ async def terminate_invite_session(body: TerminateSessionIn, background_tasks: B
     sess = query_one(
         """SELECT ns.id, ns.status, ns.conversation, ns.application_id,
                   r.title, r.key_skills, r.job_description, r.is_fresher_role
-           FROM nexai_session ns
+           FROM enteri_ai_session ns
            JOIN application  a ON a.id = ns.application_id
            JOIN requisition  r ON r.id = a.requisition_id
            WHERE ns.application_id = %s""",
@@ -1829,7 +1829,7 @@ async def terminate_invite_session(body: TerminateSessionIn, background_tasks: B
             if not judge["should_terminate"]:
                 query(
                     """INSERT INTO proctoring_termination_discrepancy
-                           (session_id, nexai_session_id, browser_strike_count,
+                           (session_id, enteri_ai_session_id, browser_strike_count,
                             browser_reason, server_outcome, server_detail)
                        VALUES (%s, %s, %s, %s, %s, %s::jsonb)""",
                     [proc_sess["id"], sess["id"], body.strike_count, body.reason,
@@ -1851,19 +1851,19 @@ async def terminate_invite_session(body: TerminateSessionIn, background_tasks: B
                         "browser_reason": body.reason,
                         "server_outcome": judge_outcome,
                     },
-                    nexai_session_id=sess["id"],
+                    enteri_ai_session_id=sess["id"],
                     dedupe_key="discrepancy",
                 )
                 # Also record any monitoring gaps found in the same pass —
                 # a gap is often the actual explanation for why the ledger
                 # doesn't support what the browser claimed.
-                _proc_scorer.record_monitoring_gaps(proc_sess["id"], nexai_session_id=sess["id"])
+                _proc_scorer.record_monitoring_gaps(proc_sess["id"], enteri_ai_session_id=sess["id"])
                 # Phase 4, Part C — send the digest (no-op if nothing new).
                 try:
                     from ..services import proctoring_alerts as _alerts
                     _alerts.send_integrity_digest_for_session(proc_sess["id"])
                 except Exception as _digest_exc:
-                    print(f"[nexai] integrity digest failed for {proc_sess['id']}: {_digest_exc}")
+                    print(f"[enteri_ai] integrity digest failed for {proc_sess['id']}: {_digest_exc}")
                 return {
                     "ok": True,
                     "terminated": False,
@@ -1893,7 +1893,7 @@ async def terminate_invite_session(body: TerminateSessionIn, background_tasks: B
     reason_text = body.reason or f"Auto-terminated after {body.strike_count} proctoring strikes"
 
     query(
-        """UPDATE nexai_session
+        """UPDATE enteri_ai_session
                SET status = 'terminated_proctoring',
                    raw_score = %s, score_detail = %s::jsonb,
                    termination_reason = %s,
@@ -1925,8 +1925,8 @@ def create_appeal(token: str, body: AppealIn):
     """
     Public (token auth) — candidate submits an appeal for a proctoring-terminated session.
 
-    Phase 7, Fix 1 — one appeal per ATTEMPT (nexai_invite_id), not per session
-    forever (nexai_session_id): relink_appeal reuses the same nexai_session
+    Phase 7, Fix 1 — one appeal per ATTEMPT (enteri_ai_invite_id), not per session
+    forever (enteri_ai_session_id): relink_appeal reuses the same enteri_ai_session
     row across every retake, so scoping uniqueness to the session used to
     permanently block a second appeal after a legitimate relink + re-
     termination. invite["id"] here is the CURRENT invite the candidate is
@@ -1934,14 +1934,14 @@ def create_appeal(token: str, body: AppealIn):
     a new one via _do_single_invite.
     """
     invite = query_one(
-        "SELECT id, application_id FROM nexai_invite WHERE token = %s",
+        "SELECT id, application_id FROM enteri_ai_invite WHERE token = %s",
         [token],
     )
     if not invite:
         raise HTTPException(400, "Invalid invite token")
 
     sess = query_one(
-        "SELECT id, status FROM nexai_session WHERE application_id = %s",
+        "SELECT id, status FROM enteri_ai_session WHERE application_id = %s",
         [invite["application_id"]],
     )
     if not sess:
@@ -1950,7 +1950,7 @@ def create_appeal(token: str, body: AppealIn):
         raise HTTPException(400, "Appeals are only available for proctoring-terminated sessions")
 
     existing = query_one(
-        "SELECT id FROM proctoring_appeal WHERE nexai_invite_id = %s",
+        "SELECT id FROM proctoring_appeal WHERE enteri_ai_invite_id = %s",
         [invite["id"]],
     )
     if existing:
@@ -1958,16 +1958,16 @@ def create_appeal(token: str, body: AppealIn):
 
     try:
         query(
-            """INSERT INTO proctoring_appeal (application_id, nexai_session_id, nexai_invite_id, candidate_explanation)
+            """INSERT INTO proctoring_appeal (application_id, enteri_ai_session_id, enteri_ai_invite_id, candidate_explanation)
                VALUES (%s, %s, %s, %s)""",
             [invite["application_id"], sess["id"], invite["id"], body.explanation.strip()],
             fetch=False,
         )
     except Exception as exc:
         # Defense-in-depth against the SELECT-then-INSERT race the check
-        # above has (UNIQUE(nexai_invite_id) is the real guarantee) — a
+        # above has (UNIQUE(enteri_ai_invite_id) is the real guarantee) — a
         # concurrent duplicate submission should still read as 409, not 500.
-        if "nexai_invite_id" in str(exc) and "unique" in str(exc).lower():
+        if "enteri_ai_invite_id" in str(exc) and "unique" in str(exc).lower():
             raise HTTPException(409, "An appeal has already been submitted for this attempt")
         raise
     return {"ok": True}
@@ -1986,7 +1986,7 @@ def list_appeals(
     rows = query(
         """SELECT pa.id,
                   pa.application_id,
-                  pa.nexai_session_id,
+                  pa.enteri_ai_session_id,
                   pa.candidate_explanation,
                   pa.status,
                   pa.recruiter_notes,
@@ -2004,7 +2004,7 @@ def list_appeals(
            JOIN application   a   ON a.id  = pa.application_id
            JOIN candidate     c   ON c.id  = a.candidate_id
            JOIN requisition   r   ON r.id  = a.requisition_id
-           JOIN nexai_session  ns  ON ns.id = pa.nexai_session_id
+           JOIN enteri_ai_session  ns  ON ns.id = pa.enteri_ai_session_id
            LEFT JOIN proctoring_session ps ON ps.application_id = pa.application_id
            LEFT JOIN app_user  rev ON rev.id = pa.reviewed_by
            WHERE r.tenant_id = %s
@@ -2056,14 +2056,14 @@ def relink_appeal(appeal_id: str, background_tasks: BackgroundTasks, user: dict 
     """JWT — give the candidate a fresh interview link after appeal review.
 
     Resets the terminated session back to pending, expires the old invite token,
-    and calls the existing create_nexai_invite() which issues a new token and sends
+    and calls the existing create_enteri_ai_invite() which issues a new token and sends
     the standard invite email — no new email infrastructure required.
     """
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
 
     appeal = query_one(
-        "SELECT id, application_id, nexai_session_id, status FROM proctoring_appeal WHERE id = %s",
+        "SELECT id, application_id, enteri_ai_session_id, status FROM proctoring_appeal WHERE id = %s",
         [appeal_id],
     )
     if not appeal:
@@ -2072,28 +2072,28 @@ def relink_appeal(appeal_id: str, background_tasks: BackgroundTasks, user: dict 
         raise HTTPException(400, "A fresh interview link has already been sent for this appeal")
 
     # Capture the termination reason for the TA/admin notification below,
-    # BEFORE the reset wipes it off nexai_session.
+    # BEFORE the reset wipes it off enteri_ai_session.
     _pre_reset = query_one(
-        "SELECT termination_reason FROM nexai_session WHERE id = %s",
-        [appeal["nexai_session_id"]],
+        "SELECT termination_reason FROM enteri_ai_session WHERE id = %s",
+        [appeal["enteri_ai_session_id"]],
     )
     _prior_termination_reason = (_pre_reset or {}).get("termination_reason")
 
     # Reset the session so validate + begin endpoints will accept it again
     query(
-        """UPDATE nexai_session
+        """UPDATE enteri_ai_session
                SET status = 'pending',
                    conversation = NULL, transcript = NULL,
                    raw_score = NULL, score_detail = NULL,
                    termination_reason = NULL, completed_at = NULL
              WHERE id = %s""",
-        [appeal["nexai_session_id"]],
+        [appeal["enteri_ai_session_id"]],
         fetch=False,
     )
 
-    # Revoke prior invite tokens for this application (mirrors resend_nexai_invite)
+    # Revoke prior invite tokens for this application (mirrors resend_enteri_ai_invite)
     query(
-        """UPDATE nexai_invite
+        """UPDATE enteri_ai_invite
            SET attempt_status = 'revoked',
                expires_at = LEAST(expires_at, now() - interval '1 second')
            WHERE application_id = %s AND attempt_status != 'revoked'""",
@@ -2102,7 +2102,7 @@ def relink_appeal(appeal_id: str, background_tasks: BackgroundTasks, user: dict 
     )
 
     # Issue fresh invite (creates token + sends standard email) via existing logic.
-    # Calls _do_single_invite directly (not create_nexai_invite) since appeals are
+    # Calls _do_single_invite directly (not create_enteri_ai_invite) since appeals are
     # reviewable org-wide regardless of requisition ownership (see list_appeals).
     result = _do_single_invite(appeal["application_id"], user, background_tasks)
 
@@ -2132,7 +2132,7 @@ def relink_appeal(appeal_id: str, background_tasks: BackgroundTasks, user: dict 
                 termination_reason=_prior_termination_reason,
             )
         except Exception as _notify_exc:
-            print(f"[nexai] relink notification failed for appeal {appeal_id}: {_notify_exc}")
+            print(f"[enteri_ai] relink notification failed for appeal {appeal_id}: {_notify_exc}")
 
     return {**result, "ok": bool(result.get("email_sent"))}
 
@@ -2149,14 +2149,14 @@ async def submit_invited_session(session_id: str, body: SubmitSessionIn, backgro
     sess = query_one(
         """SELECT id, application_id, questions, conversation,
                   raw_score, score_detail, status
-           FROM nexai_session WHERE id = %s""",
+           FROM enteri_ai_session WHERE id = %s""",
         [session_id],
     )
     if not sess:
         raise HTTPException(404, "Session not found")
 
     # ── Conversational mode ───────────────────────────────────────────────────
-    if _nexai_mode() == "conversational":
+    if _enteri_ai_mode() == "conversational":
         # Already fully scored by the converse endpoint
         if sess["status"] == "completed" and sess["raw_score"] is not None:
             return {
@@ -2186,7 +2186,7 @@ async def submit_invited_session(session_id: str, body: SubmitSessionIn, backgro
         detail    = score_result["score_detail"]
 
         query(
-            """UPDATE nexai_session
+            """UPDATE enteri_ai_session
                SET raw_score = %s, score_detail = %s::jsonb,
                    status = 'completed', completed_at = now()
                WHERE id = %s""",
@@ -2204,7 +2204,7 @@ async def submit_invited_session(session_id: str, body: SubmitSessionIn, backgro
         )
         background_tasks.add_task(_fire_completion_email, session_id)
         log_activity(
-            "nexai_session", "nexai_session_completed",
+            "enteri_ai_session", "enteri_ai_session_completed",
             entity_id=session_id, application_id=sess["application_id"],
             requisition_id=_application_req_id(sess["application_id"]),
             actor_id=None, actor_role="candidate",
@@ -2218,7 +2218,7 @@ async def submit_invited_session(session_id: str, body: SubmitSessionIn, backgro
     raw_score, detail = _score_transcript(questions, transcript)
 
     query(
-        """UPDATE nexai_session
+        """UPDATE enteri_ai_session
            SET transcript = %s::jsonb, raw_score = %s, score_detail = %s::jsonb,
                status = 'completed', completed_at = now()
            WHERE id = %s""",
@@ -2241,7 +2241,7 @@ async def submit_invited_session(session_id: str, body: SubmitSessionIn, backgro
     )
     background_tasks.add_task(_fire_completion_email, session_id)
     log_activity(
-        "nexai_session", "nexai_session_completed",
+        "enteri_ai_session", "enteri_ai_session_completed",
         entity_id=session_id, application_id=sess["application_id"],
         requisition_id=_application_req_id(sess["application_id"]),
         actor_id=None, actor_role="candidate",
@@ -2270,7 +2270,7 @@ async def transcribe_candidate_audio(file: UploadFile = File(...)):
 
 
 @router.get("/health")
-def nexai_health(user: dict = Depends(get_current_user)):
+def enteri_ai_health(user: dict = Depends(get_current_user)):
     if user["role"] != "admin":
         raise HTTPException(403, "Admin only")
     totals = query_one(
@@ -2281,17 +2281,17 @@ def nexai_health(user: dict = Depends(get_current_user)):
              COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress,
              ROUND(AVG(raw_score) FILTER (WHERE status = 'completed')::numeric, 1) AS avg_score,
              COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE) AS today
-           FROM nexai_session""",
+           FROM enteri_ai_session""",
         [],
     )
     recent = query(
         """SELECT id, application_id, status, raw_score, completed_at, started_at
-           FROM nexai_session
+           FROM enteri_ai_session
            ORDER BY created_at DESC LIMIT 20""",
         [],
     )
     return {
-        "bot_name": "NexAI",
+        "bot_name": "Enteri AI",
         "version": "v1.0 — voice-first (14a)",
         "model": "Rule-based Q&A + keyword scoring",
         "status": "active",
@@ -2318,7 +2318,7 @@ def avatar_config(_user: dict = Depends(get_current_user)):
 
 class RenderQuestionIn(BaseModel):
     question_text: str
-    face_id: str = "nexai-female"
+    face_id: str = "enteri-ai-female"
     session_id: Optional[str] = None
 
 

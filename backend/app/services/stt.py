@@ -1,6 +1,6 @@
 """
 Speech-to-text via OpenAI Whisper API.
-Used by the conversational NexAI interview to transcribe candidate audio.
+Used by the conversational Enteri AI interview to transcribe candidate audio.
 Env: OPENAI_API_KEY (reuses the same key as the LLM brain).
 """
 import os

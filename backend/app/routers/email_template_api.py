@@ -128,7 +128,7 @@ def list_sendable(user=Depends(_require_send_access)):
 
     This used to call get_custom_templates() alone, which only returns
     templates with is_builtin=FALSE -- but nearly every template in the
-    system (NexAI invite, interview scheduled, application rejected, etc.)
+    system (Enteri AI invite, interview scheduled, application rejected, etc.)
     is seeded as is_builtin=TRUE by ensure_defaults(), even after an admin
     edits its wording in Settings > Email Templates ("customised" there just
     means a DB override row exists, it doesn't flip is_builtin). So the send

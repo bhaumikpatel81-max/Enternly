@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS proctoring_session (
     id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nexai_session_id          UUID REFERENCES nexai_session(id) ON DELETE SET NULL,
+    enteri_ai_session_id      UUID REFERENCES enteri_ai_session(id) ON DELETE SET NULL,
     application_id            UUID NOT NULL REFERENCES application(id),
 
     -- B1: Consent
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS proctoring_session (
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_proc_nexai   ON proctoring_session(nexai_session_id);
+CREATE INDEX IF NOT EXISTS idx_proc_enteri_ai ON proctoring_session(enteri_ai_session_id);
 CREATE INDEX IF NOT EXISTS idx_proc_app     ON proctoring_session(application_id);
 CREATE INDEX IF NOT EXISTS idx_proc_review  ON proctoring_session(reviewed_at)
   WHERE human_decision IS NULL;

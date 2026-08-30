@@ -1,7 +1,7 @@
 """
-NexAI avatar pre-render — durable retry backstop.
+Enteri AI avatar pre-render — durable retry backstop.
 
-nexai_api._do_single_invite() fires prerender_interview_videos() as a
+enteri_ai_api._do_single_invite() fires prerender_interview_videos() as a
 FastAPI BackgroundTask: fast in the common case (video is usually ready
 before the candidate opens their link), but if the worker process restarts
 between the invite response being sent and that task actually executing,
@@ -11,7 +11,7 @@ to point at.
 
 This background asyncio task (same pattern as campus_email_worker.py) is a
 periodic sweep, not a replacement for the fast path: it picks up any
-nexai_session stuck at render_status='pending' past a grace window (long
+enteri_ai_session stuck at render_status='pending' past a grace window (long
 enough that a normal in-flight render isn't mistaken for a dropped one), or
 'failed' with retries left, and calls the same prerender_interview_videos()
 function directly. Sessions with SADTALKER_SERVICE_URL not configured at
@@ -49,7 +49,7 @@ def _claim_batch() -> list:
     """
     rows = query(
         """WITH claimed AS (
-               SELECT id FROM nexai_session
+               SELECT id FROM enteri_ai_session
                WHERE (
                    (render_status = 'pending'
                     AND created_at < now() - (%s || ' seconds')::interval)
@@ -62,7 +62,7 @@ def _claim_batch() -> list:
                LIMIT %s
                FOR UPDATE SKIP LOCKED
            )
-           UPDATE nexai_session ns
+           UPDATE enteri_ai_session ns
            SET render_claimed_at = now(), render_attempts = ns.render_attempts + 1
            FROM claimed
            WHERE ns.id = claimed.id
@@ -72,9 +72,9 @@ def _claim_batch() -> list:
     return [str(r["id"]) for r in (rows or [])]
 
 
-async def start_nexai_render_worker():
+async def start_enteri_ai_render_worker():
     """Infinite background loop -- retries dropped/failed avatar pre-renders."""
-    print("[nexai-render] background worker started")
+    print("[enteri-ai-render] background worker started")
     from .prerender import prerender_interview_videos
 
     while True:
@@ -88,16 +88,16 @@ async def start_nexai_render_worker():
                 await asyncio.sleep(_IDLE_SLEEP)
                 continue
 
-            print(f"[nexai-render] retrying {len(claimed_ids)} stuck/failed session(s)")
+            print(f"[enteri-ai-render] retrying {len(claimed_ids)} stuck/failed session(s)")
             for session_id in claimed_ids:
                 try:
                     await prerender_interview_videos(session_id)
                 except Exception as exc:
-                    print(f"[nexai-render] session={session_id} retry raised: {exc}")
+                    print(f"[enteri-ai-render] session={session_id} retry raised: {exc}")
 
         except asyncio.CancelledError:
-            print("[nexai-render] task cancelled, shutting down")
+            print("[enteri-ai-render] task cancelled, shutting down")
             return
         except Exception as exc:
-            print(f"[nexai-render] unexpected error: {exc}")
+            print(f"[enteri-ai-render] unexpected error: {exc}")
             await asyncio.sleep(10)

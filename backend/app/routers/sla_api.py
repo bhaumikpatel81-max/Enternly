@@ -60,7 +60,7 @@ def _require_sla_read(user: dict = Depends(get_current_user)) -> dict:
 class SLAConfigIn(BaseModel):
     stage_applied:       Optional[int] = None
     stage_screen:        Optional[int] = None
-    stage_nexai_bot:     Optional[int] = None
+    stage_enteri_ai_bot:     Optional[int] = None
     stage_shortlisted:   Optional[int] = None
     stage_interview:     Optional[int] = None
     stage_documentation: Optional[int] = None

@@ -4,7 +4,7 @@ Enternly -- Calendly-style hiring-manager self-scheduling for panel interviews.
 Flow: a recruiter (or an auto-triggered "Panel + Auto" round, see
 pipeline_api.advance_application) opens an interview_schedule_request ->
 the HM proposes 3-6 slots on a 2-month grid -> the candidate confirms one via
-a public tokenised link (same pattern as nexai_invite) -> both the candidate
+a public tokenised link (same pattern as enteri_ai_invite) -> both the candidate
 and the HM get an ICS invite over SMTP with the candidate's CV attached.
 
 No Google Calendar / OAuth here -- reuses connectors.schedule_meeting(), the
@@ -25,7 +25,7 @@ from ..services import google_calendar
 from ..services.activity_log import log_activity
 from ..services.notifications import notify, notify_tx
 from ..services.email_layout import build_branded_email
-from .nexai_api import _get_base_url, _is_localhost, _recruiter_owns_req, _application_req_id
+from .enteri_ai_api import _get_base_url, _is_localhost, _recruiter_owns_req, _application_req_id
 
 router = APIRouter(prefix="/api/scheduling", tags=["scheduling"])
 
@@ -75,14 +75,16 @@ def _owning_recruiter_id(requisition_id: str) -> Optional[str]:
 def _reply_to_recruiter_and_hr(requisition_id: Optional[str]) -> Optional[str]:
     """Reply-To for outbound scheduling emails: the requisition's owning
     recruiter (so a reply reaches a real person, not just "no-reply") plus
-    hr@amnex.com (so the shared TA inbox always sees it too). RFC 5322 allows
-    a comma-separated address list in a single Reply-To header."""
+    the tenant's configured shared TA inbox (SMTP_USER) so it always sees it
+    too. RFC 5322 allows a comma-separated address list in a single Reply-To
+    header."""
     recruiter_email = None
     recruiter_id = requisition_id and _owning_recruiter_id(requisition_id)
     if recruiter_id:
         row = query_one("SELECT email FROM app_user WHERE id = %s", [recruiter_id])
         recruiter_email = row and row.get("email")
-    addrs = [a for a in (recruiter_email, "hr@amnex.com") if a]
+    shared_inbox = connectors._load_email_cfg().get("user")
+    addrs = [a for a in (recruiter_email, shared_inbox) if a]
     return ", ".join(addrs) if addrs else None
 
 

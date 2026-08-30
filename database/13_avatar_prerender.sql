@@ -1,11 +1,11 @@
 -- Migration 13: Avatar pre-render pipeline
 -- Run AFTER 01-12 migrations.
--- Adds per-question video tracking to nexai_session and a hash-based render cache.
+-- Adds per-question video tracking to enteri_ai_session and a hash-based render cache.
 
 -- ── Per-question video URLs and overall render status ─────────────────────────
 -- question_videos: [{ "seq": 1, "question": "...", "video_url": "...", "status": "ready|rendering|failed|pending" }]
 -- render_status: session-level summary of where pre-rendering stands.
-ALTER TABLE nexai_session
+ALTER TABLE enteri_ai_session
   ADD COLUMN IF NOT EXISTS question_videos JSONB NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS render_status   TEXT  NOT NULL DEFAULT 'pending'
     CHECK (render_status IN ('pending','rendering','ready','partial','failed'));

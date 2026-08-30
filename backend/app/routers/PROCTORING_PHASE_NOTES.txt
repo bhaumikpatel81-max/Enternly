@@ -82,7 +82,7 @@ and fixed during Phase 4: this repo's local dev Docker stack
 keep API keys in sync), which means a "dev" container can carry real SMTP
 credentials, real Google OAuth secrets, and even ENV=prod. Testing the
 Part C digest email against this dev stack sent 4 real emails to
-hr@amnex.com / qa.tamanager@test.local before this was noticed. Fixed with
+the shared TA inbox / qa.tamanager@test.local before this was noticed. Fixed with
 an explicit send gate in connectors.send_email: real transmission now
 requires EMAIL_REAL_SEND_ENABLED=true, set ONLY in docker-compose.prod.yml's
 own environment: block (never in the shared .env.prod), so every

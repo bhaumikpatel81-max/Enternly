@@ -25,8 +25,10 @@ INSERT INTO band (code, rank, description) VALUES
 -- ---------- USERS ----------
 -- Only the TA Admin seed account. Password is NOT set here.
 -- Admin must use "Forgot password" on first login to set their password.
+-- CHANGE ME: replace admin@example.com with the real platform admin email
+-- before running this seed.
 INSERT INTO app_user (full_name, email, role) VALUES
-  ('TA Admin', 'hr@amnex.com', 'admin')
+  ('TA Admin', 'admin@example.com', 'admin')
 ON CONFLICT (email) DO NOTHING;
 
 -- ---------- APPROVAL CHAINS (per band group) ----------
@@ -53,7 +55,7 @@ SELECT 'Default panel scorecard',
          {"key":"comments","label":"Comments","type":"text"}
        ]'::jsonb,
        u.id
-FROM app_user u WHERE u.email = 'hr@amnex.com';
+FROM app_user u WHERE u.email = 'admin@example.com';
 
 -- ---------- EMAIL TEMPLATES (customizable) ----------
 INSERT INTO email_template (name, subject, body, category, created_by)
@@ -76,4 +78,4 @@ EnternsTech Talent Acquisition', 'candidate'),
 You are scheduled to interview {{candidate_name}} for {{job_title}} on {{interview_time}}.
 Link: {{meet_link}}', 'panel')
 ) AS t(name, subject, body, category)
-WHERE u.email = 'hr@amnex.com';
+WHERE u.email = 'admin@example.com';

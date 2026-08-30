@@ -5,7 +5,13 @@ GET /api/gamification/me          — caller's own points/tier/badges/rank (all 
 GET /api/gamification/leaderboard — ta_manager/admin only; full per-persona board
 GET /api/gamification/config      — ta_manager/admin only; read config
 PATCH /api/gamification/config    — ta_manager/admin only; edit base_points / multipliers / thresholds
+
+GET  /api/gamification/daily-question        — today's HR trivia question (all authenticated roles)
+POST /api/gamification/daily-question/answer — submit today's answer, awards points via the ledger
+POST /api/gamification/daily-question/skip   — skip today's question without breaking the streak
 """
+import hashlib
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,7 +19,8 @@ from pydantic import BaseModel
 
 from ..auth_utils import get_current_user
 from ..db import query, query_one
-from ..services.gamification import get_profile, score_for, tier_for, rank_for, badge_meta
+from ..services.gamification import get_profile, score_for, tier_for, rank_for, badge_meta, award as gam_award
+from ..services.report_scope import scope_for
 
 router = APIRouter(prefix="/api/gamification", tags=["gamification"])
 
@@ -29,6 +36,255 @@ def _subject_for(user: dict) -> tuple[str, str]:
     if role == "hiring_manager":
         return "hm", uid
     return "recruiter", uid
+
+
+# ── Daily HR trivia question ───────────────────────────────────────────────────
+
+def _pick_daily_question(tenant_id: str, subject_type: str, subject_id: str, today: date) -> dict | None:
+    """
+    Deterministic per (subject, day) pick — refreshing the page must never
+    reroll the question. Uses an unsalted hash (never Python's builtin
+    hash(), which is randomized per process) over subject_id+date, then
+    probes forward through the active bank to skip whichever questions this
+    subject answered most recently, so the same question doesn't repeat
+    back-to-back once the bank is larger than a couple of entries.
+    """
+    questions = query(
+        """SELECT id, question_text, option_a, option_b, option_c, correct_option, explanation_text
+           FROM hr_question WHERE tenant_id=%s AND active=true ORDER BY created_at""",
+        [tenant_id],
+    ) or []
+    if not questions:
+        return None
+
+    recent = query(
+        """SELECT question_id FROM user_question_answer
+           WHERE subject_type=%s AND subject_id=%s
+           ORDER BY answer_date DESC LIMIT %s""",
+        [subject_type, str(subject_id), max(len(questions) - 1, 1)],
+    ) or []
+    recent_ids = {str(r["question_id"]) for r in recent}
+
+    digest = hashlib.md5(f"{subject_id}:{today.isoformat()}".encode()).hexdigest()
+    idx = int(digest, 16) % len(questions)
+    for step in range(len(questions)):
+        candidate = questions[(idx + step) % len(questions)]
+        if str(candidate["id"]) not in recent_ids:
+            return candidate
+    return questions[idx]
+
+
+def _has_urgent_requisitions(user: dict) -> bool:
+    """Drives the frontend's auto-pause rule: hide the daily question while
+    the caller has any open High/Critical requisition. Reuses the same
+    role-scoping helper every other report/dashboard query uses, so this
+    stays role-correct (a recruiter only sees their own reqs, a hiring
+    manager only theirs, ta_manager/admin see the whole tenant) for free."""
+    role = user.get("role", "")
+    uid = user["sub"]
+    tenant_id = user.get("tenant_id")
+    join_sql, where_sql, join_params, where_params = scope_for(role, uid, tenant_id)
+    row = query_one(
+        f"""SELECT 1 FROM requisition r
+            {join_sql}
+            WHERE r.status='open' AND r.criticality IN ('High','Critical') {where_sql}
+            LIMIT 1""",
+        join_params + where_params,
+    )
+    return bool(row)
+
+
+def _bump_streak(subject_type: str, subject_id: str, tenant_id: str, today: date, grow: bool) -> dict:
+    """
+    Update (or create) this subject's streak row. `grow=True` (a submitted
+    answer, correct or not) increments the streak when yesterday was the
+    last activity day, or resets it to 1 on a gap. `grow=False` (a skip)
+    only stamps last_activity_date=today so tomorrow's gap check treats
+    today as covered — it never increments or resets current_streak,
+    which is the only reading consistent with "skipping does not break a
+    streak" that doesn't also let a user farm an unlimited streak by
+    skipping forever.
+    """
+    row = query_one(
+        """SELECT current_streak, longest_streak, last_activity_date
+           FROM user_gamification_streak WHERE subject_type=%s AND subject_id=%s""",
+        [subject_type, str(subject_id)],
+    )
+
+    if not row:
+        current = 1 if grow else 0
+        longest = current
+        query(
+            """INSERT INTO user_gamification_streak
+                   (subject_type, subject_id, tenant_id, current_streak, longest_streak, last_activity_date)
+               VALUES (%s,%s,%s,%s,%s,%s)""",
+            [subject_type, str(subject_id), tenant_id, current, longest, today],
+            fetch=False,
+        )
+        return {"current": current, "longest": longest}
+
+    current, longest, last = row["current_streak"], row["longest_streak"], row["last_activity_date"]
+    if grow:
+        if last == today - timedelta(days=1):
+            current += 1
+        elif last != today:
+            current = 1
+        longest = max(longest, current)
+
+    query(
+        """UPDATE user_gamification_streak
+               SET current_streak=%s, longest_streak=%s, last_activity_date=%s, updated_at=now()
+           WHERE subject_type=%s AND subject_id=%s""",
+        [current, longest, today, subject_type, str(subject_id)],
+        fetch=False,
+    )
+    return {"current": current, "longest": longest}
+
+
+@router.get("/daily-question")
+def daily_question(user: dict = Depends(get_current_user)):
+    """Today's HR trivia question for the caller, plus streak + whether the
+    daily-question card should be auto-paused for urgent requisitions."""
+    subject_type, subject_id = _subject_for(user)
+    tenant_id = user.get("tenant_id")
+    today = date.today()
+
+    streak_row = query_one(
+        """SELECT current_streak, longest_streak FROM user_gamification_streak
+           WHERE subject_type=%s AND subject_id=%s""",
+        [subject_type, str(subject_id)],
+    ) or {"current_streak": 0, "longest_streak": 0}
+    streak = {"current": streak_row["current_streak"], "longest": streak_row["longest_streak"]}
+    has_urgent = _has_urgent_requisitions(user)
+
+    existing = query_one(
+        """SELECT uqa.question_id, uqa.was_skipped, uqa.is_correct,
+                  hq.question_text, hq.option_a, hq.option_b, hq.option_c,
+                  hq.correct_option, hq.explanation_text
+           FROM user_question_answer uqa
+           JOIN hr_question hq ON hq.id = uqa.question_id
+           WHERE uqa.subject_type=%s AND uqa.subject_id=%s AND uqa.answer_date=%s""",
+        [subject_type, str(subject_id), today],
+    )
+    if existing:
+        return {
+            "question": {
+                "id": str(existing["question_id"]),
+                "question_text": existing["question_text"],
+                "option_a": existing["option_a"], "option_b": existing["option_b"], "option_c": existing["option_c"],
+            },
+            "already_answered": True,
+            "was_skipped": existing["was_skipped"],
+            "is_correct": existing["is_correct"],
+            "correct_option": None if existing["was_skipped"] else existing["correct_option"],
+            "explanation_text": None if existing["was_skipped"] else existing["explanation_text"],
+            "streak": streak,
+            "hasUrgentReqs": has_urgent,
+        }
+
+    q = _pick_daily_question(tenant_id, subject_type, subject_id, today)
+    if not q:
+        return {"question": None, "already_answered": False, "streak": streak, "hasUrgentReqs": has_urgent}
+
+    return {
+        "question": {
+            "id": str(q["id"]), "question_text": q["question_text"],
+            "option_a": q["option_a"], "option_b": q["option_b"], "option_c": q["option_c"],
+        },
+        "already_answered": False,
+        "was_skipped": False,
+        "is_correct": None,
+        "correct_option": None,
+        "explanation_text": None,
+        "streak": streak,
+        "hasUrgentReqs": has_urgent,
+    }
+
+
+class DailyAnswerIn(BaseModel):
+    question_id: str
+    selected_option: str
+
+
+@router.post("/daily-question/answer")
+def answer_daily_question(body: DailyAnswerIn, user: dict = Depends(get_current_user)):
+    if body.selected_option not in ("a", "b", "c"):
+        raise HTTPException(400, "selected_option must be 'a', 'b', or 'c'")
+
+    subject_type, subject_id = _subject_for(user)
+    tenant_id = user.get("tenant_id")
+    today = date.today()
+
+    if query_one(
+        "SELECT id FROM user_question_answer WHERE subject_type=%s AND subject_id=%s AND answer_date=%s",
+        [subject_type, str(subject_id), today],
+    ):
+        raise HTTPException(409, "Today's question has already been answered")
+
+    todays_q = _pick_daily_question(tenant_id, subject_type, subject_id, today)
+    if not todays_q or str(todays_q["id"]) != body.question_id:
+        raise HTTPException(400, "question_id does not match today's question — refresh and try again")
+
+    is_correct = body.selected_option == todays_q["correct_option"]
+    points_awarded = 0.0
+    if is_correct:
+        result = gam_award(subject_type, subject_id, "daily_question_correct")
+        if result:
+            points_awarded = float(result["points_awarded"])
+
+    query(
+        """INSERT INTO user_question_answer
+               (tenant_id, subject_type, subject_id, question_id, answer_date,
+                selected_option, is_correct, was_skipped, points_awarded)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,false,%s)""",
+        [tenant_id, subject_type, str(subject_id), todays_q["id"], today,
+         body.selected_option, is_correct, points_awarded],
+        fetch=False,
+    )
+
+    streak = _bump_streak(subject_type, subject_id, tenant_id, today, grow=True)
+
+    return {
+        "is_correct": is_correct,
+        "correct_option": todays_q["correct_option"],
+        "explanation_text": todays_q["explanation_text"],
+        "points_awarded": points_awarded,
+        "streak": streak,
+    }
+
+
+class DailySkipIn(BaseModel):
+    question_id: Optional[str] = None
+
+
+@router.post("/daily-question/skip")
+def skip_daily_question(body: DailySkipIn, user: dict = Depends(get_current_user)):
+    subject_type, subject_id = _subject_for(user)
+    tenant_id = user.get("tenant_id")
+    today = date.today()
+
+    if query_one(
+        "SELECT id FROM user_question_answer WHERE subject_type=%s AND subject_id=%s AND answer_date=%s",
+        [subject_type, str(subject_id), today],
+    ):
+        raise HTTPException(409, "Today's question has already been answered or skipped")
+
+    todays_q = _pick_daily_question(tenant_id, subject_type, subject_id, today)
+    if not todays_q:
+        raise HTTPException(404, "No active question to skip")
+    if body.question_id and str(todays_q["id"]) != body.question_id:
+        raise HTTPException(400, "question_id does not match today's question — refresh and try again")
+
+    query(
+        """INSERT INTO user_question_answer
+               (tenant_id, subject_type, subject_id, question_id, answer_date, was_skipped)
+           VALUES (%s,%s,%s,%s,%s,true)""",
+        [tenant_id, subject_type, str(subject_id), todays_q["id"], today],
+        fetch=False,
+    )
+
+    streak = _bump_streak(subject_type, subject_id, tenant_id, today, grow=False)
+    return {"streak": streak}
 
 
 # ── /me — every authenticated user ────────────────────────────────────────────

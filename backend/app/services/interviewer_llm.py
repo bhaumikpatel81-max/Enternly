@@ -1,5 +1,5 @@
 """
-LLM-driven interviewer brain (NexAI conversational mode).
+LLM-driven interviewer brain (Enteri AI conversational mode).
 
 Uses the openai Python client pointed at Groq's OpenAI-compatible API.
 Two public async functions:
@@ -37,7 +37,7 @@ _MAX_BOT_TURNS = 30
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _INTERVIEW_SYSTEM = """\
-You are NexAI, a professional and warm AI screening interviewer.
+You are Enteri AI, a professional and warm AI screening interviewer.
 Your job is to conduct a natural, spoken phone-screen for the role described below.
 
 ROLE CONTEXT:

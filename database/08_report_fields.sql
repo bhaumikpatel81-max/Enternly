@@ -1,4 +1,4 @@
--- Migration 08: report fields, aging view, NexAI session table
+-- Migration 08: report fields, aging view, Enteri AI session table
 -- Run AFTER 01-07 migrations.
 
 -- ── Requisition: priority, risk, location ────────────────────────────────────
@@ -42,8 +42,8 @@ JOIN band           b  ON b.id  = r.band_id
 WHERE r.status = 'open'
   AND r.opened_at IS NOT NULL;
 
--- ── NexAI session table ───────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS nexai_session (
+-- ── Enteri AI session table ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS enteri_ai_session (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id  UUID NOT NULL REFERENCES application(id) ON DELETE CASCADE,
     requisition_id  UUID NOT NULL REFERENCES requisition(id),
@@ -58,6 +58,6 @@ CREATE TABLE IF NOT EXISTS nexai_session (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_nexai_app     ON nexai_session(application_id);
-CREATE INDEX        IF NOT EXISTS idx_nexai_req     ON nexai_session(requisition_id);
-CREATE INDEX        IF NOT EXISTS idx_nexai_status  ON nexai_session(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_enteri_ai_app     ON enteri_ai_session(application_id);
+CREATE INDEX        IF NOT EXISTS idx_enteri_ai_req     ON enteri_ai_session(requisition_id);
+CREATE INDEX        IF NOT EXISTS idx_enteri_ai_status  ON enteri_ai_session(status);

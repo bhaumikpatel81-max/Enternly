@@ -21,7 +21,7 @@ from fastapi.responses import RedirectResponse
 from ..db import query, query_one
 from ..auth_utils import get_current_user
 from ..services import google_calendar as gcal
-from .nexai_api import _get_base_url
+from .enteri_ai_api import _get_base_url
 
 router = APIRouter(prefix="/api/google", tags=["google-calendar"])
 

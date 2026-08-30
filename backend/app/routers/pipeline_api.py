@@ -27,7 +27,7 @@ from .scheduling_api import (
     create_schedule_request_tx as _create_schedule_request_tx,
     _after_insert_side_effects as _schedule_side_effects,
 )
-from .nexai_api import _recruiter_owns_req, _application_req_id
+from .enteri_ai_api import _recruiter_owns_req, _application_req_id
 from .hrbp_api import scope_requisitions_for_hrbp
 
 
@@ -244,7 +244,7 @@ def dashboard(user: dict = Depends(get_current_user)):
         "open_reqs":         int(open_reqs["n"]) if open_reqs else 0,
         "apps_received":     cnt("1=1"),
         "under_screening":   cnt("a.status='screen'"),
-        "screening_cleared": cnt("a.status IN ('shortlisted','nexai_bot')"),
+        "screening_cleared": cnt("a.status IN ('shortlisted','enteri_ai_bot')"),
         "ai_interview":      cnt("a.bot_score IS NOT NULL"),
         "panel_interview":   cnt("a.status='interview'"),
         "selected":          cnt("a.status='documentation'"),
@@ -331,7 +331,7 @@ def dashboard(user: dict = Depends(get_current_user)):
         )
     counts["recent_reqs"] = reqs
 
-    # ─── NexAI data ────────────────────────────────────────────────────────────
+    # ─── Enteri AI data ────────────────────────────────────────────────────────────
 
     _NX_SUMMARY_COLS = """
         COUNT(*)                                                           AS total,
@@ -381,12 +381,12 @@ def dashboard(user: dict = Depends(get_current_user)):
 
     if role in ("recruiter", "ta_manager"):
         nx_row = query_one(
-            f"SELECT {_NX_SUMMARY_COLS} FROM nexai_session ns {nx_where}",
+            f"SELECT {_NX_SUMMARY_COLS} FROM enteri_ai_session ns {nx_where}",
             nx_params,
         )
-        counts["nexai_summary"] = dict(nx_row) if nx_row else {}
+        counts["enteri_ai_summary"] = dict(nx_row) if nx_row else {}
 
-        counts["nexai_score_dist"] = query(
+        counts["enteri_ai_score_dist"] = query(
             f"""
             SELECT
               CASE
@@ -404,7 +404,7 @@ def dashboard(user: dict = Depends(get_current_user)):
                 ELSE 1
               END AS sort_ord,
               COUNT(*) AS n
-            FROM nexai_session ns
+            FROM enteri_ai_session ns
             {nx_dist_where}
             GROUP BY bucket, sort_ord
             ORDER BY sort_ord
@@ -412,13 +412,13 @@ def dashboard(user: dict = Depends(get_current_user)):
             nx_dist_params,
         )
 
-        counts["nexai_recent"] = query(
+        counts["enteri_ai_recent"] = query(
             f"""
             SELECT ns.id, ns.raw_score, ns.status,
                    ns.created_at, ns.completed_at,
                    c.full_name AS candidate_name,
                    r.title     AS req_title
-            FROM nexai_session ns
+            FROM enteri_ai_session ns
             JOIN application a ON a.id = ns.application_id
             JOIN candidate   c ON c.id = a.candidate_id
             JOIN requisition r ON r.id = ns.requisition_id
@@ -429,7 +429,7 @@ def dashboard(user: dict = Depends(get_current_user)):
         )
 
     if role == "ta_manager":
-        counts["nexai_by_recruiter"] = query(
+        counts["enteri_ai_by_recruiter"] = query(
             """
             SELECT u.full_name AS recruiter_name,
                    COUNT(ns.id)                                                   AS total,
@@ -440,7 +440,7 @@ def dashboard(user: dict = Depends(get_current_user)):
                          (WHERE ns.raw_score >= 70 AND ns.status='completed')     AS high_scorers
             FROM app_user u
             LEFT JOIN requisition_recruiter rr ON rr.recruiter_id = u.id
-            LEFT JOIN nexai_session ns ON ns.requisition_id = rr.requisition_id
+            LEFT JOIN enteri_ai_session ns ON ns.requisition_id = rr.requisition_id
             WHERE u.role IN ('recruiter','ta_manager') AND u.is_active = true
             GROUP BY u.id, u.full_name
             ORDER BY avg_score DESC NULLS LAST, u.full_name
@@ -474,7 +474,7 @@ def dashboard(user: dict = Depends(get_current_user)):
             [],
         )
 
-    # Hiring manager: profiles + interviews + nexai + skills + time data
+    # Hiring manager: profiles + interviews + enteri_ai + skills + time data
     if role == "hiring_manager":
         counts["profiles_to_review"] = query(
             """
@@ -539,8 +539,8 @@ def dashboard(user: dict = Depends(get_current_user)):
         counts["avg_interview_min"]    = float(itime["avg_min"])   if itime and itime["avg_min"]   else None
         counts["total_interview_hrs"]  = float(itime["total_hrs"]) if itime and itime["total_hrs"] else 0
 
-        # NexAI screening summary for HM's requisitions
-        nexai = query_one(
+        # Enteri AI screening summary for HM's requisitions
+        enteri_ai = query_one(
             """
             SELECT
               COUNT(*)                                                  AS total,
@@ -552,13 +552,13 @@ def dashboard(user: dict = Depends(get_current_user)):
               ROUND(AVG(
                 EXTRACT(EPOCH FROM (ns.completed_at - ns.started_at))/60.0
               ) FILTER (WHERE ns.status='completed')::numeric, 1)       AS avg_session_min
-            FROM nexai_session ns
+            FROM enteri_ai_session ns
             JOIN requisition r ON r.id = ns.requisition_id
             WHERE r.hiring_manager_id = %s
             """,
             [uid],
         )
-        counts["nexai_summary"] = dict(nexai) if nexai else {
+        counts["enteri_ai_summary"] = dict(enteri_ai) if enteri_ai else {
             "total": 0, "completed": 0, "failed": 0, "pending": 0,
             "avg_score": None, "avg_session_min": None,
         }
@@ -730,7 +730,7 @@ def _validate_feedback_form_id(feedback_form_id: Optional[str], round_type: str 
     # No explicit form chosen -- there's no per-round form-picker UI yet, so
     # every new human round should still land on the standard assessment form
     # rather than silently falling through to the bare 4-field default at
-    # submit time. bot_interview rounds are AI-scored from the NexAI
+    # submit time. bot_interview rounds are AI-scored from the Enteri AI
     # transcript, never manually scored, so they're deliberately left
     # unassigned (None) here.
     if (round_type or "").strip().lower() == "bot_interview":
@@ -1043,7 +1043,7 @@ async def parse_jd(
         )
 
     # Call Groq — reuse the shared async client/model from interviewer_llm
-    # (same singleton, same key source, same env-var validation as NexAI/screening)
+    # (same singleton, same key source, same env-var validation as Enteri AI/screening)
     try:
         from ..services.interviewer_llm import _get_client as _groq_client, _model as _groq_model
         client = _groq_client()
@@ -1440,7 +1440,7 @@ def kanban(req_id: str, user: dict = Depends(get_current_user)):
         """
         SELECT a.id AS app_id, a.status, a.current_round, a.flags,
                COALESCE(a.combined_score, a.match_score) AS score,
-               (a.combined_score IS NOT NULL) AS nexai_completed,
+               (a.combined_score IS NOT NULL) AS enteri_ai_completed,
                c.full_name, c.gender, c.email,
                iv.id AS interview_id, iv.scheduled_at AS interview_scheduled_at, iv.status AS interview_status
         FROM application a
@@ -2403,9 +2403,9 @@ def advance_application(
 
     extra_set = ""
     extra_params: list = [app_id]
-    # Skip NexAI if the requisition has no bot_interview round configured —
+    # Skip Enteri AI if the requisition has no bot_interview round configured —
     # go straight to shortlisted. Mirrors the interview-skip logic below.
-    if next_stage == "nexai_bot":
+    if next_stage == "enteri_ai_bot":
         bot_round = query_one(
             "SELECT 1 FROM round_config WHERE requisition_id=%s AND round_type='bot_interview' LIMIT 1",
             [req_id],
@@ -2458,8 +2458,8 @@ def advance_application(
     flags = {}
     if flags_hm_notified is not None:
         flags["hm_notified"] = flags_hm_notified
-    if next_stage == "nexai_bot":
-        flags["needs_nexai_invite"] = True
+    if next_stage == "enteri_ai_bot":
+        flags["needs_enteri_ai_invite"] = True
     elif next_stage == "documentation":
         flags["needs_offer"] = True
 
@@ -2681,7 +2681,7 @@ def _delete_application_row(app_id: str) -> tuple[bool, Optional[str]]:
     Refuses once an offer or a proctoring/interview-integrity record exists
     for the application — those are compliance records and must go through
     the normal reject/withdraw flow instead of a hard delete. interview,
-    stage_event, nexai_invite/session, application_document and
+    stage_event, enteri_ai_invite/session, application_document and
     negotiation_log rows cascade automatically via their table definitions;
     candidate_feedback and the gamification ledger just lose the link
     (ON DELETE SET NULL) so those records survive.
@@ -2698,7 +2698,7 @@ def _delete_application_row(app_id: str) -> tuple[bool, Optional[str]]:
         return False, "A proctoring appeal exists for this application — reject the candidate instead"
 
     # Detach optional/historical references so they don't block the delete via FK.
-    query("UPDATE campus_candidate SET application_id=NULL, nexai_session_id=NULL WHERE application_id=%s", [app_id], fetch=False)
+    query("UPDATE campus_candidate SET application_id=NULL, enteri_ai_session_id=NULL WHERE application_id=%s", [app_id], fetch=False)
     query("UPDATE sent_email_log SET application_id=NULL WHERE application_id=%s", [app_id], fetch=False)
 
     query("DELETE FROM application WHERE id=%s", [app_id], fetch=False)

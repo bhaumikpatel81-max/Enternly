@@ -814,20 +814,20 @@ def get_panel_feedback(interview_id: str, user: dict = Depends(get_current_user)
 
 # ── GET aggregated panel feedback across all rounds for an application ────────
 
-def _round_transcript(round_type: str, notes: Optional[dict], nexai_transcript: dict) -> dict:
-    """Whichever transcript source a round actually produced: the NexAI
+def _round_transcript(round_type: str, notes: Optional[dict], enteri_ai_transcript: dict) -> dict:
+    """Whichever transcript source a round actually produced: the Enteri AI
     session (bot rounds, one per application) or the Meeting Notetaker's
     interview_notes row (live/panel/hr rounds, one per interview).
     `notes` is the interview_notes row for this interview_id, pre-fetched by
     the caller (batched across every round of an application in one query
     rather than one query per round) -- None if that round has no notes."""
     if round_type == "bot_interview":
-        if not nexai_transcript:
-            return {"source": "nexai", "available": False}
+        if not enteri_ai_transcript:
+            return {"source": "enteri_ai", "available": False}
         return {
-            "source": "nexai",
-            "available": bool(nexai_transcript.get("transcript") or nexai_transcript.get("conversation")),
-            "transcript": nexai_transcript.get("conversation") or nexai_transcript.get("transcript"),
+            "source": "enteri_ai",
+            "available": bool(enteri_ai_transcript.get("transcript") or enteri_ai_transcript.get("conversation")),
+            "transcript": enteri_ai_transcript.get("conversation") or enteri_ai_transcript.get("transcript"),
         }
     if not notes:
         return {"source": "meeting_notes", "available": False, "fetch_status": "none"}
@@ -906,10 +906,10 @@ def get_application_panel_feedback(app_id: str, user: dict = Depends(get_current
         [app_id],
     )
 
-    # nexai_session is unique per application -- fetch once, reuse for any
+    # enteri_ai_session is unique per application -- fetch once, reuse for any
     # bot_interview-type round rather than re-querying per round.
-    nexai_transcript = query_one(
-        "SELECT transcript, conversation FROM nexai_session WHERE application_id = %s",
+    enteri_ai_transcript = query_one(
+        "SELECT transcript, conversation FROM enteri_ai_session WHERE application_id = %s",
         [app_id],
     )
 
@@ -964,7 +964,7 @@ def get_application_panel_feedback(app_id: str, user: dict = Depends(get_current
         return [f["key"] for f in schema if f["type"] == "rating_5"]
 
     # Batch every non-bot round's Meeting Notetaker transcript into one query
-    # (bot rounds reuse nexai_transcript, already fetched once above).
+    # (bot rounds reuse enteri_ai_transcript, already fetched once above).
     non_bot_ids = [str(iv["id"]) for iv in (interviews or []) if iv["round_type"] != "bot_interview"]
     notes_by_iv: dict = {}
     if non_bot_ids:
@@ -1021,7 +1021,7 @@ def get_application_panel_feedback(app_id: str, user: dict = Depends(get_current
             "scheduled_at":     iv["scheduled_at"].isoformat() if iv.get("scheduled_at") else None,
             "is_current_round": is_current_round,
             "scorecards":       entries,
-            "transcript":       _round_transcript(iv["round_type"], notes_by_iv.get(iv_id), nexai_transcript),
+            "transcript":       _round_transcript(iv["round_type"], notes_by_iv.get(iv_id), enteri_ai_transcript),
             "rollup": {
                 "total_submitted":  len(entries),
                 "verdict_counts":   vc,

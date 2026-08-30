@@ -28,7 +28,7 @@ from fastapi.responses import JSONResponse
 
 app = FastAPI(title="Enternly SadTalker Service")
 
-GCS_BUCKET   = os.environ.get("GCS_BUCKET", "enternly-nexai-media")
+GCS_BUCKET   = os.environ.get("GCS_BUCKET", "enternly-enteri-ai-media")
 SADTALKER_DIR = os.environ.get("SADTALKER_DIR", "/sadtalker")
 
 
@@ -89,10 +89,10 @@ def _upload_gcs(local_path: str, sid: str) -> str:
     """Upload to GCS and return the public(ish) object URL."""
     from google.cloud import storage
     client = storage.Client()
-    blob = client.bucket(GCS_BUCKET).blob(f"nexai-avatars/{sid}.mp4")
+    blob = client.bucket(GCS_BUCKET).blob(f"enteri-ai-avatars/{sid}.mp4")
     blob.upload_from_filename(local_path, content_type="video/mp4")
     # Return a signed URL or gs:// path — backend serves it to the client
-    return f"gs://{GCS_BUCKET}/nexai-avatars/{sid}.mp4"
+    return f"gs://{GCS_BUCKET}/enteri-ai-avatars/{sid}.mp4"
 
 
 def _gpu_available() -> bool:

@@ -34,7 +34,7 @@ from .routers.admin_users import router as _admin_router
 from .routers.pipeline_api import router as _pipeline_router
 from .routers.reports_api import router as _reports2_router
 from .routers.custom_reports_api import router as _custom_reports_router
-from .routers.nexai_api import router as _nexai_router
+from .routers.enteri_ai_api import router as _enteri_ai_router
 from .routers.proctoring_api import router as _proctoring_router
 from .routers.tickets_api import router as _tickets_router
 from .routers.scorecard_api import router as _scorecard_router
@@ -72,7 +72,7 @@ app.include_router(_password_router)
 app.include_router(_pipeline_router)
 app.include_router(_reports2_router)
 app.include_router(_custom_reports_router)
-app.include_router(_nexai_router)
+app.include_router(_enteri_ai_router)
 app.include_router(_proctoring_router)
 app.include_router(_tickets_router)
 app.include_router(_scorecard_router)
@@ -959,26 +959,33 @@ END $$""",
         "CREATE INDEX IF NOT EXISTS idx_recruiter_module_access_recruiter ON recruiter_module_access(recruiter_id)",
 
         # ── Migration 44: One-time production cleanup ─────────────────────────────
-        # Runs ONCE (guarded by system_settings key).
-        # • Ensures hr@amnex.com admin account exists
+        # Runs ONCE (guarded by system_settings key), and only once PLATFORM_ADMIN_EMAIL
+        # is configured (no hardcoded tenant admin address — that's bound per-company
+        # via the Platform Admin login flow).
+        # • Ensures the platform admin account exists
         # • Deletes all other users (test/dummy accounts)
         # • Clears admin password → forces Forgot Password on first login
         # • Removes seeded BUs and Group Companies (managed via Settings → Organisation)
-        """DO $$
+        f"""DO $$
 DECLARE _admin_id UUID;
 DECLARE _dummy_ids UUID[];
+DECLARE _admin_email TEXT := '{os.environ.get("PLATFORM_ADMIN_EMAIL", "").strip().replace("'", "''")}';
 BEGIN
+    IF _admin_email = '' THEN
+        RETURN;
+    END IF;
+
     IF EXISTS (SELECT 1 FROM system_settings WHERE key = 'prod_cleanup_done') THEN
         RETURN;
     END IF;
 
     INSERT INTO app_user (full_name, email, role)
-    VALUES ('TA Admin', 'hr@amnex.com', 'admin')
+    VALUES ('TA Admin', _admin_email, 'admin')
     ON CONFLICT (email) DO NOTHING;
 
-    SELECT id INTO _admin_id FROM app_user WHERE email = 'hr@amnex.com';
+    SELECT id INTO _admin_id FROM app_user WHERE email = _admin_email;
 
-    SELECT ARRAY(SELECT id FROM app_user WHERE email != 'hr@amnex.com') INTO _dummy_ids;
+    SELECT ARRAY(SELECT id FROM app_user WHERE email != _admin_email) INTO _dummy_ids;
 
     IF _dummy_ids IS NOT NULL AND array_length(_dummy_ids, 1) > 0 THEN
         UPDATE feedback_form        SET created_by = _admin_id WHERE created_by = ANY(_dummy_ids);
@@ -997,7 +1004,7 @@ BEGIN
 
     UPDATE app_user
     SET password_hash = NULL, reset_token = NULL, reset_token_expires = NULL
-    WHERE email = 'hr@amnex.com';
+    WHERE email = _admin_email;
 
     DELETE FROM business_unit
     WHERE id NOT IN (SELECT DISTINCT bu_id FROM requisition WHERE bu_id IS NOT NULL);
@@ -1017,7 +1024,7 @@ END $$""",
         "ALTER TABLE campus_candidate ADD COLUMN IF NOT EXISTS email_error TEXT",
         "ALTER TABLE campus_candidate ADD COLUMN IF NOT EXISTS email_next_attempt_at TIMESTAMPTZ",
         "CREATE INDEX IF NOT EXISTS idx_campus_cand_email_status ON campus_candidate(email_status, email_next_attempt_at)",
-        # ── Migration 47: recruiter-authored screening questions for NexAI (2026-07) ──
+        # ── Migration 47: recruiter-authored screening questions for Enteri AI (2026-07) ──
         "ALTER TABLE requisition ADD COLUMN IF NOT EXISTS screening_questions TEXT[] DEFAULT '{}'",
         # ── Migration 48: close migration-drift gaps found in the 2026-07 bug audit —
         # these columns/tables were only ever added via standalone database/*.sql
@@ -1194,7 +1201,7 @@ END $$""",
         "CREATE INDEX IF NOT EXISTS idx_application_candidate ON application(candidate_id)",
         "CREATE INDEX IF NOT EXISTS idx_offer_application ON offer(application_id)",
 
-        # ── Migration 53: NexAI attempt-lifecycle guard on the invite token (2026-07) ──
+        # ── Migration 53: Enteri AI attempt-lifecycle guard on the invite token (2026-07) ──
         # One attempt per invite: attempt_status tracks unused -> in_progress -> completed,
         # or revoked when a recruiter reissues a fresh link before the candidate finishes.
         "ALTER TABLE nexai_invite ADD COLUMN IF NOT EXISTS attempt_status TEXT NOT NULL DEFAULT 'unused'",
@@ -1206,7 +1213,8 @@ END $$""",
         # ── Migration 54: Enternly Calendly-style HM self-scheduling (2026-07) ──
         # A recruiter (or an auto-triggered "Panel + Auto" round) opens a scheduling
         # request; the HM proposes 3-6 slots; the candidate confirms one via a
-        # public token link, same pattern as nexai_invite. See database/54_*.sql
+        # public token link, same pattern as nexai_invite (renamed to
+        # enteri_ai_invite by Migration 99). See database/54_*.sql
         # for the doc-only snapshot of this block.
         """CREATE TABLE IF NOT EXISTS interview_schedule_request (
             id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1266,7 +1274,7 @@ END $$""",
         # ── Migration 56: generic activity_log — backend-only action timestamps
         # for anything stage_event/offer_approval_step don't already cover
         # (requisition lifecycle, screening pass/hold, interview scheduling,
-        # NexAI invites/sessions, offers, campus, vendor, module-access). Read
+        # Enteri AI invites/sessions, offers, campus, vendor, module-access). Read
         # only through /api/activity-log/* report endpoints, never a live feed. ──
         """CREATE TABLE IF NOT EXISTS activity_log (
             id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1381,7 +1389,7 @@ END $$""",
         "ALTER TABLE round_config ADD COLUMN IF NOT EXISTS meeting_link TEXT",
 
         # ── Migration 63: Google Calendar OAuth for auto-generated Meet links
-        # (2026-07) -- one shared connection (hr@amnex.com), connected once by a
+        # (2026-07) -- one shared connection, connected once by a
         # TA admin, used for every panel round's interview event. See
         # services/google_calendar.py. Single-row table (always the one active
         # connection, upserted by delete+insert on (re)connect) rather than a
@@ -1432,11 +1440,11 @@ END $$""",
 
         # ── Migration 65: durable retry tracking for avatar pre-rendering
         # (2026-07) -- prerender_interview_videos() is fired via FastAPI
-        # BackgroundTasks from nexai_api._do_single_invite() as an in-process,
+        # BackgroundTasks from enteri_ai_api._do_single_invite() as an in-process,
         # fire-and-forget call: if the worker process restarts between the
         # invite response being sent and that task actually running, the job
         # is silently dropped and render_status sits at its default 'pending'
-        # forever with no record anything went wrong. nexai_render_worker.py
+        # forever with no record anything went wrong. enteri_ai_render_worker.py
         # is a periodic sweep (same claim/backoff/dead-letter shape as
         # campus_email_worker.py) that picks up any session stuck in
         # 'pending' past a grace window, or 'failed' with attempts left, and
@@ -1480,7 +1488,7 @@ END $$""",
           END IF;
         END $$""",
         # Assign to every human round lacking an explicit form of its own --
-        # bot_interview rounds are excluded (AI-scored from the NexAI
+        # bot_interview rounds are excluded (AI-scored from the Enteri AI
         # transcript, never manually scored by a panelist) and any round that
         # already has a feedback_form_id keeps whatever it was already set to.
         """UPDATE round_config
@@ -1898,7 +1906,7 @@ END $$""",
         # Phase 3 Part E) -- when SERVER_SIDE_PROCTORING_JUDGE is on (dev/test
         # only for now), a browser-claimed termination the server's own ledger
         # does NOT support is recorded here instead of being honoured, so a
-        # human can review it. Gated off in production; see nexai_api.py.
+        # human can review it. Gated off in production; see enteri_ai_api.py.
         """CREATE TABLE IF NOT EXISTS proctoring_termination_discrepancy (
             id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             session_id            UUID REFERENCES proctoring_session(id) ON DELETE CASCADE,
@@ -1917,7 +1925,7 @@ END $$""",
         # tamper/integrity signal (monitoring gaps, termination discrepancies,
         # secret misuse, impossible data), feeding the Phase 4 digest email +
         # review-screen surfacing. Deliberately does NOT replace
-        # proctoring_termination_discrepancy (kept -- see nexai_api.py comment
+        # proctoring_termination_discrepancy (kept -- see enteri_ai_api.py comment
         # at its call site): that table holds the rich, purpose-built detail
         # of a termination disagreement; this table is just a pointer into it
         # ("kind=termination_discrepancy happened, here's a summary, go
@@ -2348,6 +2356,178 @@ END $$""",
                          'activity_log_last_failure', 'bg_lock_last_error')
               OR key LIKE 'bg_task_status:%'
            ON CONFLICT (key) DO NOTHING""",
+
+        # ── Migration 98: daily HR trivia question + per-subject answer
+        # streak (2026-08). Points/tier/rank stay derived from the
+        # gamification_event ledger everywhere else (services/gamification.py)
+        # -- but a streak that resets after a missed day needs sequential
+        # date-gap bookkeeping that can't be expressed as a single aggregate.
+        # user_gamification_streak is a deliberate, narrow exception to the
+        # "derive, don't store" convention: its only two writers are the
+        # answer/skip endpoints below, both already single-row transactions,
+        # so maintaining it at write-time is cheap and avoids a growing
+        # window-function query on every dashboard load.
+        # See database/61_gamification_daily_question.sql for the doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS hr_question (
+            id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id        UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            question_text    TEXT NOT NULL,
+            option_a         TEXT NOT NULL,
+            option_b         TEXT NOT NULL,
+            option_c         TEXT NOT NULL,
+            correct_option   TEXT NOT NULL CHECK (correct_option IN ('a','b','c')),
+            explanation_text TEXT,
+            active           BOOLEAN NOT NULL DEFAULT true,
+            created_by       UUID REFERENCES app_user(id),
+            created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_hrq_tenant_active ON hr_question(tenant_id, active)",
+
+        """CREATE TABLE IF NOT EXISTS user_question_answer (
+            id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id        UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            subject_type     TEXT NOT NULL CHECK (subject_type IN ('recruiter','vendor','candidate','hm')),
+            subject_id       UUID NOT NULL,
+            question_id      UUID NOT NULL REFERENCES hr_question(id),
+            answer_date      DATE NOT NULL,
+            selected_option  TEXT CHECK (selected_option IN ('a','b','c')),
+            is_correct       BOOLEAN,
+            was_skipped      BOOLEAN NOT NULL DEFAULT false,
+            points_awarded   NUMERIC NOT NULL DEFAULT 0,
+            created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (subject_type, subject_id, answer_date)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_uqa_subject_date ON user_question_answer(subject_type, subject_id, answer_date)",
+
+        """CREATE TABLE IF NOT EXISTS user_gamification_streak (
+            subject_type       TEXT NOT NULL CHECK (subject_type IN ('recruiter','vendor','candidate','hm')),
+            subject_id         UUID NOT NULL,
+            tenant_id          UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            current_streak     INT NOT NULL DEFAULT 0,
+            longest_streak     INT NOT NULL DEFAULT 0,
+            last_activity_date DATE,
+            updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (subject_type, subject_id)
+        )""",
+
+        """INSERT INTO gamification_config (key, value) VALUES
+             ('points.daily_question_correct', '10')
+           ON CONFLICT (tenant_id, key) DO NOTHING""",
+
+        # ── Migration 99: rename the "NexAI" brand to "Enteri AI" (2026-08) ──
+        # Every migration above that created nexai_session/nexai_invite/etc.
+        # is left untouched — those statements already ran against any
+        # existing database, and editing them in place would just silently
+        # no-op there while leaving the real, data-bearing tables under
+        # their old names forever. This migration instead does the actual
+        # RENAME against whatever currently exists, so it works whether
+        # nexai_session already existed (an existing deployment) or was
+        # only just created moments ago by the migrations above (a fresh
+        # install) — either way this step finds it under the old name and
+        # renames it forward. Guarded with existence checks so re-running
+        # it on every startup after the first time is a safe no-op.
+        """DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'nexai_session') THEN
+        ALTER TABLE nexai_session RENAME TO enteri_ai_session;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'nexai_invite') THEN
+        ALTER TABLE nexai_invite RENAME TO enteri_ai_invite;
+    END IF;
+END $$""",
+        """DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'nexai_session_status_check') THEN
+        ALTER TABLE enteri_ai_session RENAME CONSTRAINT nexai_session_status_check TO enteri_ai_session_status_check;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'proctoring_appeal_nexai_invite_id_key') THEN
+        ALTER TABLE proctoring_appeal RENAME CONSTRAINT proctoring_appeal_nexai_invite_id_key TO proctoring_appeal_enteri_ai_invite_id_key;
+    END IF;
+END $$""",
+        """DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_nexai_app') THEN
+        ALTER INDEX idx_nexai_app RENAME TO idx_enteri_ai_app;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_nexai_req') THEN
+        ALTER INDEX idx_nexai_req RENAME TO idx_enteri_ai_req;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_nexai_status') THEN
+        ALTER INDEX idx_nexai_status RENAME TO idx_enteri_ai_status;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_nexai_invite_token') THEN
+        ALTER INDEX idx_nexai_invite_token RENAME TO idx_enteri_ai_invite_token;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_nexai_invite_attempt_status') THEN
+        ALTER INDEX idx_nexai_invite_attempt_status RENAME TO idx_enteri_ai_invite_attempt_status;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_nexai_session_render_sweep') THEN
+        ALTER INDEX idx_nexai_session_render_sweep RENAME TO idx_enteri_ai_session_render_sweep;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_proc_nexai') THEN
+        ALTER INDEX idx_proc_nexai RENAME TO idx_proc_enteri_ai;
+    END IF;
+END $$""",
+        # Column renames, guarded per table since not every deployment has
+        # every optional integrity/discrepancy table yet.
+        """DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='proctoring_session' AND column_name='nexai_session_id') THEN
+        ALTER TABLE proctoring_session RENAME COLUMN nexai_session_id TO enteri_ai_session_id;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='proctoring_appeal' AND column_name='nexai_session_id') THEN
+        ALTER TABLE proctoring_appeal RENAME COLUMN nexai_session_id TO enteri_ai_session_id;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='proctoring_appeal' AND column_name='nexai_invite_id') THEN
+        ALTER TABLE proctoring_appeal RENAME COLUMN nexai_invite_id TO enteri_ai_invite_id;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='proctoring_termination_discrepancy' AND column_name='nexai_session_id') THEN
+        ALTER TABLE proctoring_termination_discrepancy RENAME COLUMN nexai_session_id TO enteri_ai_session_id;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='proctoring_integrity_flag' AND column_name='nexai_session_id') THEN
+        ALTER TABLE proctoring_integrity_flag RENAME COLUMN nexai_session_id TO enteri_ai_session_id;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='campus_candidate' AND column_name='nexai_session_id') THEN
+        ALTER TABLE campus_candidate RENAME COLUMN nexai_session_id TO enteri_ai_session_id;
+    END IF;
+END $$""",
+        # Data values — 'nexai_bot' was a live stage name stored in
+        # application.status / stage_event.from_status/to_status and a
+        # sla_config.config_key; must be migrated before the CHECK
+        # constraint below stops allowing the old value.
+        "UPDATE application SET status='enteri_ai_bot' WHERE status='nexai_bot'",
+        "UPDATE stage_event SET from_status='enteri_ai_bot' WHERE from_status='nexai_bot'",
+        "UPDATE stage_event SET to_status='enteri_ai_bot' WHERE to_status='nexai_bot'",
+        "UPDATE sla_config SET config_key='stage_enteri_ai_bot' WHERE config_key='stage_nexai_bot'",
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'application'::regclass AND contype = 'c'
+               AND pg_get_constraintdef(oid) ILIKE '%status%'
+    LOOP
+        EXECUTE 'ALTER TABLE application DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        """ALTER TABLE application ADD CONSTRAINT application_status_check
+           CHECK (status IN (
+               'applied','screen','enteri_ai_bot','shortlisted','interview',
+               'documentation','offered','hired','rejected','on_hold'
+           ))""",
+        # interview.html tagged the bot's conversation turns with the
+        # literal speaker value 'nexai'; bring historical transcripts in
+        # line with the renamed frontend so old sessions still render
+        # correctly.
+        """UPDATE enteri_ai_session
+           SET conversation = (
+               SELECT jsonb_agg(
+                   CASE WHEN elem->>'speaker' = 'nexai'
+                        THEN jsonb_set(elem, '{speaker}', '"enteri_ai"')
+                        ELSE elem END
+               )
+               FROM jsonb_array_elements(conversation) elem
+           )
+           WHERE conversation IS NOT NULL AND conversation::text LIKE '%\"nexai\"%'""",
     ]
     for sql in migrations:
         try:
@@ -2434,7 +2614,7 @@ def _try_acquire_bg_worker_lock() -> bool:
     own full copy of this module — including every @app.on_event("startup")
     handler. Without a guard, N worker processes each started their own
     copy of every background loop (cv_enricher, recruiter_email_worker,
-    email_ingest, campus_email_worker, nexai_render_worker,
+    email_ingest, campus_email_worker, enteri_ai_render_worker,
     linkedin_reminder_worker): N x the Groq API calls (hitting rate limits
     far sooner than the code's own throttling assumed), N x IMAP polling of
     the same mailboxes, N x redundant CPU-heavy text extraction of the same
@@ -2514,10 +2694,10 @@ def _launch_background_tasks():
     except Exception as exc:
         print(f"[startup] campus_email_worker failed to start: {exc}")
     try:
-        from .services.nexai_render_worker import start_nexai_render_worker as _start_nexai_render_worker
-        _track_bg_task(_asyncio.create_task(_start_nexai_render_worker()), "nexai_render_worker")
+        from .services.enteri_ai_render_worker import start_enteri_ai_render_worker as _start_enteri_ai_render_worker
+        _track_bg_task(_asyncio.create_task(_start_enteri_ai_render_worker()), "enteri_ai_render_worker")
     except Exception as exc:
-        print(f"[startup] nexai_render_worker failed to start: {exc}")
+        print(f"[startup] enteri_ai_render_worker failed to start: {exc}")
     try:
         from .services.linkedin_reminder_worker import start_linkedin_reminder_worker as _start_linkedin_reminder_worker
         _track_bg_task(_asyncio.create_task(_start_linkedin_reminder_worker()), "linkedin_reminder_worker")
@@ -2548,7 +2728,7 @@ async def _bg_worker_lock_watchdog():
     ever tried again, and if the winning process later died (crash, OOM,
     DB restart dropping its connection and releasing the lock), nothing
     else picked it back up either — every background loop (cv_enricher,
-    email ingest, campus/nexai/linkedin/recruiter-email workers) stayed
+    email ingest, campus/enteri-ai/linkedin/recruiter-email workers) stayed
     dead until someone noticed and manually restarted the whole app. The
     other N-1 worker processes now just keep polling for the lock in the
     background instead of trying once and giving up, so a dead holder's
@@ -2614,18 +2794,18 @@ _PUBLIC = {
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
     "/api/auth/reset-token/validate",
-    "/nexai-interview",
-    # Candidate-facing NexAI interview endpoints — token-based, no JWT.
-    # Staff-only NexAI routes (invite/send, bulk-invite, resend-invite,
+    "/enteri-ai-interview",
+    # Candidate-facing Enteri AI interview endpoints — token-based, no JWT.
+    # Staff-only Enteri AI routes (invite/send, bulk-invite, resend-invite,
     # invite-tracker, etc.) are deliberately NOT listed here — they enforce
     # their own JWT auth and must stay behind the middleware.
-    "/api/nexai/invite/validate",
-    "/api/nexai/invite/begin",
-    "/api/nexai/invite/render-status",
-    "/api/nexai/invite/converse",
-    "/api/nexai/invite/terminate",
-    "/api/nexai/invite/appeal",
-    "/api/nexai/invite/transcribe",
+    "/api/enteri-ai/invite/validate",
+    "/api/enteri-ai/invite/begin",
+    "/api/enteri-ai/invite/render-status",
+    "/api/enteri-ai/invite/converse",
+    "/api/enteri-ai/invite/terminate",
+    "/api/enteri-ai/invite/appeal",
+    "/api/enteri-ai/invite/transcribe",
     "/interview-schedule",
     # Candidate-facing self-scheduling slot-picker — token-based, no JWT
     "/reschedule",
@@ -2647,7 +2827,7 @@ _PUBLIC = {
 }
 _PUBLIC_PREFIXES = (
     "/assets/",
-    "/api/nexai/invite/submit/",       # /api/nexai/invite/submit/{session_id}
+    "/api/enteri-ai/invite/submit/",       # /api/enteri-ai/invite/submit/{session_id}
     "/api/proctoring/candidate/",      # candidate token-auth proctoring endpoints
     "/api/proctoring/session/",        # candidate session-secret-auth proctoring ledger endpoints (Phase 2)
     "/api/campus/session/",            # campus resume upload + is-campus check (token-auth, no JWT)
@@ -3387,7 +3567,7 @@ def db_stats(request: Request):
         return JSONResponse(status_code=403, content={"detail": "Admin only"})
     tables = [
         "app_user", "requisition", "application", "candidate",
-        "interview", "scorecard", "offer", "stage_event", "nexai_session",
+        "interview", "scorecard", "offer", "stage_event", "enteri_ai_session",
     ]
     result = {}
     for t in tables:
@@ -3493,8 +3673,8 @@ if os.path.isdir(_FRONTEND_DIR):
         with open(os.path.join(_FRONTEND_DIR, "login.html"), encoding="utf-8") as f:
             return HTMLResponse(content=f.read(), headers=_NO_CACHE)
 
-    @app.get("/nexai-interview", response_class=HTMLResponse)
-    def nexai_interview_page():
+    @app.get("/enteri-ai-interview", response_class=HTMLResponse)
+    def enteri_ai_interview_page():
         """Public candidate-facing AI interview page — accessed via invite token."""
         with open(os.path.join(_FRONTEND_DIR, "interview.html"), encoding="utf-8") as f:
             return HTMLResponse(content=f.read(), headers=_NO_CACHE)

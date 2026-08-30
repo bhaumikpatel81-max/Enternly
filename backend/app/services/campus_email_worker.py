@@ -3,7 +3,7 @@ Campus bulk-invite email sender.
 
 Background asyncio task started at app startup (same pattern as
 cv_enricher.py / email_ingest.py). Picks up to 20 campus_candidate rows
-with email_status='queued' at a time, sends the NexAI invite email to
+with email_status='queued' at a time, sends the Enteri AI invite email to
 each with a short delay between sends, then pauses before picking up the
 next batch of 20 — this keeps a 1000+ row campus drive from firing all
 its emails at once and getting the sending domain flagged/throttled.
@@ -93,13 +93,13 @@ def _send_one(row: dict) -> None:
     """Blocking — build + send one invite email. Raises on failure."""
     from .connectors import send_email, resolve_global_placeholders as _rgp, _load_email_cfg
     from .email_templates import render_template as _render_email_tmpl
-    from ..routers.nexai_api import _build_invite_html
+    from ..routers.enteri_ai_api import _build_invite_html
 
     if not row["application_id"]:
         raise RuntimeError("no_application")
 
     invite_row = query_one(
-        """SELECT token FROM nexai_invite
+        """SELECT token FROM enteri_ai_invite
            WHERE application_id=%s AND used_at IS NULL AND expires_at > now()
            ORDER BY invited_at DESC LIMIT 1""",
         [str(row["application_id"])],
@@ -109,12 +109,12 @@ def _send_one(row: dict) -> None:
 
     tenant_id = row.get("tenant_id")
     base_url = (_load_email_cfg(tenant_id).get("base_url") or "http://localhost:8000").strip().rstrip("/")
-    invite_url = f"{base_url}/nexai-interview?token={invite_row['token']}"
+    invite_url = f"{base_url}/enteri-ai-interview?token={invite_row['token']}"
 
     globals_ = _rgp(req_id=str(row["req_id"]))
     reply_to = globals_.get("recruiter_email") or None
 
-    subject, plain = _render_email_tmpl("nexai_invite", {
+    subject, plain = _render_email_tmpl("enteri_ai_invite", {
         "candidate_name": row["name"] or "Candidate",
         "job_title":      row["title"],
         "company_name":   row["company"],
@@ -132,7 +132,7 @@ def _send_one(row: dict) -> None:
     query(
         """UPDATE campus_candidate
            SET invite_status='invited', email_status='sent',
-               email_error=NULL, nexai_session_id=%s, invite_sent_at=now()
+               email_error=NULL, enteri_ai_session_id=%s, invite_sent_at=now()
            WHERE id=%s""",
         [invite_row["token"], str(row["id"])],
         fetch=False,

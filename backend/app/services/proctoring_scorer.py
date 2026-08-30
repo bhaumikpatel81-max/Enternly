@@ -231,7 +231,7 @@ def detect_monitoring_gaps(session_id, gap_threshold_seconds=MONITORING_GAP_THRE
     }
 
 
-def record_integrity_flag(session_id, kind, detail, nexai_session_id=None, dedupe_key=None):
+def record_integrity_flag(session_id, kind, detail, enteri_ai_session_id=None, dedupe_key=None):
     """
     Phase 4, Part B — insert one row into the unified integrity-flag inbox,
     unless an identical (session_id, kind, dedupe_key) already exists.
@@ -250,16 +250,16 @@ def record_integrity_flag(session_id, kind, detail, nexai_session_id=None, dedup
     key = dedupe_key if dedupe_key is not None else 'default'
     row = query_one(
         """INSERT INTO proctoring_integrity_flag
-               (session_id, nexai_session_id, flag_kind, dedupe_key, detail)
+               (session_id, enteri_ai_session_id, flag_kind, dedupe_key, detail)
            VALUES (%s, %s, %s, %s, %s::jsonb)
            ON CONFLICT (session_id, flag_kind, dedupe_key) DO NOTHING
            RETURNING id""",
-        [session_id, nexai_session_id, kind, key, json.dumps(detail, default=str)],
+        [session_id, enteri_ai_session_id, kind, key, json.dumps(detail, default=str)],
     )
     return str(row['id']) if row else None
 
 
-def record_monitoring_gaps(session_id, nexai_session_id=None, gap_threshold_seconds=MONITORING_GAP_THRESHOLD_SECONDS):
+def record_monitoring_gaps(session_id, enteri_ai_session_id=None, gap_threshold_seconds=MONITORING_GAP_THRESHOLD_SECONDS):
     """
     Phase 4, Part B — wires detect_monitoring_gaps (pure, Phase 3) into the
     integrity-flag inbox. Call this at a real trigger point (session
@@ -274,7 +274,7 @@ def record_monitoring_gaps(session_id, nexai_session_id=None, gap_threshold_seco
     for gap in result['gaps']:
         fid = record_integrity_flag(
             session_id, 'monitoring_gap', gap,
-            nexai_session_id=nexai_session_id,
+            enteri_ai_session_id=enteri_ai_session_id,
             dedupe_key=gap['gap_start'],
         )
         if fid:
@@ -286,7 +286,7 @@ def judge_termination(session_id):
     """
     Phase 3, Part E — orchestrates the three read-only checks above into a
     single termination decision. Pure computation only; the caller
-    (nexai_api.terminate_invite_session, gated behind
+    (enteri_ai_api.terminate_invite_session, gated behind
     SERVER_SIDE_PROCTORING_JUDGE) is responsible for actually writing
     termination state or a discrepancy row based on this result — this
     function never writes anything itself.

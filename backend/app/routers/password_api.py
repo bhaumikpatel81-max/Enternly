@@ -1,6 +1,6 @@
 """
 Self-service password flows — first-time set + forgot/reset.
-All emails sent from hr@amnex.com (SMTP). Tokens are single-use & expiring.
+All emails sent from the configured SMTP account. Tokens are single-use & expiring.
 
 account_type discriminator (added Phase 1):
   'staff'     → updates app_user (original behaviour, default)

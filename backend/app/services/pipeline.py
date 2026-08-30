@@ -246,11 +246,11 @@ def run_bot_round(application_id):
 
     query(
         """UPDATE application
-             SET bot_score = %s, combined_score = %s, status = 'nexai_bot'
+             SET bot_score = %s, combined_score = %s, status = 'enteri_ai_bot'
            WHERE id = %s""",
         [bot, combined, application_id], fetch=False,
     )
-    log_event(application_id, "screen", "nexai_bot",
+    log_event(application_id, "screen", "enteri_ai_bot",
               note=f"bot {bot}, combined {combined}")
     return {"bot_score": bot, "combined_score": combined}
 

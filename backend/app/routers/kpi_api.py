@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/kpi", tags=["kpi"])
 FUNNEL_STAGES = [
     "applied",
     "screen",
-    "nexai_bot",
+    "enteri_ai_bot",
     "shortlisted",
     "interview",
     "documentation",

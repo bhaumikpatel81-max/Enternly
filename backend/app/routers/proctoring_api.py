@@ -41,7 +41,7 @@ from ..db import query, query_one
 from ..auth_utils import get_current_user
 from ..services import proctoring_storage as storage
 from ..services import proctoring_scorer as scorer
-from .nexai_api import _recruiter_owns_req
+from .enteri_ai_api import _recruiter_owns_req
 
 router = APIRouter(prefix="/api/proctoring", tags=["proctoring"])
 
@@ -66,8 +66,8 @@ def _proctoring_session_req_id(session_id):
 
 def _review_req_id_for_id(id_):
     """
-    Like _proctoring_session_req_id, but also resolves a bare nexai_session.id
-    -- GET /review now lists 'did_not_run' rows keyed by nexai_session.id
+    Like _proctoring_session_req_id, but also resolves a bare enteri_ai_session.id
+    -- GET /review now lists 'did_not_run' rows keyed by enteri_ai_session.id
     (there's no proctoring_session row to key them by), so the detail
     endpoint must accept either id type without opening up scope beyond
     what /review already returned.
@@ -77,7 +77,7 @@ def _review_req_id_for_id(id_):
         return req_id
     row = query_one(
         """SELECT a.requisition_id
-           FROM nexai_session ns
+           FROM enteri_ai_session ns
            JOIN application a ON a.id = ns.application_id
            WHERE ns.id = %s""",
         [id_],
@@ -89,7 +89,7 @@ def _review_req_id_for_id(id_):
 
 class CreateSessionIn(BaseModel):
     application_id: str
-    nexai_session_id: Optional[str] = None
+    enteri_ai_session_id: Optional[str] = None
 
 
 @router.post("/sessions", status_code=201)
@@ -104,18 +104,18 @@ def create_session(body: CreateSessionIn, user: dict = Depends(get_current_user)
         [body.application_id],
     )
     if existing:
-        # Update nexai_session_id if supplied (called after NexAI session is created)
-        if body.nexai_session_id:
+        # Update enteri_ai_session_id if supplied (called after Enteri AI session is created)
+        if body.enteri_ai_session_id:
             query(
-                "UPDATE proctoring_session SET nexai_session_id=%s WHERE id=%s",
-                [body.nexai_session_id, existing["id"]],
+                "UPDATE proctoring_session SET enteri_ai_session_id=%s WHERE id=%s",
+                [body.enteri_ai_session_id, existing["id"]],
                 fetch=False,
             )
         return query_one("SELECT id, consent_granted, created_at FROM proctoring_session WHERE id=%s", [existing["id"]])
     row = query_one(
-        """INSERT INTO proctoring_session (application_id, nexai_session_id)
+        """INSERT INTO proctoring_session (application_id, enteri_ai_session_id)
            VALUES (%s, %s) RETURNING id, consent_granted, created_at""",
-        [body.application_id, body.nexai_session_id],
+        [body.application_id, body.enteri_ai_session_id],
     )
     return row
 
@@ -123,7 +123,7 @@ def create_session(body: CreateSessionIn, user: dict = Depends(get_current_user)
 class ConsentIn(BaseModel):
     granted: bool
     consent_text: str = (
-        "This NexAI interview session will be video recorded (webcam), screen recorded, "
+        "This Enteri AI interview session will be video recorded (webcam), screen recorded, "
         "and audio recorded. A photo will be taken at the start for identity purposes. "
         "AI behaviour analysis will run on the recording. All data is stored on EnternsTech GCP. "
         "AI flags are reviewed by a human recruiter and are never used to auto-reject."
@@ -300,7 +300,7 @@ def list_for_review(
     """
     List proctored sessions requiring human review.
 
-    Enumerates from nexai_session (every conversational interview actually
+    Enumerates from enteri_ai_session (every conversational interview actually
     conducted), LEFT JOINed to proctoring_session -- not the reverse. A
     completed interview with no proctoring_session row at all previously had
     nowhere to show up on this screen (proctoring_session-only FROM clause),
@@ -348,11 +348,11 @@ def list_for_review(
                  ELSE 'ran'
                END AS proctoring_status,
                c.full_name AS candidate_name, r.title AS req_title
-        FROM nexai_session ns
+        FROM enteri_ai_session ns
         JOIN application a ON a.id = ns.application_id
         JOIN candidate  c ON c.id = a.candidate_id
         JOIN requisition r ON r.id = a.requisition_id
-        LEFT JOIN proctoring_session ps ON ps.nexai_session_id = ns.id
+        LEFT JOIN proctoring_session ps ON ps.enteri_ai_session_id = ns.id
         {scope_join}
         WHERE ns.status IN ('completed', 'terminated_proctoring')
           AND r.tenant_id = %s
@@ -379,7 +379,7 @@ def get_review(session_id: str, user: dict = Depends(get_current_user)):
         JOIN application a ON a.id = ps.application_id
         JOIN candidate  c ON c.id = a.candidate_id
         JOIN requisition r ON r.id = a.requisition_id
-        LEFT JOIN nexai_session ns ON ns.id = ps.nexai_session_id
+        LEFT JOIN enteri_ai_session ns ON ns.id = ps.enteri_ai_session_id
         WHERE ps.id = %s
         """,
         [session_id],
@@ -389,11 +389,11 @@ def get_review(session_id: str, user: dict = Depends(get_current_user)):
         return row
 
     # No proctoring_session row at all -- this is the 'did_not_run' case
-    # /review lists by nexai_session.id when there's nothing else to key on.
+    # /review lists by enteri_ai_session.id when there's nothing else to key on.
     ns_row = query_one(
         """
         SELECT ns.id, ns.application_id, c.full_name AS candidate_name, r.title AS req_title
-        FROM nexai_session ns
+        FROM enteri_ai_session ns
         JOIN application a ON a.id = ns.application_id
         JOIN candidate  c ON c.id = a.candidate_id
         JOIN requisition r ON r.id = a.requisition_id
@@ -511,7 +511,7 @@ def download_summary(session_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(404, "session not found")
     flags = row["flags"] if isinstance(row["flags"], list) else []
     lines = [
-        "Enternly NexAI Proctoring — Incident Summary",
+        "Enternly Enteri AI Proctoring — Incident Summary",
         f"Candidate: {row['full_name']}",
         f"Requisition: {row['title']}",
         f"Session ID: {row['id']}",
@@ -659,7 +659,7 @@ def _assert_consented(session_id: str):
 
 def _get_invite_for_token(token: str) -> dict:
     invite = query_one(
-        "SELECT id, application_id, expires_at FROM nexai_invite WHERE token = %s",
+        "SELECT id, application_id, expires_at FROM enteri_ai_invite WHERE token = %s",
         [token],
     )
     if not invite:
@@ -821,16 +821,16 @@ def candidate_submit_flags(session_id: str, body: FlagsIn, token: str):
 
 
 class _LinkSessionIn(BaseModel):
-    nexai_session_id: str
+    enteri_ai_session_id: str
 
 
 @router.post("/candidate/{session_id}/link")
 def candidate_link_session(session_id: str, body: _LinkSessionIn, token: str):
-    """Public — link proctoring session to nexai_session_id after /invite/begin."""
+    """Public — link proctoring session to enteri_ai_session_id after /invite/begin."""
     _candidate_owns_session(token, session_id)
     query(
-        "UPDATE proctoring_session SET nexai_session_id = %s WHERE id = %s",
-        [body.nexai_session_id, session_id],
+        "UPDATE proctoring_session SET enteri_ai_session_id = %s WHERE id = %s",
+        [body.enteri_ai_session_id, session_id],
         fetch=False,
     )
     return {"linked": True}

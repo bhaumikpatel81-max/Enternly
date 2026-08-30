@@ -4,7 +4,7 @@ happened to one candidate/application or one requisition: pipeline stage
 moves (stage_event), offer approval steps (offer_approval_step), and every
 other backend-timestamped action (activity_log) that those two tables don't
 already cover (requisition lifecycle, screening pass/hold, interview
-scheduling, NexAI, offers, campus, vendor, module-access).
+scheduling, Enteri AI, offers, campus, vendor, module-access).
 
 Deliberately NOT folded into custom_reports_api.py's EXPLORES catalog: this
 is a fixed-shape per-entity chronological UNION, not a dimension/measure
@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ..db import query, query_one
 from ..auth_utils import get_current_user
 from ..services import excel_export
-from .nexai_api import _recruiter_owns_req, _application_req_id
+from .enteri_ai_api import _recruiter_owns_req, _application_req_id
 
 router = APIRouter(prefix="/api/activity-log", tags=["activity_log"])
 

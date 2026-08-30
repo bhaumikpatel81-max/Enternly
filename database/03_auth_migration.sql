@@ -9,6 +9,6 @@ ALTER TABLE app_user
   ADD COLUMN IF NOT EXISTS reset_token          TEXT,
   ADD COLUMN IF NOT EXISTS reset_token_expires  TIMESTAMPTZ;
 
--- No default password is set. All users (including TA Admin at hr@amnex.com)
+-- No default password is set. All users (including the TA Admin account)
 -- must use "Forgot password" to set their password on first login.
--- The forgot-password flow sends a one-time link via hr@amnex.com SMTP.
+-- The forgot-password flow sends a one-time link via the configured SMTP account.

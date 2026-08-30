@@ -1,13 +1,13 @@
 """
-NexAI TTS service — neural voice synthesis with automatic fallback.
+Enteri AI TTS service — neural voice synthesis with automatic fallback.
 
 Primary:  edge-tts (Microsoft Edge neural voices, free, no API key)
 Fallback: gTTS (Google TTS, robotic but always available)
 
-Voice gender is controlled by the NEXAI_VOICE_GENDER env var:
+Voice gender is controlled by the ENTERI_AI_VOICE_GENDER env var:
   "female" (default) -> en-IN-NeerjaNeural
   "male"             -> en-IN-PrabhatNeural
-Default is female to match the NexAI avatar image (frontend/assets/avatars/nexai-female.png,
+Default is female to match the Enteri AI avatar image (frontend/assets/avatars/enteri-ai-female.png,
 hardcoded in interview.html) — keep these in sync if you ever change one.
 """
 import logging
@@ -21,11 +21,11 @@ VOICE_FEMALE = "en-IN-NeerjaNeural"
 
 # Maps brand terms to phonetic respellings fed to the TTS engine only.
 # Does NOT affect DB, API responses, or on-screen text.
-# NexAI target: "Nex" (rhymes with "next") + spoken letters "A I".
+# Enteri AI target: "En-tuh-ree" (three syllables) + spoken letters "A I".
 # Tune ONLY the value here if the pronunciation is still wrong:
-#   alternatives in order: "Nex A I", "Neks A.I.", "Nex Ay-Eye"
+#   alternatives in order: "En-tuh-ree A I", "En-teh-ree A.I.", "Enter-ee Ay-Eye"
 PRONUNCIATION_FIXES: dict[str, str] = {
-    "NexAI": "necks A.I.",
+    "Enteri AI": "En-tuh-ree A.I.",
     "NexHire": "Nex-hire",
 }
 
@@ -37,10 +37,10 @@ def _normalize_pronunciation(text: str) -> str:
 
 
 def _resolve_voice(voice: str) -> str:
-    """Return voice string; if empty/None, read from NEXAI_VOICE_GENDER env var."""
+    """Return voice string; if empty/None, read from ENTERI_AI_VOICE_GENDER env var."""
     if voice:
         return voice
-    gender = os.environ.get("NEXAI_VOICE_GENDER", "female").lower().strip()
+    gender = os.environ.get("ENTERI_AI_VOICE_GENDER", "female").lower().strip()
     return VOICE_MALE if gender == "male" else VOICE_FEMALE
 
 

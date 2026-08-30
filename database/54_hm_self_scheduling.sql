@@ -4,7 +4,7 @@
 --
 -- Flow: recruiter (or an auto-triggered "Panel + Auto" round) opens a
 -- scheduling request -> HM proposes 3-6 slots -> candidate confirms one via
--- a public token link (same pattern as nexai_invite) -> both get an ICS
+-- a public token link (same pattern as enteri_ai_invite) -> both get an ICS
 -- invite over SMTP with the candidate's CV attached.
 
 CREATE TABLE IF NOT EXISTS interview_schedule_request (
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS interview_schedule_request (
     status            TEXT NOT NULL DEFAULT 'awaiting_hm'
                       CHECK (status IN ('awaiting_hm','awaiting_candidate',
                                          'confirmed','cancelled','expired')),
-    candidate_token   TEXT UNIQUE,            -- public link token (like nexai_invite.token)
+    candidate_token   TEXT UNIQUE,            -- public link token (like enteri_ai_invite.token)
     duration_min      INTEGER NOT NULL DEFAULT 45,
     meeting_link      TEXT,                   -- HM-provided URL, optional
     confirmed_slot_id UUID,                   -- FK added below (interview_slot doesn't exist yet)
