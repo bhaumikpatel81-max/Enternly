@@ -1,13 +1,13 @@
-# NexAI Avatar Face Images
+# Enteri AI Avatar Face Images
 
 Place AI-generated face images here for the GPU avatar pipeline (STEP A3).
 
 ## Required files
-- `nexai-female.png` — AI-generated female face (512×512 px minimum, frontal, neutral expression)
-- `nexai-male.png`   — AI-generated male face (same spec)
+- `enteri-ai-female.png` — AI-generated female face (512×512 px minimum, frontal, neutral expression)
+- `enteri-ai-male.png`   — AI-generated male face (same spec)
 
 ## How to generate (free)
-1. Visit https://thispersondoesnotexist.com — save as nexai-female.png / nexai-male.png
+1. Visit https://thispersondoesnotexist.com — save as enteri-ai-female.png / enteri-ai-male.png
 2. Or use Stable Diffusion locally: `a professional headshot, neutral expression, white background`
 3. Or use StyleGAN2/3 (confirm research licence with legal before production use)
 

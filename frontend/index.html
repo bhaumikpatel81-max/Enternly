@@ -175,7 +175,7 @@ a:hover{color:var(--navy)}
 body[data-theme="dark"] .home-tile-badge{background:rgba(233,191,87,.2);color:#E9BF57}
 .home-tile-name{font-family:var(--font-head);font-size:15.5px;font-weight:700}
 
-/* ── NexAI score ring ── */
+/* ── Enteri AI score ring ── */
 .nx-ring{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .nx-ring span{width:28px;height:28px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text)}
 .nx-ring-lg{width:52px;height:52px}
@@ -207,7 +207,7 @@ tr:hover td{background:var(--hov)}
 .pill.selected,.pill.joined,.pill.hired,.pill.hm_screening,.pill.shortlisted{background:#e8f7f0;color:var(--green);font-weight:700}
 .pill.offer_stage,.pill.offered,.pill.offer_approval{background:#e7ecff;color:#5FB4FF}
 .pill.rejected,.pill.screen_rejected,.pill.dropped,.pill.on_hold{background:#fdeaee;color:#e2455a}
-.pill.ai_screening,.pill.nexai_bot,.pill.screen{background:#fff2d6;color:#b07d00}
+.pill.ai_screening,.pill.enteri_ai_bot,.pill.screen{background:#fff2d6;color:#b07d00}
 .pill.panel_interview,.pill.hr_round,.pill.interview{background:#EAF0FF;color:#2563EB}
 .pill.documentation{background:#e7ecff;color:#5FB4FF}
 .pill.p1{background:#fff2d6;color:#b07d00;border:1px solid #f0c96b}
@@ -463,19 +463,19 @@ select{background-image:none}
 /* Change-requisition dropdown */
 .rcm-item{padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--text)}
 .rcm-item:hover{background:var(--page)}
-/* NexAI */
-.nexai-orb-wrap{display:flex;flex-direction:column;align-items:center;margin:8px 0 4px}
-#nexai-orb{display:block;border-radius:50%;background:transparent}
-.nexai-state-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-top:6px;font-weight:600;height:16px}
-.nexai-state-label.speaking{color:var(--accent)}
-.nexai-state-label.listening{color:var(--green)}
-.nexai-state-label.idle{color:var(--muted)}
-.nexai-state-label.done{color:#5FB4FF}
-.nexai-question-box{background:#0A1F44;color:#fff;border-radius:6px;padding:16px 18px;margin-bottom:12px;font-size:14px;min-height:50px;line-height:1.6}
-.nexai-transcript{background:var(--hov);border-radius:4px;padding:12px;font-size:12px;max-height:140px;overflow-y:auto;margin-bottom:10px}
+/* Enteri AI */
+.enteri-ai-orb-wrap{display:flex;flex-direction:column;align-items:center;margin:8px 0 4px}
+#enteri-ai-orb{display:block;border-radius:50%;background:transparent}
+.enteri-ai-state-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-top:6px;font-weight:600;height:16px}
+.enteri-ai-state-label.speaking{color:var(--accent)}
+.enteri-ai-state-label.listening{color:var(--green)}
+.enteri-ai-state-label.idle{color:var(--muted)}
+.enteri-ai-state-label.done{color:#5FB4FF}
+.enteri-ai-question-box{background:#0A1F44;color:#fff;border-radius:6px;padding:16px 18px;margin-bottom:12px;font-size:14px;min-height:50px;line-height:1.6}
+.enteri-ai-transcript{background:var(--hov);border-radius:4px;padding:12px;font-size:12px;max-height:140px;overflow-y:auto;margin-bottom:10px}
 /* Avatar video (GPU path — hidden when orb is active) */
-#nexai-avatar-video{width:180px;height:180px;object-fit:cover;border-radius:50%;display:none;margin:0 auto}
-/* NexAI Question Editor */
+#enteri-ai-avatar-video{width:180px;height:180px;object-fit:cover;border-radius:50%;display:none;margin:0 auto}
+/* Enteri AI Question Editor */
 .nxq-row{background:var(--hov);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:10px}
 .nxq-hdr{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .nxq-num{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);min-width:20px}
@@ -609,7 +609,7 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
 <!-- B1: Proctoring consent modal -->
 <div class="modal-bg" id="proctor-consent-modal">
   <div class="modal" style="max-width:560px">
-    <h2>Recording consent — NexAI Interview</h2>
+    <h2>Recording consent — Enteri AI Interview</h2>
     <div class="consent-notice">
       <p><strong>Before this interview begins, please read carefully.</strong></p>
       <p style="margin-top:8px">If you proceed with proctoring enabled, this session will:</p>
@@ -828,8 +828,8 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
 
       <!-- ── Screening Questions ── -->
       <div style="background:#e7ecff;border:1px solid #e0c7ff;border-radius:6px;padding:12px 14px;margin-bottom:14px">
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);margin-bottom:4px">Screening questions (for NexAI)</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Type or paste questions you want NexAI to ask every candidate. NexAI will ask these first, then add its own based on skills &amp; JD.</div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);margin-bottom:4px">Screening questions (for Enteri AI)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Type or paste questions you want Enteri AI to ask every candidate. Enteri AI will ask these first, then add its own based on skills &amp; JD.</div>
         <div id="rf-sq-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
         <button type="button" class="btn btn-ghost btn-sm" onclick="_addSQ()">+ Add question</button>
       </div>
@@ -1194,8 +1194,8 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
   </div>
 </div>
 
-<!-- ── NexAI Invite Modal ── -->
-<div class="modal-bg" id="nexai-invite-modal" onclick="if(event.target===this)closeInviteModal()">
+<!-- ── Enteri AI Invite Modal ── -->
+<div class="modal-bg" id="enteri-ai-invite-modal" onclick="if(event.target===this)closeInviteModal()">
   <div class="modal" style="max-width:420px">
     <h2>Send AI Interview Invite</h2>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px">An interview link will be emailed to the candidate. They can complete it at their own convenience.</p>
@@ -1258,8 +1258,8 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
   </div>
 </div>
 
-<!-- ── NexAI Question Editor Modal ── -->
-<div class="modal-bg" id="nexai-questions-modal" onclick="if(event.target===this)closeQuestionsModal()">
+<!-- ── Enteri AI Question Editor Modal ── -->
+<div class="modal-bg" id="enteri-ai-questions-modal" onclick="if(event.target===this)closeQuestionsModal()">
   <div class="modal" style="max-width:660px">
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px">
       <h2 style="margin-bottom:0">Interview Questions</h2>
@@ -1281,36 +1281,36 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
   </div>
 </div>
 
-<!-- ── NexAI Voice Modal ── -->
-<div class="modal-bg" id="nexai-modal" onclick="if(event.target===this)closeNexAI()">
+<!-- ── Enteri AI Voice Modal ── -->
+<div class="modal-bg" id="enteri-ai-modal" onclick="if(event.target===this)closeEnteriAI()">
   <div class="modal" style="max-width:560px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-      <h2 style="margin-bottom:0">NexAI Voice Interview</h2>
+      <h2 style="margin-bottom:0">Enteri AI Voice Interview</h2>
       <span style="font-size:11px;background:#fff2d6;color:var(--gold);padding:2px 8px;border-radius:10px;font-weight:600">ASSISTIVE ONLY</span>
     </div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">NexAI never auto-rejects. All scores are reviewed by the recruiter.</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Enteri AI never auto-rejects. All scores are reviewed by the recruiter.</p>
 
     <!-- A2/A3: Visual — orb (default) or avatar video (GPU providers) -->
-    <div class="nexai-orb-wrap">
-      <video id="nexai-avatar-video" autoplay playsinline muted="false"></video>
-      <canvas id="nexai-orb" width="180" height="180"></canvas>
-      <div class="nexai-state-label idle" id="nexai-orb-label">Ready</div>
+    <div class="enteri-ai-orb-wrap">
+      <video id="enteri-ai-avatar-video" autoplay playsinline muted="false"></video>
+      <canvas id="enteri-ai-orb" width="180" height="180"></canvas>
+      <div class="enteri-ai-state-label idle" id="enteri-ai-orb-label">Ready</div>
     </div>
     <!-- B2: Hidden webcam for identity snapshot + proctoring -->
     <video id="proctor-webcam" autoplay playsinline muted style="display:none;width:1px;height:1px"></video>
     <canvas id="proctor-snap-canvas" style="display:none"></canvas>
 
-    <div id="nexai-status" style="font-size:13px;color:var(--muted);margin:10px 0 8px;text-align:center;min-height:20px">Preparing questions…</div>
-    <div class="nexai-question-box" id="nexai-question">Questions will appear here.</div>
-    <div class="nexai-transcript" id="nexai-transcript" style="display:none"></div>
+    <div id="enteri-ai-status" style="font-size:13px;color:var(--muted);margin:10px 0 8px;text-align:center;min-height:20px">Preparing questions…</div>
+    <div class="enteri-ai-question-box" id="enteri-ai-question">Questions will appear here.</div>
+    <div class="enteri-ai-transcript" id="enteri-ai-transcript" style="display:none"></div>
     <div class="inline-btns" style="margin-bottom:12px">
-      <button id="nxbtn-speak" class="btn btn-primary btn-sm" onclick="nexaiSpeak()">▶ Speak question</button>
-      <button id="nxbtn-listen" class="btn btn-green btn-sm" onclick="nexaiListen()" style="display:none">🎤 Record answer</button>
-      <button id="nxbtn-next" class="btn btn-ghost btn-sm" onclick="nexaiNext()" style="display:none">Next →</button>
-      <button id="nxbtn-end" class="btn btn-danger btn-sm" onclick="nexaiSubmit()" style="display:none">End &amp; score</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeNexAI()">Cancel</button>
+      <button id="nxbtn-speak" class="btn btn-primary btn-sm" onclick="enteriAISpeak()">▶ Speak question</button>
+      <button id="nxbtn-listen" class="btn btn-green btn-sm" onclick="enteriAIListen()" style="display:none">🎤 Record answer</button>
+      <button id="nxbtn-next" class="btn btn-ghost btn-sm" onclick="enteriAINext()" style="display:none">Next →</button>
+      <button id="nxbtn-end" class="btn btn-danger btn-sm" onclick="enteriAISubmit()" style="display:none">End &amp; score</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeEnteriAI()">Cancel</button>
     </div>
-    <div id="nexai-result" style="display:none"></div>
+    <div id="enteri-ai-result" style="display:none"></div>
   </div>
 </div>
 
@@ -1979,7 +1979,7 @@ const NAV_DEF = {
     {group:'Sourcing'},
     {id:'hiring_plan',        icon:'📑', label:'Hiring Plan'},
     {id:'campus_hiring',      icon:'🎓', label:'Campus Hiring'},
-    {id:'nexai_tracker',      icon:'🤖', label:'NexAI'},
+    {id:'enteri_ai_tracker',      icon:'🤖', label:'Enteri AI'},
     {group:'Analytics'},
     {id:'kpi_dashboard',      icon:'📈', label:'KPI Dashboard'},
     {id:'reports',            icon:'📊', label:'Reports (Team)'},
@@ -2013,7 +2013,7 @@ const NAV_DEF = {
     {group:'Sourcing'},
     {id:'hiring_plan',        icon:'📑', label:'Hiring Plan'},
     {id:'campus_hiring',      icon:'🎓', label:'Campus Hiring'},
-    {id:'nexai_tracker',      icon:'🤖', label:'NexAI'},
+    {id:'enteri_ai_tracker',      icon:'🤖', label:'Enteri AI'},
     {group:'Analytics'},
     {id:'kpi_dashboard',      icon:'📈', label:'KPI Dashboard'},
     {id:'my_reports',         icon:'📊', label:'My Reports'},
@@ -2268,8 +2268,8 @@ const SCREENS = {
   proctoring_review: screenProctoringReview,
   // tickets (all non-admin)
   raise_ticket: screenRaiseTicket,
-  // nexai sessions drill-down (accessible via dashboard links only)
-  nexai_sessions: screenNexAISessions,
+  // enteri_ai sessions drill-down (accessible via dashboard links only)
+  enteri_ai_sessions: screenEnteriAISessions,
   // organisation management (admin + ta_manager)
   organisation:    screenOrganisation,
   // settings (admin + ta_manager)
@@ -2281,8 +2281,8 @@ const SCREENS = {
   chain_templates: screenChainTemplates,
   // email templates (admin + ta_manager)
   email_templates: screenEmailTemplates,
-  // nexai tracker (ta_manager + recruiter)
-  nexai_tracker: screenNexAITracker,
+  // enteri_ai tracker (ta_manager + recruiter)
+  enteri_ai_tracker: screenEnteriAITracker,
   appeals:       screenAppeals,
   // offers & approvals (ta_manager + recruiter + hiring_manager)
   offers: screenOffers,
@@ -2393,13 +2393,13 @@ function goFiltered(screenId, status, label, recruiterId, hmId) {
   if (hmId)        _navFilter.hm_id        = hmId;
   navigate(screenId);
 }
-// NexAI drill-down: status='completed'|'pending'|'failed'|null, scoreMin/Max optional
-function goNexAI(label, nexaiStatus, scoreMin, scoreMax) {
+// Enteri AI drill-down: status='completed'|'pending'|'failed'|null, scoreMin/Max optional
+function goEnteriAI(label, enteriAIStatus, scoreMin, scoreMax) {
   _navFilter = { label: label||'AI Sessions' };
-  if (nexaiStatus) _navFilter.nexai_status = nexaiStatus;
+  if (enteriAIStatus) _navFilter.enteri_ai_status = enteriAIStatus;
   if (scoreMin != null) _navFilter.score_min = scoreMin;
   if (scoreMax != null) _navFilter.score_max = scoreMax;
-  navigate('nexai_sessions');
+  navigate('enteri_ai_sessions');
 }
 
 let _currentScreen=null;
@@ -2537,8 +2537,8 @@ async function screenGamification() {
 // nothing is removed from the sidebar by being (or not being) tiled here.
 const HOME_TILES = {
   admin:           ['sys_health','users','organisation','tickets','vendors','module_access'],
-  ta_manager:      ['dashboard','requisitions','candidates','interviews','nexai_tracker','kpi_dashboard','reports','team','gamification'],
-  recruiter:       ['dashboard','requisitions','candidates','interviews','nexai_tracker','kpi_dashboard','my_reports'],
+  ta_manager:      ['dashboard','requisitions','candidates','interviews','enteri_ai_tracker','kpi_dashboard','reports','team','gamification'],
+  recruiter:       ['dashboard','requisitions','candidates','interviews','enteri_ai_tracker','kpi_dashboard','my_reports'],
   hiring_manager:  ['hm_dashboard','hm_my_reqs','profiles','interviews','offers','my_reports'],
   hrbp:            ['hrbp_dashboard','hrbp_requisitions','interviews','hrbp_reports'],
   interviewer:     ['interviews'],
@@ -2601,7 +2601,7 @@ async function screenDashboard() {
 // ── Shared pipeline chart helpers ──────────────────────────────────────────
 function _pipeData(d) {
   const keys   = ['apps_received','under_screening','screening_cleared','ai_interview','panel_interview','selected','offer_stage','joined'];
-  const labels = ['Applications','Screening','Shortlisted','NexAI Interview','Interview','Documentation','Offered','Hired'];
+  const labels = ['Applications','Screening','Shortlisted','Enteri AI Interview','Interview','Documentation','Offered','Hired'];
   const vals   = keys.map(k=>parseInt(d[k]||0));
   const base   = vals[0]||1;
   const rates  = vals.map(v=>Math.round(v/base*100));
@@ -2609,8 +2609,8 @@ function _pipeData(d) {
   return {keys,labels,vals,rates,colors};
 }
 // Stage status mapping for funnel click (index → status)
-const _FUNNEL_STATUS = ['all','screen','shortlisted','nexai_bot','interview','documentation','offered','hired'];
-const _FUNNEL_LABEL  = ['Applications','Screening','Shortlisted','NexAI Interview','Interview','Documentation','Offered','Hired'];
+const _FUNNEL_STATUS = ['all','screen','shortlisted','enteri_ai_bot','interview','documentation','offered','hired'];
+const _FUNNEL_LABEL  = ['Applications','Screening','Shortlisted','Enteri AI Interview','Interview','Documentation','Offered','Hired'];
 
 function _funnelClickFn(event, elements) {
   if (!elements.length) return;
@@ -2666,14 +2666,14 @@ const _STAGE_NAV = {
   apps_received:     ['candidates',  'all',             'All Applications'],
   under_screening:   ['candidates',  'screen',         'Screening'],
   screening_cleared: ['candidates',  'shortlisted',    'Shortlisted'],
-  ai_interview:      ['candidates',  'nexai_bot',      'NexAI Interview'],
+  ai_interview:      ['candidates',  'enteri_ai_bot',      'Enteri AI Interview'],
   panel_interview:   ['candidates',  'interview',      'Interview'],
   selected:          ['candidates',  'documentation',  'Documentation'],
   offer_stage:       ['candidates',  'offered',        'Offered'],
   joined:            ['candidates',  'hired',           'Hired'],
 };
 
-function _nexaiInviteSummaryHtml(tracker) {
+function _enteriAIInviteSummaryHtml(tracker) {
   if (!tracker) return '';
   const s = tracker.summary || {};
   const invites = tracker.invites || [];
@@ -2692,7 +2692,7 @@ function _nexaiInviteSummaryHtml(tracker) {
   }
 
   const miniRows = recent.map(r => `
-    <tr style="cursor:pointer" onclick="navigate('nexai_tracker')">
+    <tr style="cursor:pointer" onclick="navigate('enteri_ai_tracker')">
       <td>${esc(r.candidate_name)}</td>
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.requisition)}</td>
       <td>${pill(r.invite_status)}</td>
@@ -2702,8 +2702,8 @@ function _nexaiInviteSummaryHtml(tracker) {
   return `
     <div class="card" style="margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div class="card-title" style="margin-bottom:0">🤖 NexAI Interview Pipeline</div>
-        <button class="btn btn-ghost btn-sm" onclick="navigate('nexai_tracker')">View full tracker →</button>
+        <div class="card-title" style="margin-bottom:0">🤖 Enteri AI Interview Pipeline</div>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('enteri_ai_tracker')">View full tracker →</button>
       </div>
       <!-- Summary stat strip -->
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:${recent.length?'16px':'0'}">
@@ -2714,7 +2714,7 @@ function _nexaiInviteSummaryHtml(tracker) {
           {label:'Completed',     val:s.completed||0, color:'#0e9f6e', sub:'Score available'},
           {label:'Expired',       val:s.expired||0, color:'#596A83', sub:'7-day limit passed'},
         ].map(c=>`
-          <div style="text-align:center;padding:10px 8px;background:var(--hov);border-radius:8px;cursor:pointer" onclick="navigate('nexai_tracker')">
+          <div style="text-align:center;padding:10px 8px;background:var(--hov);border-radius:8px;cursor:pointer" onclick="navigate('enteri_ai_tracker')">
             <div style="font-size:24px;font-weight:800;color:${c.color}">${c.val}</div>
             <div style="font-size:11px;font-weight:600;color:var(--muted);margin-top:2px">${c.label}</div>
             ${c.sub?`<div style="font-size:10px;color:var(--muted)">${c.sub}</div>`:''}
@@ -2734,7 +2734,7 @@ function _stageGrid(d, prefix) {
   const stages=[
     {k:'open_reqs',label:prefix+' Open Reqs'},{k:'apps_received',label:'Applications'},
     {k:'under_screening',label:'Under Screening'},{k:'screening_cleared',label:'Screening Cleared'},
-    {k:'ai_interview',label:'NexAI Interview'},{k:'panel_interview',label:'Panel Interview'},
+    {k:'ai_interview',label:'Enteri AI Interview'},{k:'panel_interview',label:'Panel Interview'},
     {k:'selected',label:'HM Screening'},{k:'offer_stage',label:'Offer Approval'},
     {k:'joined',label:'Hired',cls:'hired'},
   ];
@@ -2753,7 +2753,7 @@ function _reqRows(reqs) {
     <td>${r.in_pipeline}</td><td>${r.levels}</td></tr>`).join('');
 }
 
-// ── NexAI shared helpers ──────────────────────────────────────────────────
+// ── Enteri AI shared helpers ──────────────────────────────────────────────────
 const _NX_BUCKETS = ['0-19','20-39','40-59','60-79','80-100'];
 const _NX_BUCKET_COLORS = ['#e2455a','#e67e22','#b07d00','#0e9f6e','#0e9f6e'];
 
@@ -2771,8 +2771,8 @@ function _scorePill(score) {
   return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${c}20;color:${c}">${Math.round(score)} <span style="font-weight:400">${label}</span></span>`;
 }
 
-// Returns the HTML string for a full NexAI section
-function _nexAIHtml(prefix, nx, dist, recent, byRec) {
+// Returns the HTML string for a full Enteri AI section
+function _enteriAIHtml(prefix, nx, dist, recent, byRec) {
   nx = nx || {};
   const total     = parseInt(nx.total||0);
   const completed = parseInt(nx.completed||0);
@@ -2817,20 +2817,20 @@ function _nexAIHtml(prefix, nx, dist, recent, byRec) {
   return `
     <div style="display:flex;align-items:center;gap:12px;margin:8px 0 16px">
       <div style="flex:1;height:1px;background:var(--border)"></div>
-      <span style="font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap">NexAI Screening</span>
+      <span style="font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap">Enteri AI Screening</span>
       <div style="flex:1;height:1px;background:var(--border)"></div>
     </div>
 
     <div class="stage-grid" style="margin-bottom:20px">
-      <div class="stage-card dash-link" onclick="goNexAI('All AI Sessions',null,null,null)" title="View all AI sessions">
+      <div class="stage-card dash-link" onclick="goEnteriAI('All AI Sessions',null,null,null)" title="View all AI sessions">
         <div class="n" style="color:var(--accent)">${total}</div><div class="lbl">AI Sessions Started</div></div>
-      <div class="stage-card dash-link" onclick="goNexAI('Completed Sessions','completed',null,null)" title="View completed sessions">
+      <div class="stage-card dash-link" onclick="goEnteriAI('Completed Sessions','completed',null,null)" title="View completed sessions">
         <div class="n" style="color:#0e9f6e">${completed}</div><div class="lbl">Completed</div></div>
       <div class="stage-card" title="Average score — click High Scorers to drill down">
         <div class="n" style="color:${avgScore!=='—'?_scoreColor(parseFloat(avgScore)):'var(--text)'}">${avgScore}</div><div class="lbl">Avg AI Score</div></div>
-      <div class="stage-card dash-link" onclick="goNexAI('High Scorers ≥70','completed',70,null)" title="View candidates who scored ≥70">
+      <div class="stage-card dash-link" onclick="goEnteriAI('High Scorers ≥70','completed',70,null)" title="View candidates who scored ≥70">
         <div class="n" style="color:#0e9f6e">${highScore}</div><div class="lbl">High Scorers ≥70</div></div>
-      <div class="stage-card dash-link" onclick="goNexAI('Passed (Score ≥50)','completed',50,null)" title="View candidates who passed (score ≥50)">
+      <div class="stage-card dash-link" onclick="goEnteriAI('Passed (Score ≥50)','completed',50,null)" title="View candidates who passed (score ≥50)">
         <div class="n">${passRate}</div><div class="lbl">Pass Rate ≥50</div></div>
     </div>
 
@@ -2852,13 +2852,13 @@ function _nexAIHtml(prefix, nx, dist, recent, byRec) {
 
     <div class="two-col" style="margin-bottom:20px">
       <div class="card">
-        <div class="card-title">NexAI Quality Funnel</div>
+        <div class="card-title">Enteri AI Quality Funnel</div>
         <p style="font-size:11px;color:var(--muted);margin-bottom:6px">Candidates progressing through AI quality gates</p>
         <div class="chart-wrap" style="height:160px"><canvas id="nx-funnel"></canvas></div>
       </div>
       <div class="card">
         ${byRec
-          ? `<div class="card-title">NexAI by Recruiter</div>
+          ? `<div class="card-title">Enteri AI by Recruiter</div>
              ${byRecRows
                ? `<table><thead><tr><th>Recruiter</th><th>Sessions</th><th>Done</th><th>Avg Score</th><th>High (≥70)</th></tr></thead><tbody>${byRecRows}</tbody></table>`
                : '<p class="empty">No sessions yet.</p>'}`
@@ -2876,8 +2876,8 @@ function _nexAIHtml(prefix, nx, dist, recent, byRec) {
     </div>` : ''}`;
 }
 
-// Render NexAI charts — must be called after innerHTML is set
-function _renderNexAICharts(nx, dist, recent, byRec) {
+// Render Enteri AI charts — must be called after innerHTML is set
+function _renderEnteriAICharts(nx, dist, recent, byRec) {
   nx = nx || {};
   const total     = parseInt(nx.total||0);
   const completed = parseInt(nx.completed||0);
@@ -2913,7 +2913,7 @@ function _renderNexAICharts(nx, dist, recent, byRec) {
           if(!els.length) return;
           const i=els[0].index;
           const [mn,mx]=_BUCKET_RANGES[i];
-          goNexAI('Score '+_NX_BUCKETS[i],'completed',mn,mx);
+          goEnteriAI('Score '+_NX_BUCKETS[i],'completed',mn,mx);
         }
       }
     });
@@ -2935,13 +2935,13 @@ function _renderNexAICharts(nx, dist, recent, byRec) {
           if(!els.length) return;
           const sm=['completed','pending','failed'];
           const lm=['Completed Sessions','Pending / In Progress','Failed Sessions'];
-          goNexAI(lm[els[0].index],sm[els[0].index],null,null);
+          goEnteriAI(lm[els[0].index],sm[els[0].index],null,null);
         }
       }
     });
   }
 
-  // NexAI quality funnel — always render, always clickable
+  // Enteri AI quality funnel — always render, always clickable
   const fEl = document.getElementById('nx-funnel');
   if (fEl) fEl.style.cursor = 'pointer';
   mkChart('nx-funnel',{
@@ -2963,7 +2963,7 @@ function _renderNexAICharts(nx, dist, recent, byRec) {
           ['completed', 70,   null, 'Score ≥ 70'],
         ];
         const [st,mn,mx,lbl]=fMap[els[0].index]||fMap[0];
-        goNexAI(lbl, st, mn, mx);
+        goEnteriAI(lbl, st, mn, mx);
       }
     }
   });
@@ -2972,12 +2972,12 @@ function _renderNexAICharts(nx, dist, recent, byRec) {
 // ── Recruiter Dashboard ────────────────────────────────────────────────────
 async function _dashRecruiter() {
   setTitle('My Dashboard');
-  const [d, tracker, gam] = await Promise.all([api('/api/dashboard'), api('/api/nexai/invite-tracker'), api('/api/gamification/me?period=ytd'), _ensureDailyQuestion()]);
+  const [d, tracker, gam] = await Promise.all([api('/api/dashboard'), api('/api/enteri-ai/invite-tracker'), api('/api/gamification/me?period=ytd'), _ensureDailyQuestion()]);
   if (!d) { showErr('Dashboard could not load. Retry.'); return; }
   const {labels,vals,rates,colors} = _pipeData(d);
   const {tot,fn,mn,un,fp,mp,up} = _genderVars(d.gender_split||[]);
   const rr = _reqRows(d.recent_reqs);
-  const nx = d.nexai_summary||{};
+  const nx = d.enteri_ai_summary||{};
 
   document.getElementById('content').innerHTML=`
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
@@ -2986,7 +2986,7 @@ async function _dashRecruiter() {
     ${_dqCardHtml()}
     ${_gamWidgetHtml(gam)}
     <div class="stage-grid">${_stageGrid(d,'My')}</div>
-    ${_nexaiInviteSummaryHtml(tracker)}
+    ${_enteriAIInviteSummaryHtml(tracker)}
     <div class="two-col" style="margin-bottom:20px">
       <div class="card">
         <div class="card-title">My Requisitions</div>
@@ -3006,19 +3006,19 @@ async function _dashRecruiter() {
         <div class="chart-wrap" style="height:230px"><canvas id="dash-cohort"></canvas></div>
       </div>
     </div>
-    ${_nexAIHtml('My', nx, d.nexai_score_dist, d.nexai_recent, null)}`;
+    ${_enteriAIHtml('My', nx, d.enteri_ai_score_dist, d.enteri_ai_recent, null)}`;
 
   _mkFunnel('dash-funnel',labels,vals,colors,true);
   _mkCohort('dash-cohort',labels,rates,true);
   _mkDiversityDonut('dash-div-donut',fn,mn,un);
-  _renderNexAICharts(nx, d.nexai_score_dist, d.nexai_recent, null);
+  _renderEnteriAICharts(nx, d.enteri_ai_score_dist, d.enteri_ai_recent, null);
   _maybeInjectBaseUrlBanner();
 }
 
 // ── TA Manager Dashboard ───────────────────────────────────────────────────
 async function _dashTAManager() {
   setTitle('Team Dashboard');
-  const [d, tracker, gam] = await Promise.all([api('/api/dashboard'), api('/api/nexai/invite-tracker'), api('/api/gamification/me?period=ytd'), _ensureDailyQuestion()]);
+  const [d, tracker, gam] = await Promise.all([api('/api/dashboard'), api('/api/enteri-ai/invite-tracker'), api('/api/gamification/me?period=ytd'), _ensureDailyQuestion()]);
   if (!d) { showErr('Dashboard could not load. Retry.'); return; }
   const {labels,vals,rates,colors} = _pipeData(d);
   const {tot,fn,mn,un,fp,mp,up} = _genderVars(d.gender_split||[]);
@@ -3050,7 +3050,7 @@ async function _dashTAManager() {
     ${_dqCardHtml()}
     ${_gamWidgetHtml(gam)}
     <div class="stage-grid">${_stageGrid(d,'Team')}</div>
-    ${_nexaiInviteSummaryHtml(tracker)}
+    ${_enteriAIInviteSummaryHtml(tracker)}
     <div class="two-col" style="margin-bottom:20px">
       <div class="card">
         <div class="card-title">Recruiter Performance</div>
@@ -3092,7 +3092,7 @@ async function _dashTAManager() {
         <button class="btn btn-ghost" onclick="navigate('requisitions')">All Requisitions →</button>
       </div>
     </div>
-    ${_nexAIHtml('Team', d.nexai_summary, d.nexai_score_dist, d.nexai_recent, d.nexai_by_recruiter)}`;
+    ${_enteriAIHtml('Team', d.enteri_ai_summary, d.enteri_ai_score_dist, d.enteri_ai_recent, d.enteri_ai_by_recruiter)}`;
 
   _mkFunnel('dash-funnel',labels,vals,colors,true);
   _mkCohort('dash-cohort',labels,rates,true);
@@ -3100,7 +3100,7 @@ async function _dashTAManager() {
   if (recLoad.length) {
     mkChart('dash-rec-bar',{type:'bar',data:{labels:recLoad.map(r=>r.full_name),datasets:[{label:'Open Reqs',data:recLoad.map(r=>r.open_reqs||0),backgroundColor:'#2563EB',borderRadius:3},{label:'Applications',data:recLoad.map(r=>r.total_applications||0),backgroundColor:'#5FB4FF',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{x:{ticks:{font:{size:11}}}}}});
   }
-  _renderNexAICharts(d.nexai_summary, d.nexai_score_dist, d.nexai_recent, d.nexai_by_recruiter);
+  _renderEnteriAICharts(d.enteri_ai_summary, d.enteri_ai_score_dist, d.enteri_ai_recent, d.enteri_ai_by_recruiter);
   _maybeInjectBaseUrlBanner();
 }
 
@@ -3123,7 +3123,7 @@ async function _dashHiringManager() {
   const totalApps = parseInt(d.apps_received||0);
   const reviewed  = Math.max(0, totalApps - pending);
 
-  const nx   = d.nexai_summary || {};
+  const nx   = d.enteri_ai_summary || {};
   const avgMin  = d.avg_interview_min  ? Math.round(d.avg_interview_min)  : null;
   const totHrs  = d.total_interview_hrs || 0;
 
@@ -3132,7 +3132,7 @@ async function _dashHiringManager() {
     `<div class="stage-card dash-link" onclick="goFiltered('requisitions','open','Open Positions')" title="My open positions"><div class="n">${d.open_reqs??0}</div><div class="lbl">My Positions</div></div>`+
     `<div class="stage-card dash-link" onclick="goFiltered('candidates','all','All Applicants')" title="All applicants"><div class="n">${d.apps_received??0}</div><div class="lbl">Total Applicants</div></div>`+
     `<div class="stage-card dash-link" onclick="goFiltered('candidates','screen','Screening')" title="Under screening"><div class="n">${d.under_screening??0}</div><div class="lbl">Screening</div></div>`+
-    `<div class="stage-card dash-link" onclick="goFiltered('candidates','shortlisted','Shortlisted')" title="Shortlisted after NexAI"><div class="n">${nx.completed??0}</div><div class="lbl">Shortlisted</div></div>`+
+    `<div class="stage-card dash-link" onclick="goFiltered('candidates','shortlisted','Shortlisted')" title="Shortlisted after Enteri AI"><div class="n">${nx.completed??0}</div><div class="lbl">Shortlisted</div></div>`+
     `<div class="stage-card dash-link" onclick="goFiltered('candidates','interview','Interview')" title="In interview"><div class="n">${d.panel_interview??0}</div><div class="lbl">Interview</div></div>`+
     `<div class="stage-card dash-link" onclick="navigate('interviews')" title="Interviews conducted"><div class="n">${conducted}</div><div class="lbl">Interviews Conducted</div></div>`+
     `<div class="stage-card" title="Avg time per interview">`+
@@ -3142,7 +3142,7 @@ async function _dashHiringManager() {
       `<div class="n" style="${pending>0?'color:var(--accent)':''}">${pending}</div>`+
       `<div class="lbl">Pending Reviews</div></div>`;
 
-  // ── NexAI summary values ───────────────────────────────────────────────────
+  // ── Enteri AI summary values ───────────────────────────────────────────────────
   const nxAvgScore   = nx.avg_score    != null ? parseFloat(nx.avg_score).toFixed(1)    : '—';
   const nxAvgMin     = nx.avg_session_min != null ? parseFloat(nx.avg_session_min).toFixed(0)+'m' : '—';
   const nxTotal      = parseInt(nx.total||0);
@@ -3151,7 +3151,7 @@ async function _dashHiringManager() {
   const nxPending    = parseInt(nx.pending||0);
 
   // ── HM-specific funnel: Applied → Screening → AI Interview → Panel only ───
-  const hmFunnelLabels = ['Applications','Screening','NexAI Completed','Interview'];
+  const hmFunnelLabels = ['Applications','Screening','Enteri AI Completed','Interview'];
   const hmFunnelVals   = [
     parseInt(d.apps_received||0),
     parseInt(d.under_screening||0),
@@ -3209,16 +3209,16 @@ async function _dashHiringManager() {
 
     <div class="two-col" style="margin-bottom:20px">
       <div class="card">
-        <div class="card-title">NexAI Screening Summary</div>
+        <div class="card-title">Enteri AI Screening Summary</div>
         <div class="stage-grid" style="margin:8px 0 12px">
-          <div class="stage-card dash-link" onclick="goNexAI('All AI Sessions',null,null,null)" title="View all AI sessions"><div class="n" style="color:var(--accent)">${nxTotal}</div><div class="lbl">Total sessions</div></div>
-          <div class="stage-card dash-link" onclick="goNexAI('Completed Sessions','completed',null,null)" title="View completed sessions"><div class="n" style="color:#0e9f6e">${nxCompleted}</div><div class="lbl">Completed</div></div>
+          <div class="stage-card dash-link" onclick="goEnteriAI('All AI Sessions',null,null,null)" title="View all AI sessions"><div class="n" style="color:var(--accent)">${nxTotal}</div><div class="lbl">Total sessions</div></div>
+          <div class="stage-card dash-link" onclick="goEnteriAI('Completed Sessions','completed',null,null)" title="View completed sessions"><div class="n" style="color:#0e9f6e">${nxCompleted}</div><div class="lbl">Completed</div></div>
           <div class="stage-card" title="Avg AI score — click High Scorers to drill down"><div class="n" style="color:${nxAvgScore!=='—'?_scoreColor(parseFloat(nxAvgScore)):'var(--text)'}">${nxAvgScore}</div><div class="lbl">Avg AI score</div></div>
           <div class="stage-card" title="Avg time per AI session"><div class="n">${nxAvgMin}</div><div class="lbl">Avg session time</div></div>
         </div>
         ${nxTotal>0
-          ? '<div class="chart-wrap" style="height:150px"><canvas id="dash-nexai-donut"></canvas></div>'
-          : '<p class="empty" style="margin-top:8px">No NexAI sessions yet for your positions.</p>'}
+          ? '<div class="chart-wrap" style="height:150px"><canvas id="dash-enteri-ai-donut"></canvas></div>'
+          : '<p class="empty" style="margin-top:8px">No Enteri AI sessions yet for your positions.</p>'}
       </div>
       <div class="card">
         <div class="card-title">Interview Time</div>
@@ -3284,9 +3284,9 @@ async function _dashHiringManager() {
 
   // ── Charts ─────────────────────────────────────────────────────────────────
 
-  // NexAI status donut
+  // Enteri AI status donut
   if (nxTotal > 0) {
-    mkChart('dash-nexai-donut',{type:'doughnut',
+    mkChart('dash-enteri-ai-donut',{type:'doughnut',
       data:{labels:['Completed','Pending / In Progress','Failed'],
         datasets:[{data:[nxCompleted,nxPending,nxFailed],backgroundColor:['#0e9f6e','#2563EB','#e2455a'],borderWidth:0}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
@@ -3300,7 +3300,7 @@ async function _dashHiringManager() {
       scales:{x:{beginAtZero:true,ticks:{stepSize:1}},y:{ticks:{font:{size:11}}}},
       onClick:function(event,elements){
         if(!elements.length)return;
-        const map=['all','screen','nexai_bot','interview'];
+        const map=['all','screen','enteri_ai_bot','interview'];
         const lbl=['All Applicants','Under Screening','AI Screened','Panel Interview'];
         const i=elements[0].index;
         goFiltered('candidates',map[i],lbl[i]);
@@ -3826,8 +3826,8 @@ async function screenHrbpReqStatus(reqId) {
 }
 
 // ── SCREEN: Pipeline (per-stage bifurcated view) ─────────────────────────────
-const _STAGE_ORDER = ['applied','screen','nexai_bot','shortlisted','interview','documentation','offered'];
-const _STAGE_LABELS = {applied:'Applied',screen:'Screening',nexai_bot:'NexAI Interview',shortlisted:'Shortlisted',interview:'Interview',documentation:'Documentation',offered:'Offered'};
+const _STAGE_ORDER = ['applied','screen','enteri_ai_bot','shortlisted','interview','documentation','offered'];
+const _STAGE_LABELS = {applied:'Applied',screen:'Screening',enteri_ai_bot:'Enteri AI Interview',shortlisted:'Shortlisted',interview:'Interview',documentation:'Documentation',offered:'Offered'};
 let _pipelineReqId = null;
 
 // Holds pipeline data for the current view (used by doc/negotiation modals)
@@ -3865,7 +3865,7 @@ async function screenPipeline(reqId){
     const ragDot = rag.status && rag.status!=='green'
       ? `<span class="rag-dot ${rag.status}" title="${rag.elapsed_days}d / SLA ${rag.target_days}d"></span>` : '';
     const aiScore = c.ai_fit_score!=null?`<span title="AI fit">${c.ai_fit_score}%</span>`:'—';
-    const botScore = c.bot_score!=null?`<span title="NexAI score">${c.bot_score}</span>`:'—';
+    const botScore = c.bot_score!=null?`<span title="Enteri AI score">${c.bot_score}</span>`:'—';
     const nextAction = _nextStageAction(stage, c.app_id, reqId, {
       currentLevel: c.current_round||1,
       maxLevels: data.max_interview_rounds||1,
@@ -3899,7 +3899,7 @@ async function screenPipeline(reqId){
   }
 
   const _tbl = (rowsHtml) => `<div class="card" style="padding:0;overflow:hidden">
-    <table><thead><tr><th>Candidate</th><th>Days</th><th>AI Fit</th><th>NexAI</th><th>Action</th></tr></thead>
+    <table><thead><tr><th>Candidate</th><th>Days</th><th>AI Fit</th><th>Enteri AI</th><th>Action</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table></div>`;
 
   const _empty = () => `<div style="padding:12px 16px;color:var(--muted);font-size:13px;border:1px dashed var(--border);border-radius:6px">No candidates at this stage</div>`;
@@ -3945,7 +3945,7 @@ async function screenPipeline(reqId){
     if(!g.count) return '';
     const rows = g.candidates.map(c=>`<tr><td><strong>${esc(c.full_name)}</strong></td><td>${esc(c.email)}</td><td>${c.elapsed_days}d</td><td>${c.ai_fit_score??'—'}</td><td>${c.bot_score??'—'}</td></tr>`).join('');
     return `<div id="ps-${t}" style="margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px">${t.toUpperCase()} (${g.count})</div>
-      <div class="card" style="padding:0;overflow:hidden"><table><thead><tr><th>Name</th><th>Email</th><th>Days</th><th>AI Fit</th><th>NexAI</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+      <div class="card" style="padding:0;overflow:hidden"><table><thead><tr><th>Name</th><th>Email</th><th>Days</th><th>AI Fit</th><th>Enteri AI</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }).filter(Boolean).join('');
 
   document.getElementById('content').innerHTML=`
@@ -4016,17 +4016,17 @@ async function advanceCandidate(appId, reqId, label){
   if(r.hm_notified===false){
     flash('Moved to interview, but the hiring-manager notification email failed to send — resend from Interviews → Scheduling Requests.',false);
   }
-  if(r.needs_nexai_invite){
-    if(confirm('Candidate moved to NexAI Interview stage. Send NexAI invite now?')){
-      const inv=await api(`/api/nexai/invite/send/${appId}`,{method:'POST'});
+  if(r.needs_enteri_ai_invite){
+    if(confirm('Candidate moved to Enteri AI Interview stage. Send Enteri AI invite now?')){
+      const inv=await api(`/api/enteri-ai/invite/send/${appId}`,{method:'POST'});
       // api() resolves to null when the request itself failed (network/HTTP
       // error) -- that's NOT the same as "invite created but its email
       // failed to send". The old code (with a no-op .catch) couldn't tell
       // these apart and always implied the invite existed.
       if(inv===null){
-        flash(_lastApiError||'Could not create the NexAI invite — nothing was sent.',false);
+        flash(_lastApiError||'Could not create the Enteri AI invite — nothing was sent.',false);
       } else {
-        flash(inv.email_sent?'NexAI invite sent!':'NexAI invite created (email failed — check SMTP).', !!inv.email_sent);
+        flash(inv.email_sent?'Enteri AI invite sent!':'Enteri AI invite created (email failed — check SMTP).', !!inv.email_sent);
       }
     }
   } else if(r.needs_offer){
@@ -4047,7 +4047,7 @@ async function openScreenDecision(appId, reqId){
         <label style="display:block;margin-bottom:4px;font-size:13px">Decision</label>
         <select id="sd-decision" style="width:100%">
           <option value="">— select —</option>
-          <option value="pass">✓ Pass — proceed to NexAI</option>
+          <option value="pass">✓ Pass — proceed to Enteri AI</option>
           <option value="hold">⏸ Hold — review later</option>
           <option value="reject">✕ Reject — remove from pipeline</option>
         </select>
@@ -4199,7 +4199,7 @@ async function kbRejectCandidate(appId, reqId){
 async function _exportStageCSV(reqId, stage){
   const data = await api(`/api/requisitions/${reqId}/stage/${stage}/report`);
   if(!data||!data.rows){flash('Could not load report.',false);return;}
-  const hdrs=['Name','Email','Gender','Status','AI Fit','NexAI Score','Combined','Company','Designation','Notice (days)','Current CTC','Expected CTC','Applied At','Days in Stage'];
+  const hdrs=['Name','Email','Gender','Status','AI Fit','Enteri AI Score','Combined','Company','Designation','Notice (days)','Current CTC','Expected CTC','Applied At','Days in Stage'];
   const escCsv=v=>v==null?'':String(v).replace(/"/g,'""');
   const rows=[hdrs.join(','),...data.rows.map(r=>[
     r.full_name,r.email,r.gender,r.status,r.ai_fit_score,r.bot_score,r.combined_score,
@@ -4256,10 +4256,10 @@ async function screenKanban(reqId) {
   setTitle(det?.title || 'Kanban');
 
   // "AI screening interview" round_type='bot_interview' rounds are the same
-  // NexAI bot session as the fixed nexai_bot stage, just re-run as a formal
+  // Enteri AI bot session as the fixed enteri_ai_bot stage, just re-run as a formal
   // interview-stage round (scorecard_api._round_transcript reuses the same
-  // nexai_session for feedback/transcript on either) -- showing them as their
-  // own board column duplicated the "NexAI Interview" column and confused
+  // enteri_ai_session for feedback/transcript on either) -- showing them as their
+  // own board column duplicated the "Enteri AI Interview" column and confused
   // where a candidate actually stood. Merged into that one column; the board
   // only bifurcates into separate columns for genuine human panel/hr/
   // assessment rounds.
@@ -4268,10 +4268,10 @@ async function screenKanban(reqId) {
     {status:'applied',       label:'Applications'},
     {status:'screen',        label:'Screening'},
     // Only requisitions with an actual bot_interview round configured route
-    // candidates through NexAI -- others skip screen straight to shortlisted
-    // (see pipeline_api.advance_application's nexai_bot skip), so the column
+    // candidates through Enteri AI -- others skip screen straight to shortlisted
+    // (see pipeline_api.advance_application's enteri_ai_bot skip), so the column
     // only needs to render when that round exists.
-    ...(botRoundSeqs.size ? [{status:'nexai_bot', label:'NexAI Interview', mergeRoundSeqs:botRoundSeqs}] : []),
+    ...(botRoundSeqs.size ? [{status:'enteri_ai_bot', label:'Enteri AI Interview', mergeRoundSeqs:botRoundSeqs}] : []),
     {status:'shortlisted',   label:'Shortlisted'},
   ];
   // Every configured non-bot round gets a column regardless of is_auto --
@@ -4297,7 +4297,7 @@ async function screenKanban(reqId) {
   function cardsFor(col) {
     return (kb.candidates||[]).filter(c=>{
       if(col.mergeRoundSeqs && col.mergeRoundSeqs.size){
-        if(c.status==='nexai_bot') return true;
+        if(c.status==='enteri_ai_bot') return true;
         return c.status==='interview' && col.mergeRoundSeqs.has(c.current_round);
       }
       if(c.status!==col.status) return false;
@@ -4308,12 +4308,12 @@ async function screenKanban(reqId) {
   }
 
   const canApply = ['recruiter','ta_manager','admin'].includes(ME.role);
-  const canNexAI = canApply;
-  const bulkStages = new Set(['screen','nexai_bot']);
+  const canEnteriAI = canApply;
+  const bulkStages = new Set(['screen','enteri_ai_bot']);
 
   const colsHtml = cols.map((col,i)=>{
     const cards = cardsFor(col);
-    const isBulkCol = canNexAI && bulkStages.has(col.status);
+    const isBulkCol = canEnteriAI && bulkStages.has(col.status);
     const cardHtml = cards.map(c=>{
     const _cr=_kbRag[c.app_id];
     const _rdot=_cr&&_cr.status!=='green'
@@ -4322,7 +4322,7 @@ async function screenKanban(reqId) {
     return `
       <div class="kb-card" draggable="true" data-app-id="${c.app_id}"
         ondragstart="kbDS(event)" ondragend="kbDE(event)">
-        ${isBulkCol&&!c.nexai_completed?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:4px">
+        ${isBulkCol&&!c.enteri_ai_completed?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:4px">
           <input type="checkbox" class="bulk-cb" data-app-id="${c.app_id}" data-name="${escAttr(c.full_name||'')}"
                  onchange="_pipelineBulkChange()" style="width:14px;height:14px">
           <span class="cname" style="display:flex;align-items:center;gap:4px">${esc(c.full_name)}${_rdot}${_kbFlagPills(c)}</span>
@@ -4333,12 +4333,12 @@ async function screenKanban(reqId) {
             <button class="btn btn-green btn-sm" style="flex:1;font-size:11px" onclick="passScreening('${c.app_id}');event.stopPropagation()">Pass ✓</button>
             <button class="btn btn-ghost btn-sm" style="font-size:11px;color:#e2455a;border-color:#f3c6cf" onclick="rejectScreening('${c.app_id}');event.stopPropagation()">✕</button>
           </div>`:''}
-        ${canNexAI&&c.status==='nexai_bot'?`
+        ${canEnteriAI&&c.status==='enteri_ai_bot'?`
           <div style="margin-top:6px">
-            ${c.nexai_completed
+            ${c.enteri_ai_completed
               ?`<span class="pill" style="display:block;text-align:center;font-size:11px;background:#eaf6ec;color:#1e7a34;margin-bottom:4px">✓ Interview done</span>`
-              :`<button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:4px" onclick="sendNexAIInvite('${c.app_id}','${escAttr(c.full_name||'')}','${escAttr(c.email||'')}',event)">📧 Send AI Invite</button>`}
-            <button class="btn btn-green btn-sm" style="width:100%;font-size:11px" onclick="advanceToShortlist('${c.app_id}',${c.nexai_completed?'false':'true'});event.stopPropagation()">→ Shortlist</button>
+              :`<button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:4px" onclick="sendEnteriAIInvite('${c.app_id}','${escAttr(c.full_name||'')}','${escAttr(c.email||'')}',event)">📧 Send AI Invite</button>`}
+            <button class="btn btn-green btn-sm" style="width:100%;font-size:11px" onclick="advanceToShortlist('${c.app_id}',${c.enteri_ai_completed?'false':'true'});event.stopPropagation()">→ Shortlist</button>
           </div>`:''}
         ${canApply&&col.status==='shortlisted'?`<button class="btn btn-primary btn-sm" style="margin-top:6px;width:100%" onclick="advanceToInterview('${c.app_id}');event.stopPropagation()">→ Move to next round</button>`:''}
         ${col.mergeRoundSeqs&&c.status==='interview'?`<span class="pill" style="display:block;margin-top:6px;text-align:center;font-size:11px;background:#eaf6ec;color:#1e7a34">✓ AI screening done — in panel process</span>`:''}
@@ -4393,7 +4393,7 @@ async function screenKanban(reqId) {
     <div class="page-header">
       <h1>${esc(det?.title)||'Requisition'}</h1>
       <button class="btn btn-ghost btn-sm" onclick="navigate('requisitions')">← All requisitions</button>
-      ${canNexAI?`<button class="btn btn-ghost btn-sm" onclick="openQuestionsModal('${reqId}')">✏ Interview Questions</button>`:''}
+      ${canEnteriAI?`<button class="btn btn-ghost btn-sm" onclick="openQuestionsModal('${reqId}')">✏ Interview Questions</button>`:''}
       ${canAssign?`<button class="btn btn-ghost btn-sm" onclick="openAssignModal('${reqId}','${escAttr(det?.title||'')}')">Assign recruiter</button>`:''}
       <button class="btn btn-ghost btn-sm" style="border-radius:50%;width:36px;height:36px;padding:0" onclick="_kbScrollRail(-1)" title="Scroll left">←</button>
       <button class="btn btn-ghost btn-sm" style="border-radius:50%;width:36px;height:36px;padding:0" onclick="_kbScrollRail(1)" title="Scroll right">→</button>
@@ -4402,9 +4402,9 @@ async function screenKanban(reqId) {
     ${assignedHtml}
     <div class="kanban">${colsHtml}</div>
     <div style="padding:2px 2px 0;font-size:12px;color:var(--muted)">Click a stage to bring it into focus; drag a candidate card onto another stage to advance them.</div>
-    ${canNexAI?`<div id="pipeline-bulk-bar" style="display:none;position:sticky;bottom:0;left:0;right:0;background:var(--card);border-top:2px solid var(--accent);padding:10px 20px;display:none;align-items:center;gap:12px;z-index:100;box-shadow:0 -2px 12px rgba(0,0,0,.08)">
+    ${canEnteriAI?`<div id="pipeline-bulk-bar" style="display:none;position:sticky;bottom:0;left:0;right:0;background:var(--card);border-top:2px solid var(--accent);padding:10px 20px;display:none;align-items:center;gap:12px;z-index:100;box-shadow:0 -2px 12px rgba(0,0,0,.08)">
       <span id="pipeline-bulk-count" style="font-weight:600;color:var(--accent)">0 selected</span>
-      <button class="btn btn-primary" onclick="_pipelineBulkInvite('${reqId}')">📧 Send NexAI Invite (<span id="pipeline-bulk-n">0</span>)</button>
+      <button class="btn btn-primary" onclick="_pipelineBulkInvite('${reqId}')">📧 Send Enteri AI Invite (<span id="pipeline-bulk-n">0</span>)</button>
       <button class="btn btn-ghost btn-sm" onclick="_pipelineBulkClear()">✕ Clear</button>
     </div>`:''}
     `;
@@ -4532,7 +4532,7 @@ async function _candDeleteApplication(appId, name){
   }
 }
 
-// ── Pipeline bulk NexAI invite ────────────────────────────────────────────────
+// ── Pipeline bulk Enteri AI invite ────────────────────────────────────────────────
 function _pipelineBulkChange(){
   const checked = [...document.querySelectorAll('.bulk-cb:checked')];
   const bar = document.getElementById('pipeline-bulk-bar');
@@ -4565,13 +4565,13 @@ async function _pipelineBulkInvite(reqId){
   const checked = [...document.querySelectorAll('.bulk-cb:checked')];
   if(!checked.length) return;
   const names = checked.map(cb => cb.dataset.name).join(', ');
-  if(!confirm(`Send NexAI AI Interview invite to ${checked.length} candidate(s)?\n\n${names}`)) return;
+  if(!confirm(`Send Enteri AI Interview invite to ${checked.length} candidate(s)?\n\n${names}`)) return;
 
   const appIds = checked.map(cb => cb.dataset.appId);
   const bar = document.getElementById('pipeline-bulk-bar');
   if(bar){ bar.innerHTML = `<span style="color:var(--accent);font-weight:600">Sending… please wait</span>`; }
 
-  const res = await api('/api/nexai/bulk-invite', {
+  const res = await api('/api/enteri-ai/bulk-invite', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({application_ids: appIds})
@@ -4606,7 +4606,7 @@ async function _pipelineBulkInvite(reqId){
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:flex;align-items:center;justify-content:center';
   ov.innerHTML = `<div style="background:var(--card);border-radius:8px;padding:24px;max-width:460px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <strong style="font-size:15px">NexAI Bulk Invite — Results</strong>
+      <strong style="font-size:15px">Enteri AI Bulk Invite — Results</strong>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('_bulk-result-overlay').remove()">✕</button>
     </div>
     ${summaryHtml}
@@ -4712,10 +4712,10 @@ async function screenCandidates() {
           <button class="btn btn-ghost btn-sm" style="color:#e2455a;border-color:#f3c6cf" onclick="rejectScreening('${r.app_id}')">Reject</button>
           ${sendBtn}${delBtn}
         </div>`;
-      } else if(r.status==='nexai_bot'){
+      } else if(r.status==='enteri_ai_bot'){
         const inviteBtn=r.combined_score!=null
           ?''
-          :`<button class="btn btn-primary btn-sm" onclick="sendNexAIInvite('${r.app_id}','${safeName}','${safeEmail}',event)">📧 Send AI Invite</button>`;
+          :`<button class="btn btn-primary btn-sm" onclick="sendEnteriAIInvite('${r.app_id}','${safeName}','${safeEmail}',event)">📧 Send AI Invite</button>`;
         const shortlistBtn=`<button class="btn btn-green btn-sm" onclick="advanceToShortlist('${r.app_id}',${r.combined_score!=null?'false':'true'})">→ Shortlist</button>`;
         actions=`<div style="display:flex;gap:4px;align-items:center">${inviteBtn}${shortlistBtn}${sendBtn}${delBtn}</div>`;
       } else if(r.status==='shortlisted'){
@@ -5653,7 +5653,7 @@ function _renderTranscriptHtml(t){
   if(!t || !t.available){
     return `<p style="font-size:12px;color:var(--muted);font-style:italic">No transcript captured for this round${t&&t.fetch_status&&t.fetch_status!=='none'?` (status: ${esc(t.fetch_status)})`:''}.</p>`;
   }
-  if(t.source === 'nexai'){
+  if(t.source === 'enteri_ai'){
     const conv = t.transcript;
     let body = '';
     if(Array.isArray(conv)){
@@ -6159,8 +6159,8 @@ async function toggleModuleAccess(moduleKey,enabled){
 
 // ── SCREEN: Admin — Bot Health ────────────────────────────────────────────────
 async function screenBotHealth(){
-  setTitle('Bot Health — NexAI');
-  const d=await api('/api/nexai/health');
+  setTitle('Bot Health — Enteri AI');
+  const d=await api('/api/enteri-ai/health');
   if(!d){showErr('Could not load bot health.');return;}
   const recentRows=(d.recent_sessions||[]).map(s=>`
     <tr><td style="font-size:11px">${(s.id||'').slice(0,8)}…</td>
@@ -6168,14 +6168,14 @@ async function screenBotHealth(){
     <td>${s.raw_score!=null?s.raw_score:'—'}</td>
     <td>${s.completed_at?new Date(s.completed_at).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'}):'—'}</td></tr>`).join('');
   document.getElementById('content').innerHTML=`
-    <div class="page-header"><h1>NexAI Bot Health</h1><span class="badge badge-green">Active</span></div>
+    <div class="page-header"><h1>Enteri AI Bot Health</h1><span class="badge badge-green">Active</span></div>
     <div class="stage-grid" style="margin-bottom:20px">
-      <div class="stage-card dash-link" onclick="goNexAI('All AI Sessions',null,null,null)" title="View all sessions"><div class="n" style="color:var(--accent)">${d.total_sessions}</div><div class="lbl">Total sessions</div></div>
-      <div class="stage-card dash-link" onclick="goNexAI('Completed Sessions','completed',null,null)" title="View completed sessions"><div class="n" style="color:#0e9f6e">${d.completed_sessions}</div><div class="lbl">Completed</div></div>
+      <div class="stage-card dash-link" onclick="goEnteriAI('All AI Sessions',null,null,null)" title="View all sessions"><div class="n" style="color:var(--accent)">${d.total_sessions}</div><div class="lbl">Total sessions</div></div>
+      <div class="stage-card dash-link" onclick="goEnteriAI('Completed Sessions','completed',null,null)" title="View completed sessions"><div class="n" style="color:#0e9f6e">${d.completed_sessions}</div><div class="lbl">Completed</div></div>
       <div class="stage-card" title="Average score across completed sessions"><div class="n" style="color:${d.avg_score!=null?_scoreColor(d.avg_score):'var(--text)'}">${d.avg_score??'—'}</div><div class="lbl">Avg score</div></div>
-      <div class="stage-card dash-link" onclick="goNexAI('Failed Sessions','failed',null,null)" title="View failed sessions"><div class="n" style="color:#e2455a">${d.failed_sessions}</div><div class="lbl">Failed</div></div>
-      <div class="stage-card dash-link" onclick="goNexAI('In Progress','pending',null,null)" title="View in-progress sessions"><div class="n" style="color:var(--gold)">${d.in_progress}</div><div class="lbl">In Progress</div></div>
-      <div class="stage-card dash-link" onclick="goNexAI('Sessions Today',null,null,null)" title="View today\'s sessions"><div class="n">${d.sessions_today}</div><div class="lbl">Today</div></div>
+      <div class="stage-card dash-link" onclick="goEnteriAI('Failed Sessions','failed',null,null)" title="View failed sessions"><div class="n" style="color:#e2455a">${d.failed_sessions}</div><div class="lbl">Failed</div></div>
+      <div class="stage-card dash-link" onclick="goEnteriAI('In Progress','pending',null,null)" title="View in-progress sessions"><div class="n" style="color:var(--gold)">${d.in_progress}</div><div class="lbl">In Progress</div></div>
+      <div class="stage-card dash-link" onclick="goEnteriAI('Sessions Today',null,null,null)" title="View today\'s sessions"><div class="n">${d.sessions_today}</div><div class="lbl">Today</div></div>
     </div>
     <div class="card">
       <div class="card-title">Model info</div>
@@ -6239,7 +6239,7 @@ async function screenDatabase() {
           <option value="">All statuses</option>
           <option value="applied">Applied</option>
           <option value="screen">Screening</option>
-          <option value="nexai_bot">NexAI Interview</option>
+          <option value="enteri_ai_bot">Enteri AI Interview</option>
           <option value="shortlisted">Shortlisted</option>
           <option value="interview">Interview</option>
           <option value="documentation">Documentation</option>
@@ -6510,11 +6510,11 @@ async function screenTeam(){
     </div>`;
 }
 
-// ── SCREEN: NexAI Tracker ────────────────────────────────────────────────────
-async function screenNexAITracker(){
-  setTitle('NexAI Tracker');
-  const data=await api('/api/nexai/invite-tracker');
-  if(!data){showErr('Could not load NexAI tracker.');return;}
+// ── SCREEN: Enteri AI Tracker ────────────────────────────────────────────────────
+async function screenEnteriAITracker(){
+  setTitle('Enteri AI Tracker');
+  const data=await api('/api/enteri-ai/invite-tracker');
+  if(!data){showErr('Could not load Enteri AI tracker.');return;}
   const s=data.summary||{};
   const rows=data.invites||[];
 
@@ -6565,7 +6565,7 @@ async function screenNexAITracker(){
             ?`<div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="navigate('kanban','${r.req_id}')">View pipeline</button>
                 ${r.session_id?`<button class="btn btn-ghost btn-sm" style="font-size:11px;border-color:var(--accent);color:var(--accent)" onclick="openTranscript('${r.session_id}','${r.proctoring_session_id||''}')">View transcript</button>`:''}
-                <button class="btn btn-ghost btn-sm" style="font-size:11px" title="One attempt per invite — this issues a brand-new link and invalidates the old one." onclick="resendInvite('${r.app_id}','${escAttr(r.candidate_name||'')}','${escAttr(r.candidate_email||'')}','This candidate already completed their NexAI interview. Re-attempt gives them a brand-new link and permanently invalidates the old one — their current score stays on record until they finish the new attempt.')">Re-attempt</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px" title="One attempt per invite — this issues a brand-new link and invalidates the old one." onclick="resendInvite('${r.app_id}','${escAttr(r.candidate_name||'')}','${escAttr(r.candidate_email||'')}','This candidate already completed their Enteri AI interview. Re-attempt gives them a brand-new link and permanently invalidates the old one — their current score stays on record until they finish the new attempt.')">Re-attempt</button>
               </div>`
             :r.invite_status==='terminated'
               ?`<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
@@ -6580,7 +6580,7 @@ async function screenNexAITracker(){
     </tr>`).join('');
 
   document.getElementById('content').innerHTML=`
-    <div class="page-header"><h1>NexAI Tracker</h1></div>
+    <div class="page-header"><h1>Enteri AI Tracker</h1></div>
 
     <!-- Summary cards -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:24px">
@@ -6641,17 +6641,17 @@ async function resendInvite(appId, name, email, note){
   }
   let raw,res;
   try{
-    raw=await fetch(`/api/nexai/resend-invite/${appId}`,{method:'POST',headers:{Authorization:`Bearer ${_tok}`}});
+    raw=await fetch(`/api/enteri-ai/resend-invite/${appId}`,{method:'POST',headers:{Authorization:`Bearer ${_tok}`}});
     res=await raw.json();
   }catch(e){flash('Network error',false);return;}
   if(raw.ok&&res.invite_url&&res.email_sent){
     flash(`Invite resent to ${res.sent_to}`);
-    screenNexAITracker();
+    screenEnteriAITracker();
   } else if(raw.ok&&res.invite_url){
     // A new token was issued but the email itself didn't go out — don't report
     // success. Refresh the tracker so the row still reflects reality (send_failed).
     flash(res.email_error ? `Resend failed: ${res.email_error}` : 'Resend failed — the email did not send.', false);
-    screenNexAITracker();
+    screenEnteriAITracker();
   } else {
     flash(res?.detail||_lastApiError||'Failed to resend invite.',false);
   }
@@ -6667,7 +6667,7 @@ function _htmlEsc(s) {
 
 let _txProctoringSessionId = null;
 
-// Candidate name click in NexAI Tracker: same modal as "View transcript", plus
+// Candidate name click in Enteri AI Tracker: same modal as "View transcript", plus
 // a "View proctoring report" button when a proctoring session exists.
 function openCandidateDetail(sessionId, proctoringSessionId) {
   if (!sessionId) { flash('Interview has not started yet.', false); return; }
@@ -6687,7 +6687,7 @@ async function openTranscript(sessionId, proctoringSessionId) {
   document.getElementById('tx-proctoring-btn').style.display = _txProctoringSessionId ? '' : 'none';
   modal.classList.add('open');
 
-  const d = await api(`/api/nexai/sessions/${sessionId}/transcript`);
+  const d = await api(`/api/enteri-ai/sessions/${sessionId}/transcript`);
   if (!d) { modal.classList.remove('open'); return; }
 
   // ── Header ──────────────────────────────────────────────────────────────
@@ -6795,7 +6795,7 @@ function closeTranscript() {
 
 async function screenAppeals() {
   setTitle('Appeals');
-  const rows = await api('/api/nexai/appeals');
+  const rows = await api('/api/enteri-ai/appeals');
   if (!rows) { showErr('Could not load appeals.'); return; }
 
   if (!rows.length) {
@@ -6839,7 +6839,7 @@ async function screenAppeals() {
 }
 
 async function openAppealDetail(appealId) {
-  const rows = await api('/api/nexai/appeals');
+  const rows = await api('/api/enteri-ai/appeals');
   if (!rows) return;
   const r = rows.find(x => x.id === appealId);
   if (!r) return;
@@ -6919,7 +6919,7 @@ async function openAppealDetail(appealId) {
 async function saveAppealNotes(appealId) {
   const status = document.getElementById('appeal-status-sel').value;
   const notes  = document.getElementById('appeal-notes-ta').value;
-  const ok = await api(`/api/nexai/appeals/${appealId}`, {
+  const ok = await api(`/api/enteri-ai/appeals/${appealId}`, {
     method: 'PATCH',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ status, recruiter_notes: notes }),
@@ -6932,7 +6932,7 @@ async function relinkAppeal(appealId, candidateName) {
   const btn = event.target;
   btn.disabled = true;
   btn.textContent = 'Sending…';
-  const result = await api(`/api/nexai/appeals/${appealId}/relink`, { method: 'POST' });
+  const result = await api(`/api/enteri-ai/appeals/${appealId}/relink`, { method: 'POST' });
   if (result) {
     flash(`Fresh invite sent to ${result.sent_to||candidateName}.`, true);
     navigate('appeals');
@@ -6945,7 +6945,7 @@ async function relinkAppeal(appealId, candidateName) {
 async function rejectAppeal(appealId) {
   if (!confirm('Reject this appeal? The candidate will not receive another link unless manually actioned.')) return;
   const notes = document.getElementById('appeal-notes-ta').value;
-  const ok = await api(`/api/nexai/appeals/${appealId}`, {
+  const ok = await api(`/api/enteri-ai/appeals/${appealId}`, {
     method: 'PATCH',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ status: 'rejected', recruiter_notes: notes }),
@@ -7414,7 +7414,7 @@ async function screenSettings(){
   const [cfg,formCfg,baseUrlStatus]=await Promise.all([
     api('/api/admin/settings'),
     apiOrWarn('/api/admin/form-field-config',{},null,'form field config'),
-    apiOrWarn('/api/nexai/base-url-status',{},null,'base URL status'),
+    apiOrWarn('/api/enteri-ai/base-url-status',{},null,'base URL status'),
   ]);
   if(!cfg){showErr('Could not load settings.');return;}
   const _buEffective = baseUrlStatus?.effective_base_url || cfg.app_base_url || 'http://localhost:8080';
@@ -8553,7 +8553,7 @@ async function screenHMDashboard(){
     return `<span style="font-size:10px;background:#0e9f6e;color:#fff;padding:2px 6px;border-radius:3px;margin-left:6px">Approved</span>`;
   };
 
-  const STAGE_MINI = ['applied','screen','nexai_bot','shortlisted','interview','documentation','offered'];
+  const STAGE_MINI = ['applied','screen','enteri_ai_bot','shortlisted','interview','documentation','offered'];
   const reqCardsHtml = reqs.map(r=>{
     const sc = r.stage_counts || {};
     const funnel = STAGE_MINI.map(s=>{
@@ -8685,7 +8685,7 @@ async function screenHMMyReqs(){
     if(s==='rejected') return `<span style="font-size:10px;background:#e2455a;color:#fff;padding:2px 6px;border-radius:3px;margin-left:6px">Rejected by TA</span>`;
     return `<span style="font-size:10px;background:#0e9f6e;color:#fff;padding:2px 6px;border-radius:3px;margin-left:6px">Active</span>`;
   };
-  const STAGE_MINI = ['applied','screen','nexai_bot','shortlisted','interview','documentation','offered'];
+  const STAGE_MINI = ['applied','screen','enteri_ai_bot','shortlisted','interview','documentation','offered'];
 
   const cardsHtml = reqs.map(r=>{
     const sc = r.stage_counts || {};
@@ -9238,8 +9238,8 @@ async function openReqModal(){
   document.getElementById('req-modal-submit-btn').textContent='Create requisition';
   await _loadReqModalDropdowns();
   // A default "AI screening interview" (bot_interview) round used to be
-  // seeded here as round 1 -- but that's the exact same NexAI bot session
-  // as the fixed "NexAI Interview" pipeline stage every candidate already
+  // seeded here as round 1 -- but that's the exact same Enteri AI bot session
+  // as the fixed "Enteri AI Interview" pipeline stage every candidate already
   // passes through before shortlisting (see screenKanban's mergeRoundSeqs),
   // so it only ever created a confusing duplicate. New requisitions now
   // default straight to a real panel round; 'bot_interview' is still a
@@ -9427,7 +9427,7 @@ async function changeReqStatus(reqId,status,title){
 let _baseUrlStatus = null;
 async function _ensureBaseUrlStatus(){
   if(!_baseUrlStatus){
-    _baseUrlStatus = await apiOrWarn('/api/nexai/base-url-status',{},null,'base URL status');
+    _baseUrlStatus = await apiOrWarn('/api/enteri-ai/base-url-status',{},null,'base URL status');
   }
   return _baseUrlStatus;
 }
@@ -9451,10 +9451,10 @@ async function _maybeInjectBaseUrlBanner(){
   }
 }
 
-// ── NexAI Invite helpers ─────────────────────────────────────────────────────
+// ── Enteri AI Invite helpers ─────────────────────────────────────────────────────
 let _inviteAppId=null;
 let _inviteLocalhostConfirmed=false;
-async function sendNexAIInvite(appId, name, email, event){
+async function sendEnteriAIInvite(appId, name, email, event){
   if(event) event.stopPropagation();
   _inviteAppId=appId;
   _inviteLocalhostConfirmed=false;
@@ -9465,7 +9465,7 @@ async function sendNexAIInvite(appId, name, email, event){
   document.getElementById('inv-send-btn').disabled=false;
   document.getElementById('inv-send-btn').textContent='📧 Send invite';
   document.getElementById('inv-send-btn').style.background='';
-  document.getElementById('nexai-invite-modal').classList.add('open');
+  document.getElementById('enteri-ai-invite-modal').classList.add('open');
   // Check base URL in background — show warning if localhost
   const status = await _ensureBaseUrlStatus();
   const warnEl = document.getElementById('inv-localhost-warn');
@@ -9479,7 +9479,7 @@ async function sendNexAIInvite(appId, name, email, event){
     if(warnEl) warnEl.style.display='none';
   }
 }
-function closeInviteModal(){document.getElementById('nexai-invite-modal').classList.remove('open');}
+function closeInviteModal(){document.getElementById('enteri-ai-invite-modal').classList.remove('open');}
 async function confirmSendInvite(){
   const btn=document.getElementById('inv-send-btn');
   btn.disabled=true;btn.textContent='Sending…';
@@ -9488,7 +9488,7 @@ async function confirmSendInvite(){
 
   let raw,res;
   try{
-    raw=await fetch(`/api/nexai/invite/send/${_inviteAppId}`,{
+    raw=await fetch(`/api/enteri-ai/invite/send/${_inviteAppId}`,{
       method:'POST',
       headers:{Authorization:`Bearer ${_tok}`}
     });
@@ -9530,7 +9530,7 @@ async function confirmSendInvite(){
   resEl.style.display='block';
 }
 
-// ── NexAI Question Editor ─────────────────────────────────────────────────────
+// ── Enteri AI Question Editor ─────────────────────────────────────────────────────
 let _questionsReqId = null, _questionsRows = [];
 
 async function openQuestionsModal(reqId) {
@@ -9539,8 +9539,8 @@ async function openQuestionsModal(reqId) {
   statusEl.textContent = '';
   statusEl.style.color = '';
   document.getElementById('nxq-list').innerHTML = '<p style="color:var(--muted);font-size:13px">Loading…</p>';
-  document.getElementById('nexai-questions-modal').classList.add('open');
-  const data = await api(`/api/nexai/requisitions/${reqId}/questions`);
+  document.getElementById('enteri-ai-questions-modal').classList.add('open');
+  const data = await api(`/api/enteri-ai/requisitions/${reqId}/questions`);
   if (!data) {
     document.getElementById('nxq-list').innerHTML = '<p style="color:#e2455a;font-size:13px">Could not load questions.</p>';
     return;
@@ -9548,7 +9548,7 @@ async function openQuestionsModal(reqId) {
   _applyQuestionsData(data);
 }
 function closeQuestionsModal() {
-  document.getElementById('nexai-questions-modal').classList.remove('open');
+  document.getElementById('enteri-ai-questions-modal').classList.remove('open');
 }
 function _applyQuestionsData(data) {
   _questionsRows = (data.questions || []).map(q => ({
@@ -9620,7 +9620,7 @@ function moveQuestionRow(idx,dir) {
 async function resetQuestionsToAuto() {
   if (!confirm('Discard current edits and reload the auto-generated defaults?')) return;
   document.getElementById('nxq-status').textContent = '';
-  const data = await api(`/api/nexai/requisitions/${_questionsReqId}/questions?defaults=true`);
+  const data = await api(`/api/enteri-ai/requisitions/${_questionsReqId}/questions?defaults=true`);
   if (!data) { document.getElementById('nxq-status').textContent = 'Could not load defaults.'; return; }
   _applyQuestionsData({...data, saved:false});
 }
@@ -9640,7 +9640,7 @@ async function saveQuestions() {
       expected_keywords: r.keywords.split(',').map(k=>k.trim()).filter(Boolean),
     })),
   };
-  const res = await api(`/api/nexai/requisitions/${_questionsReqId}/questions`,{
+  const res = await api(`/api/enteri-ai/requisitions/${_questionsReqId}/questions`,{
     method:'PUT',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(body),
@@ -10397,7 +10397,7 @@ async function doChpw(){
   else{errEl.textContent=res?.detail||_lastApiError||'Error';errEl.style.display='block';}
 }
 
-// ── NexAI Orb Engine ─────────────────────────────────────────────────────────
+// ── Enteri AI Orb Engine ─────────────────────────────────────────────────────────
 // Real amplitude from mic via Web Audio API AnalyserNode during listening.
 // Simulated multi-harmonic oscillation during speaking (speechSynthesis
 // does not expose its stream to the Web Audio API in any current browser).
@@ -10415,9 +10415,9 @@ const _orb = {
 };
 
 function _orbLabel(state) {
-  const el = document.getElementById('nexai-orb-label');
+  const el = document.getElementById('enteri-ai-orb-label');
   if (!el) return;
-  el.className = 'nexai-state-label ' + state;
+  el.className = 'enteri-ai-state-label ' + state;
   let text = {
     idle:      'Ready',
     speaking:  'Speaking…',
@@ -10497,7 +10497,7 @@ function _orbAmplitude() {
 function _orbFrame() {
   if (_orb.state === 'off') return;
 
-  const canvas = _orb.canvas || (_orb.canvas = document.getElementById('nexai-orb'));
+  const canvas = _orb.canvas || (_orb.canvas = document.getElementById('enteri-ai-orb'));
   if (!canvas) return;
   const ctx = _orb.ctx || (_orb.ctx = canvas.getContext('2d'));
   const W = canvas.width, H = canvas.height;
@@ -10578,15 +10578,15 @@ let _screenRecorder = null;
 let _behaviorInterval = null;
 let _behaviorFlags = [];
 let _tfModels = null;           // loaded lazily when proctoring starts
-let _avatarProvider = 'orb';   // set from /api/nexai/avatar/config
-let _selectedFaceId = 'nexai-female';
+let _avatarProvider = 'orb';   // set from /api/enteri-ai/avatar/config
+let _selectedFaceId = 'enteri-ai-female';
 
-// B1: Show consent screen before opening NexAI modal
-async function openNexAI(appId, event) {
+// B1: Show consent screen before opening Enteri AI modal
+async function openEnteriAI(appId, event) {
   if (event) event.stopPropagation();
   _procPendingAppId = appId;
   // Check avatar config for A2/A3
-  const avatarCfg = await api('/api/nexai/avatar/config');
+  const avatarCfg = await api('/api/enteri-ai/avatar/config');
   _avatarProvider = avatarCfg?.provider || 'orb';
   // Show consent modal
   document.getElementById('consent-check').checked = false;
@@ -10597,7 +10597,7 @@ async function openNexAI(appId, event) {
 function declineProctoring() {
   document.getElementById('proctor-consent-modal').classList.remove('open');
   _procConsented = false;
-  _startNexAI(_procPendingAppId, false);
+  _startEnteriAI(_procPendingAppId, false);
 }
 
 async function acceptProctoring() {
@@ -10615,25 +10615,25 @@ async function acceptProctoring() {
       body:JSON.stringify({granted:true}),
     });
   }
-  _startNexAI(_procPendingAppId, true);
+  _startEnteriAI(_procPendingAppId, true);
 }
 
-async function _startNexAI(appId, proctored) {
+async function _startEnteriAI(appId, proctored) {
   // A2/A3: face selector (only for GPU providers with face images)
   if (_avatarProvider !== 'orb' && (await _hasFaceImages())) {
     await _showFaceSelector();
   }
-  _openNexAIModal(appId, proctored);
+  _openEnteriAIModal(appId, proctored);
 }
 
 async function _hasFaceImages() {
-  const cfg = await api('/api/nexai/avatar/config');
+  const cfg = await api('/api/enteri-ai/avatar/config');
   return (cfg?.face_ids||[]).length > 0;
 }
 
 function _showFaceSelector() {
   return new Promise(resolve => {
-    api('/api/nexai/avatar/config').then(cfg => {
+    api('/api/enteri-ai/avatar/config').then(cfg => {
       const faces = cfg?.face_ids || [];
       const container = document.getElementById('face-options');
       container.innerHTML = faces.map(fid => `
@@ -10641,7 +10641,7 @@ function _showFaceSelector() {
           <img src="/assets/avatars/${fid}.png" style="width:80px;height:80px;border-radius:50%;border:3px solid transparent;display:block"
             onerror="this.src='/assets/Enternly_logo.png'"
             onclick="document.querySelectorAll('#face-options img').forEach(i=>i.style.borderColor='transparent');this.style.borderColor='#2563EB';_selectedFaceId='${fid}'">
-          <span style="font-size:11px">${fid.replace('nexai-','')}</span>
+          <span style="font-size:11px">${fid.replace('enteri-ai-','')}</span>
         </label>`).join('');
       document.getElementById('face-select-modal').classList.add('open');
       window._faceSelectResolve = resolve;
@@ -10654,10 +10654,10 @@ function confirmFaceSelect() {
   if (window._faceSelectResolve) { window._faceSelectResolve(); delete window._faceSelectResolve; }
 }
 
-// ── NexAI Voice Interview ─────────────────────────────────────────────────────
+// ── Enteri AI Voice Interview ─────────────────────────────────────────────────────
 let _nxSessionId=null,_nxQuestions=[],_nxSeq=0,_nxTranscript=[],_nxRecog=null,_nxSynth=window.speechSynthesis;
 
-// ── Browser TTS voice — force female, Indian-accent to match the NexAI avatar ─
+// ── Browser TTS voice — force female, Indian-accent to match the Enteri AI avatar ─
 let _nxFemaleIndianVoice=null,_nxFemaleIndianVoiceLoaded=false;
 function _nxLoadSynthVoices(){
   return new Promise(resolve=>{
@@ -10683,58 +10683,58 @@ async function _nxPickFemaleIndianVoice(){
   return _nxFemaleIndianVoice;
 }
 
-async function _openNexAIModal(appId, proctored) {
+async function _openEnteriAIModal(appId, proctored) {
   _nxSessionId=null; _nxQuestions=[]; _nxSeq=0; _nxTranscript=[];
   _orb.canvas=null; _orb.ctx=null;
   orbSetState('idle');
-  document.getElementById('nexai-status').textContent='Preparing questions…';
-  document.getElementById('nexai-question').textContent='Questions will appear here.';
-  document.getElementById('nexai-result').style.display='none';
-  document.getElementById('nexai-transcript').style.display='none';
-  document.getElementById('nexai-avatar-video').style.display='none';
+  document.getElementById('enteri-ai-status').textContent='Preparing questions…';
+  document.getElementById('enteri-ai-question').textContent='Questions will appear here.';
+  document.getElementById('enteri-ai-result').style.display='none';
+  document.getElementById('enteri-ai-transcript').style.display='none';
+  document.getElementById('enteri-ai-avatar-video').style.display='none';
   ['nxbtn-speak','nxbtn-listen','nxbtn-next','nxbtn-end'].forEach(id => {
     const el=document.getElementById(id);
     el.style.display=id==='nxbtn-speak'?'':'none'; el.disabled=true;
   });
-  document.getElementById('nexai-modal').classList.add('open');
+  document.getElementById('enteri-ai-modal').classList.add('open');
 
   // B2/B3: Start proctoring streams if consented
   if (proctored && _procSessionId) {
     await _startProctoringStreams();
   }
 
-  const res = await api('/api/nexai/sessions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({application_id:appId})});
-  if (!res) { flash(_lastApiError||'Could not start NexAI session.', false); closeNexAI(); return; }
+  const res = await api('/api/enteri-ai/sessions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({application_id:appId})});
+  if (!res) { flash(_lastApiError||'Could not start Enteri AI session.', false); closeEnteriAI(); return; }
   _nxSessionId = res.session_id;
   _nxQuestions = res.questions || [];
 
-  // Update nexai_session_id in proctoring session
+  // Update enteri_ai_session_id in proctoring session
   if (_procSessionId) {
     await api(`/api/proctoring/sessions`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({application_id:appId, nexai_session_id:_nxSessionId}),
+      body:JSON.stringify({application_id:appId, enteri_ai_session_id:_nxSessionId}),
     });
   }
 
-  document.getElementById('nexai-status').textContent = `${_nxQuestions.length} questions prepared. Press ▶ Speak to begin.`;
+  document.getElementById('enteri-ai-status').textContent = `${_nxQuestions.length} questions prepared. Press ▶ Speak to begin.`;
   document.getElementById('nxbtn-speak').disabled = false;
 }
 
-function closeNexAI() {
+function closeEnteriAI() {
   if (_nxRecog) try { _nxRecog.abort(); } catch {}
   if (_nxSynth) _nxSynth.cancel();
   orbSetState('off');
   _stopProctoringStreams();
   _nxSessionId=null; _nxQuestions=[]; _nxSeq=0; _nxTranscript=[];
-  document.getElementById('nexai-modal').classList.remove('open');
-  document.getElementById('nexai-avatar-video').style.display='none';
+  document.getElementById('enteri-ai-modal').classList.remove('open');
+  document.getElementById('enteri-ai-avatar-video').style.display='none';
 }
 
-async function nexaiSpeak() {
+async function enteriAISpeak() {
   if (_nxSeq >= _nxQuestions.length) return;
   const q = _nxQuestions[_nxSeq];
-  document.getElementById('nexai-question').textContent = `Q${q.seq}: ${q.text}`;
-  document.getElementById('nexai-status').textContent = `Question ${q.seq} of ${_nxQuestions.length}`;
+  document.getElementById('enteri-ai-question').textContent = `Q${q.seq}: ${q.text}`;
+  document.getElementById('enteri-ai-status').textContent = `Question ${q.seq} of ${_nxQuestions.length}`;
   orbSetState('speaking');
   document.getElementById('nxbtn-speak').disabled = true;
   document.getElementById('nxbtn-listen').style.display = 'none';
@@ -10743,7 +10743,7 @@ async function nexaiSpeak() {
 
   const onQuestionEnd = () => {
     orbSetState('idle');
-    document.getElementById('nexai-status').textContent = 'Your turn — click 🎤 to record your answer.';
+    document.getElementById('enteri-ai-status').textContent = 'Your turn — click 🎤 to record your answer.';
     document.getElementById('nxbtn-listen').style.display = '';
     document.getElementById('nxbtn-listen').disabled = false;
   };
@@ -10751,17 +10751,17 @@ async function nexaiSpeak() {
   // A3: GPU avatar path — render video if provider != orb
   if (_avatarProvider !== 'orb') {
     try {
-      const renderRes = await api('/api/nexai/render-question', {
+      const renderRes = await api('/api/enteri-ai/render-question', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({question_text:q.text, face_id:_selectedFaceId, session_id:_nxSessionId}),
       });
       if (renderRes?.video_url) {
-        const vid = document.getElementById('nexai-avatar-video');
-        document.getElementById('nexai-orb').style.display = 'none';
+        const vid = document.getElementById('enteri-ai-avatar-video');
+        document.getElementById('enteri-ai-orb').style.display = 'none';
         vid.src = renderRes.video_url; vid.style.display = 'block';
         vid.onended = () => {
           vid.style.display = 'none';
-          document.getElementById('nexai-orb').style.display = 'block';
+          document.getElementById('enteri-ai-orb').style.display = 'block';
           onQuestionEnd();
         };
         vid.play().catch(() => _speakWithTTS(q.text, onQuestionEnd));
@@ -10782,7 +10782,7 @@ async function _speakWithTTS(text, onEnd) {
   utt.onend  = onEnd;
   utt.onerror = e => {
     orbSetState('idle');
-    document.getElementById('nexai-status').textContent = '(TTS unavailable — click 🎤 to record your answer)';
+    document.getElementById('enteri-ai-status').textContent = '(TTS unavailable — click 🎤 to record your answer)';
     document.getElementById('nxbtn-listen').style.display = '';
     document.getElementById('nxbtn-listen').disabled = false;
     console.warn('TTS error', e);
@@ -10791,11 +10791,11 @@ async function _speakWithTTS(text, onEnd) {
   _nxSynth.speak(utt);
 }
 
-function nexaiListen() {
+function enteriAIListen() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { flash('Speech recognition not supported. Use Chrome or Edge.', false); return; }
   document.getElementById('nxbtn-listen').disabled = true;
-  document.getElementById('nexai-status').textContent = 'Listening — speak your answer…';
+  document.getElementById('enteri-ai-status').textContent = 'Listening — speak your answer…';
   orbSetState('listening');   // triggers real mic amplitude via AudioContext
   _nxRecog = new SR();
   _nxRecog.lang = 'en-IN'; _nxRecog.continuous = false;
@@ -10806,10 +10806,10 @@ function nexaiListen() {
     orbSetState('idle');
     const q = _nxQuestions[_nxSeq];
     _nxTranscript.push({seq:q.seq, question:q.text, answer:answer||'(no answer captured)'});
-    const tb = document.getElementById('nexai-transcript');
+    const tb = document.getElementById('enteri-ai-transcript');
     tb.style.display = 'block';
     tb.innerHTML += `<div style="margin-bottom:6px"><strong>Q${q.seq}:</strong> ${esc(answer||'(silent)')}</div>`;
-    document.getElementById('nexai-status').textContent =
+    document.getElementById('enteri-ai-status').textContent =
       _nxSeq+1 < _nxQuestions.length ? 'Answer recorded. Click Next →' : 'All questions answered. Click End & score.';
     document.getElementById('nxbtn-listen').style.display = 'none';
     if (_nxSeq+1 < _nxQuestions.length) {
@@ -10821,26 +10821,26 @@ function nexaiListen() {
   };
   _nxRecog.onerror = e => {
     orbSetState('idle');
-    document.getElementById('nexai-status').textContent = `Mic error: ${e.error}. Click 🎤 to retry.`;
+    document.getElementById('enteri-ai-status').textContent = `Mic error: ${e.error}. Click 🎤 to retry.`;
     document.getElementById('nxbtn-listen').disabled = false;
   };
   _nxRecog.start();
 }
 
-function nexaiNext() {
+function enteriAINext() {
   _nxSeq++;
   document.getElementById('nxbtn-next').style.display = 'none';
   document.getElementById('nxbtn-end').style.display = 'none';
   document.getElementById('nxbtn-speak').disabled = false;
   orbSetState('idle');
-  nexaiSpeak();
+  enteriAISpeak();
 }
 
-async function nexaiSubmit() {
+async function enteriAISubmit() {
   if (_nxSynth) _nxSynth.cancel();
   if (_nxRecog) try { _nxRecog.abort(); } catch {}
   orbSetState('done');
-  document.getElementById('nexai-status').textContent = 'Scoring…';
+  document.getElementById('enteri-ai-status').textContent = 'Scoring…';
   ['nxbtn-speak','nxbtn-listen','nxbtn-next','nxbtn-end'].forEach(id => document.getElementById(id).disabled=true);
 
   // B6: Submit AI behaviour flags collected during the session
@@ -10857,25 +10857,25 @@ async function nexaiSubmit() {
   }
   document.getElementById('rec-badge').style.display = 'none';
 
-  const res = await api(`/api/nexai/sessions/${_nxSessionId}/submit`, {
+  const res = await api(`/api/enteri-ai/sessions/${_nxSessionId}/submit`, {
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({transcript:_nxTranscript}),
   });
   if (!res) { flash(_lastApiError||'Scoring failed.', false); return; }
   const d = res.score_detail || {};
-  document.getElementById('nexai-result').innerHTML = `
+  document.getElementById('enteri-ai-result').innerHTML = `
     <div style="display:flex;align-items:center;gap:14px;padding:14px;background:var(--hov);border-radius:4px;border:1px solid var(--border)">
       <span style="font-size:36px;font-weight:700;color:var(--accent)">${res.raw_score}</span>
       <div>
-        <div style="font-size:13px;font-weight:600">NexAI assistive score / 100</div>
+        <div style="font-size:13px;font-weight:600">Enteri AI assistive score / 100</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px">Questions answered: ${d.questions_answered??'—'}/${d.total_questions??'—'}</div>
         <div style="font-size:12px;color:var(--muted)">Per-question: ${(d.per_question||[]).join(', ')||'—'}</div>
         ${_procConsented?`<div style="font-size:11px;color:var(--muted);margin-top:4px">Proctoring: ${_behaviorFlags.length} AI flags recorded (human review pending)</div>`:''}
-        <div style="font-size:11px;color:var(--gold);margin-top:4px;font-style:italic">Recruiter reviews all scores — NexAI never auto-rejects.</div>
+        <div style="font-size:11px;color:var(--gold);margin-top:4px;font-style:italic">Recruiter reviews all scores — Enteri AI never auto-rejects.</div>
       </div>
     </div>`;
-  document.getElementById('nexai-result').style.display = 'block';
-  document.getElementById('nexai-status').textContent = 'Interview complete. Score saved.';
+  document.getElementById('enteri-ai-result').style.display = 'block';
+  document.getElementById('enteri-ai-status').textContent = 'Interview complete. Score saved.';
 }
 
 // ── B2/B3/B4/B5: Proctoring streams ──────────────────────────────────────────
@@ -11136,7 +11136,7 @@ async function openProctoringDetail(sessionId) {
   if (d.proctoring_status === 'did_not_run') {
     // No proctoring_session row exists at all -- there's no video/flags/
     // decision to show, and none of those endpoints work against a bare
-    // nexai_session id. Distinct from "not required": this interview WAS
+    // enteri_ai_session id. Distinct from "not required": this interview WAS
     // expected to be proctored and silently wasn't.
     document.getElementById('content').innerHTML = `
       <div class="page-header">
@@ -11333,7 +11333,7 @@ function _fmtMs(ms) {
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 
-// ── Proctoring badge for NexAI Sessions tracker ───────────────────────────────
+// ── Proctoring badge for Enteri AI Sessions tracker ───────────────────────────────
 function _procBadge(r) {
   if (!r.has_proctoring || !r.proctoring_session_id) {
     return '<span style="font-size:11px;color:var(--muted)">Not proctored</span>';
@@ -11425,20 +11425,20 @@ async function _loadProcChunk(kind, idx) {
 function procPrevChunk(k) { _loadProcChunk(k, (k === 'wc' ? _pm.wIdx : _pm.sIdx) - 1); }
 function procNextChunk(k) { _loadProcChunk(k, (k === 'wc' ? _pm.wIdx : _pm.sIdx) + 1); }
 
-// ── SCREEN: NexAI Sessions (drill-down from dashboard) ────────────────────────
-async function screenNexAISessions() {
+// ── SCREEN: Enteri AI Sessions (drill-down from dashboard) ────────────────────────
+async function screenEnteriAISessions() {
   const filter = _navFilter; _navFilter = {};
-  setTitle('NexAI Sessions');
+  setTitle('Enteri AI Sessions');
 
   // Build query params
   const qs = new URLSearchParams();
-  if (filter.nexai_status) qs.set('status', filter.nexai_status);
+  if (filter.enteri_ai_status) qs.set('status', filter.enteri_ai_status);
   if (filter.score_min != null) qs.set('score_min', filter.score_min);
   if (filter.score_max != null) qs.set('score_max', filter.score_max);
-  const url = '/api/nexai/sessions' + (qs.toString() ? '?' + qs : '');
+  const url = '/api/enteri-ai/sessions' + (qs.toString() ? '?' + qs : '');
 
   const rows = await api(url);
-  if (!rows) { showErr('Could not load NexAI sessions.'); return; }
+  if (!rows) { showErr('Could not load Enteri AI sessions.'); return; }
 
   const label = filter.label || 'All AI Sessions';
   const showRecruiter = ME.role === 'ta_manager' || ME.role === 'admin';
@@ -11485,7 +11485,7 @@ async function screenNexAISessions() {
   }
 
   document.getElementById('content').innerHTML = `
-    <div class="page-header"><h1>NexAI Sessions</h1></div>
+    <div class="page-header"><h1>Enteri AI Sessions</h1></div>
     ${banner}
     ${summaryHtml}
     <div class="card" style="padding:0;overflow:hidden">
@@ -12006,7 +12006,7 @@ async function _campusRenderPreview() {
   }
 
   // Check PROD_BASE_URL status
-  const urlSt = await api('/api/nexai/base-url-status') || {};
+  const urlSt = await api('/api/enteri-ai/base-url-status') || {};
   const isLocalUrl = urlSt.is_localhost !== false;
 
   const res = await api(`/api/campus/requisition/${_campusReqId}/candidates?page=${_campusPage}`);
@@ -12025,7 +12025,7 @@ async function _campusRenderPreview() {
     const map = {
       pending:          'pill',
       invite_queued:    'pill ai_screening',
-      invited:          'pill nexai_bot',
+      invited:          'pill enteri_ai_bot',
       interview_started:'pill screen',
       completed:        'pill shortlisted',
       interview_failed: 'pill rejected',
@@ -12100,7 +12100,7 @@ async function _campusRenderPreview() {
     <div style="background:#fff8f5;border:1px solid #fcd9c9;border-radius:6px;padding:10px 14px;display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:600;color:var(--accent)">${_campusSelected.size} candidate${_campusSelected.size===1?'':'s'} selected</span>
       <button class="btn btn-primary btn-sm" onclick="_campusSendInvites()">
-        🚀 Send NexAI Invite to ${_campusSelected.size} selected
+        🚀 Send Enteri AI Invite to ${_campusSelected.size} selected
       </button>
       <button class="btn btn-ghost btn-sm" onclick="_campusSelected.clear();_campusRenderPreview()">Deselect All</button>
     </div>` : ''}
@@ -12126,8 +12126,8 @@ async function _campusRenderPreview() {
             <td>${c.graduation_year||'—'}</td>
             <td style="font-size:11px;color:var(--muted)" title="${escAttr(c.batch_file_name||'')}">${c.batch_file_name||'—'}</td>
             <td>${statusBadge(c.status)}
-              ${c.nexai_link&&c.invite_status==='invite_queued'
-                ? `<a href="${c.nexai_link}" target="_blank" style="font-size:11px;margin-left:6px;color:var(--accent)" title="Copy invite link">🔗</a>`
+              ${c.enteri_ai_link&&c.invite_status==='invite_queued'
+                ? `<a href="${c.enteri_ai_link}" target="_blank" style="font-size:11px;margin-left:6px;color:var(--accent)" title="Copy invite link">🔗</a>`
                 : ''}
             </td>
             <td>${c.score!=null?c.score:'—'}</td>
@@ -12305,7 +12305,7 @@ async function _campusRenderBatches() {
 
   const statusPill = s => ({
     draft:'<span class="pill draft">Draft</span>',
-    invites_sent:'<span class="pill nexai_bot">Invites Sent</span>',
+    invites_sent:'<span class="pill enteri_ai_bot">Invites Sent</span>',
     completed:'<span class="pill shortlisted">Completed</span>',
   }[s] || `<span class="pill">${s}</span>`);
 
@@ -13253,7 +13253,7 @@ async function screenSLASettings(){
         <div class="card-title">Per-Stage SLA — max days a candidate may sit in each stage</div>
         ${fld('stage_applied','Applied','default 5')}
         ${fld('stage_screen','Screening','default 3')}
-        ${fld('stage_nexai_bot','NexAI Interview','default 3')}
+        ${fld('stage_enteri_ai_bot','Enteri AI Interview','default 3')}
         ${fld('stage_shortlisted','Shortlisted','default 2')}
         ${fld('stage_interview','Interview (per level)','default 5')}
         ${fld('stage_documentation','Documentation','default 5')}
@@ -13291,7 +13291,7 @@ async function screenSLASettings(){
 }
 
 async function saveSLAConfig(){
-  const keys=['stage_applied','stage_screen','stage_nexai_bot','stage_shortlisted',
+  const keys=['stage_applied','stage_screen','stage_enteri_ai_bot','stage_shortlisted',
               'stage_interview','stage_documentation','stage_offered','stage_default',
               'req_time_to_fill','approval_step'];
   const body={};

@@ -1,6 +1,6 @@
-# Enternly — AI Avatar + Proctoring build spec (NexAI interview)
+# Enternly — AI Avatar + Proctoring build spec (Enteri AI interview)
 
-This extends the working NexAI voice interview (TTS speaks questions, STT captures answers, scores saved). It adds: (1) an AI-generated talking-face avatar using free open-source models, and (2) a consent-gated proctoring layer. Execute in order, one step at a time, verifying each in the browser before the next. Do not batch.
+This extends the working Enteri AI voice interview (TTS speaks questions, STT captures answers, scores saved). It adds: (1) an AI-generated talking-face avatar using free open-source models, and (2) a consent-gated proctoring layer. Execute in order, one step at a time, verifying each in the browser before the next. Do not batch.
 
 ## HARD LEGAL GATE — read first
 Proctoring records candidates' camera, microphone, and screen, and runs identity capture. This is highly regulated personal/biometric data. Build everything consent-gated from the first line. **No real external candidate may be recorded until legal sign-off is obtained.** Testing is permitted ONLY with internal team members who have consented. Every proctoring feature must: show a clear consent screen first, show a persistent "recording active" indicator, store data on company GCP, and surface any AI flag to a HUMAN reviewer as information — never auto-reject.
@@ -11,18 +11,18 @@ Proctoring records candidates' camera, microphone, and screen, and runs identity
 
 ### Approach
 Two layers behind one interface so the visual can be swapped without touching the rest:
-1. **Default visual (build now):** an animated branded orb/waveform that pulses while NexAI's audio plays. Pure frontend (canvas/SVG + the Web Audio API analyser). Zero cost, no uncanny-valley risk. This is what runs out of the box.
+1. **Default visual (build now):** an animated branded orb/waveform that pulses while Enteri AI's audio plays. Pure frontend (canvas/SVG + the Web Audio API analyser). Zero cost, no uncanny-valley risk. This is what runs out of the box.
 2. **Talking-face avatar (build the hook + GPU pipeline):** open-source lip-sync — SadTalker or Wav2Lip — that takes a single face image + the question audio and renders a short video of that face speaking in sync. Runs on a GPU instance on the company's GCP (compute cost only, no per-use licence). Provide one AI-generated male and one female face image (generate free from an open image model / "this-person-does-not-exist"-style source; store under `frontend/assets/avatars/`).
 
 ### Interaction pattern
 Question-by-question, because the open models render best from complete audio rather than live streaming:
-1. NexAI generates the next question text → TTS audio (already working).
+1. Enteri AI generates the next question text → TTS audio (already working).
 2. The avatar service renders the chosen face speaking that audio (or, if face disabled, the orb just pulses to the audio).
 3. Candidate watches the question, then answers; STT captures + scores (already working).
 4. Loop to next question.
 
 ### STEP A1 — Orb visual (frontend only)
-Replace the static NexAI interview screen with an animated orb/waveform that reacts to the playing audio amplitude. Enternly fire-orange accent. Verify: start a NexAI interview, the orb animates while each question is spoken.
+Replace the static Enteri AI interview screen with an animated orb/waveform that reacts to the playing audio amplitude. Enternly fire-orange accent. Verify: start a Enteri AI interview, the orb animates while each question is spoken.
 
 ### STEP A2 — Avatar service interface (swappable)
 Create a backend service `avatar.py` with one function, e.g. `render_speaking_clip(face_id, audio_path) -> video_url`, and a provider setting (`orb` | `sadtalker` | `wav2lip` | `vendor`). Default `orb` returns nothing (frontend handles it). This is the seam that keeps the face swappable. Verify: setting persists; default path still works with the orb.

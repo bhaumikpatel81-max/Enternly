@@ -130,9 +130,9 @@ detail, and proctoring review detail, classified from the
 "ended_low_light:" reason prefix and/or score_detail.server_judge_outcome.
 
 GAP FOUND DURING PART D END-TO-END TESTING, NOT FIXED: proctoring_appeal
-is keyed by nexai_session_id (UNIQUE-in-practice via the one-appeal check
+is keyed by enteri_ai_session_id (UNIQUE-in-practice via the one-appeal check
 in create_appeal), and relink_appeal RESETS the session's fields but does
-NOT touch or clear the existing appeal row for that same nexai_session_id
+NOT touch or clear the existing appeal row for that same enteri_ai_session_id
 (relink reuses the same session row rather than creating a new one, by
 design, so the retaken attempt has the same id). Empirically confirmed: if
 a candidate is relinked and their RETAKEN attempt is ALSO terminated for
@@ -146,7 +146,7 @@ reached) -- this is not a validator bug, it's that the one-appeal rule's
 key doesn't get reset alongside the session it's keyed to.
 NEEDS A PRODUCT DECISION before this can be closed: should relink_appeal
 (or a new step in it) archive/supersede the prior appeal row so a second,
-genuinely new appeal can be filed against the same nexai_session_id? Or is
+genuinely new appeal can be filed against the same enteri_ai_session_id? Or is
 "one appeal per candidate, ever, regardless of how many times they're
 relinked" the intended lifetime policy? Not fixed here because the
 instruction for this phase was explicitly not to touch appeal/relink

@@ -517,11 +517,11 @@
     </section>
     </sc-if>
 
-    <sc-if value="{{ isNexAI }}">
-    <section data-screen-label="NexAI results" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
+    <sc-if value="{{ isEnteriAI }}">
+    <section data-screen-label="Enteri AI results" style="padding:24px 26px 44px;display:flex;flex-direction:column;gap:16px;animation:riseIn .38s ease both">
       <div style="border-radius:18px;padding:20px 22px;background:linear-gradient(112deg,#0A1F44,#0E9BB4 160%);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
         <div>
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:#22D3EE">NexAI interview engine</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:#22D3EE">Enteri AI interview engine</div>
           <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-top:6px">41 rounds completed today</div>
         </div>
         <div style="display:flex;gap:22px">
@@ -681,14 +681,14 @@ const REQS = [
 const KPIS = [
   ['My positions', 12, '+2', '#2563EB'], ['Total applicants', 348, '+24', '#5FB4FF'],
   ['Under screening', 64, '+8', '#2563EB'], ['Screening cleared', 52, '+6', '#5FB4FF'],
-  ['NexAI interview', 41, '+11', '#22D3EE'], ['Panel interview', 23, '+4', '#5FB4FF'],
+  ['Enteri AI interview', 41, '+11', '#22D3EE'], ['Panel interview', 23, '+4', '#5FB4FF'],
   ['Offer approval', 7, '+1', '#2563EB'], ['Joined', 9, '+2', '#0e9f6e']
 ];
 
 const STAGE_SEED = [
   ['Applications', [['Aarav Menon',86,'CV parsed · 6 yrs'],['Nikhil Rao',79,'CV parsed · 4 yrs'],['Ishita Sen',81,'CV parsed · 5 yrs']], '72%'],
   ['Screening', [['Priya Sharma',91,'Recruiter call done'],['Imran Qureshi',74,'Awaiting call']], '48%'],
-  ['NexAI Interview', [['Deepa Nair',88,'Score 88 · shortlisted'],['Rohit Bansal',69,'In progress']], '55%'],
+  ['Enteri AI Interview', [['Deepa Nair',88,'Score 88 · shortlisted'],['Rohit Bansal',69,'In progress']], '55%'],
   ['Level 1 Panel', [['Sneha Iyer',84,'Scheduled Tue 11:00']], '39%'],
   ['Level 2 Panel', [['Vikram Joshi',81,'Feedback pending']], '30%'],
   ['Final Panel', [['Ananya Gupta',93,'Final round today']], '44%'],
@@ -698,7 +698,7 @@ const STAGE_SEED = [
 
 const CANDS = [
   ['Priya Sharma','PS','6 yrs · Python, Django','Senior Backend Engineer','Screening',91,'Shortlist'],
-  ['Deepa Nair','DN','5 yrs · React, TypeScript','UX Engineer','NexAI interview',88,'Shortlist'],
+  ['Deepa Nair','DN','5 yrs · React, TypeScript','UX Engineer','Enteri AI interview',88,'Shortlist'],
   ['Ananya Gupta','AG','8 yrs · Java, Kafka','Senior Backend Engineer','Final panel',93,'Strong'],
   ['Karthik Reddy','KR','7 yrs · AWS, Terraform','DevOps Engineer','HM screening',87,'Strong'],
   ['Vikram Joshi','VJ','4 yrs · SQL, Power BI','Data Analyst','Level 2 panel',81,'Review'],
@@ -708,7 +708,7 @@ const CANDS = [
 
 const TICKER = [
   ['Priya Sharma','cleared screening · Data Analyst','2m','#22D3EE'],
-  ['NexAI','scored Deepa Nair 88 · shortlisted','6m','#2563EB'],
+  ['Enteri AI','scored Deepa Nair 88 · shortlisted','6m','#2563EB'],
   ['Vikram Joshi','L2 panel feedback submitted','14m','#5FB4FF'],
   ['Meera Krishnan','offer sent for approval','22m','#0e9f6e'],
   ['REQ-2041','moved to final panel stage','31m','#2563EB'],
@@ -727,7 +727,7 @@ const TILES = [
   ['Dashboard','DB','Live pipeline view','dashboard','linear-gradient(140deg,#22D3EE,#2563EB)','',''],
   ['Requisitions','RQ','12 open · 3 urgent','requisitions','linear-gradient(140deg,#7FB0FF,#2563EB)','3 urgent','warn'],
   ['Candidates','CN','348 in pipeline','candidates','linear-gradient(140deg,#22D3EE,#7FB0FF)','',''],
-  ['NexAI results','AI','41 rounds today','nexai','linear-gradient(140deg,#22D3EE,#0E9BB4)','New','info'],
+  ['Enteri AI results','AI','41 rounds today','enteri_ai','linear-gradient(140deg,#22D3EE,#0E9BB4)','New','info'],
   ['Interviews','IV','23 panels scheduled','interviews','linear-gradient(140deg,#5FB4FF,#22D3EE)','7 today','info'],
   ['Reports','RP','FY 2026–27','reports','linear-gradient(140deg,#2563EB,#0A1F44)','',''],
   ['Team','TM','9 recruiters','team','linear-gradient(140deg,#22D3EE,#0E9BB4)','',''],
@@ -784,11 +784,11 @@ class Component extends DCLogic {
     const titles = {
       home:'Home', dashboard: isAdmin ? 'Admin dashboard' : 'Dashboard', requisitions:'Requisitions',
       kanban:'Requisition detail', candidates:'Candidates', profile:'Candidate profile',
-      interviews:'Interviews', nexai:'NexAI results', reports:'Reports', team:'Team', settings:'Settings'
+      interviews:'Interviews', enteri_ai:'Enteri AI results', reports:'Reports', team:'Team', settings:'Settings'
     };
-    const marks = { home:'HM', dashboard:'DB', requisitions:'RQ', candidates:'CN', nexai:'AI', interviews:'IV', reports:'RP', team:'TM', settings:'ST' };
+    const marks = { home:'HM', dashboard:'DB', requisitions:'RQ', candidates:'CN', enteri_ai:'AI', interviews:'IV', reports:'RP', team:'TM', settings:'ST' };
 
-    const navKeys = ['home','dashboard','requisitions','candidates','nexai','interviews','reports']
+    const navKeys = ['home','dashboard','requisitions','candidates','enteri_ai','interviews','reports']
       .concat(isAdmin ? ['team'] : []).concat(['settings']);
     const activeKey = s === 'kanban' ? 'requisitions' : (s === 'profile' ? 'candidates' : s);
 
@@ -843,7 +843,7 @@ class Component extends DCLogic {
       isCands: s === 'candidates',
       isProfile: s === 'profile',
       isInterviews: s === 'interviews',
-      isNexAI: s === 'nexai',
+      isEnteriAI: s === 'enteri_ai',
       isReports: s === 'reports',
       isTeam: s === 'team',
       isSettings: s === 'settings',
@@ -897,7 +897,7 @@ class Component extends DCLogic {
         color: label === 'Joined' ? '#0e9f6e' : 'var(--ink)',
         spark: spark(label.length)
       })),
-      funnel: [['Applied',348,'#0A1F44'],['Screened',64,'#14316B'],['NexAI',41,'#2563EB'],['Panel',23,'#5FB4FF'],['Joined',9,'#22D3EE']].map(([name, n, bg], i) => ({
+      funnel: [['Applied',348,'#0A1F44'],['Screened',64,'#14316B'],['Enteri AI',41,'#2563EB'],['Panel',23,'#5FB4FF'],['Joined',9,'#22D3EE']].map(([name, n, bg], i) => ({
         name, bg, n: Math.round(n * ease),
         dia: [76,68,62,56,50][i] + 'px', fs: [18,17,16,15,15][i] + 'px',
         hasLink: i < 4, delay: (i * 0.4) + 's', delay2: (i * 0.4 + 1.3) + 's'
@@ -991,11 +991,11 @@ class Component extends DCLogic {
       profile: {
         ini:'PS', name:'Priya Sharma',
         sub:'Senior Backend Engineer · REQ-2041 · Digital Platforms · 6 yrs experience',
-        stats: [{ v:'91', k:'Fit score' }, { v:'88', k:'NexAI' }, { v:'4d', k:'In pipeline' }],
+        stats: [{ v:'91', k:'Fit score' }, { v:'88', k:'Enteri AI' }, { v:'4d', k:'In pipeline' }],
         timeline: [
           { title:'Applied via referral', note:'12 Aug · CV parsed automatically', dot:'#2563EB' },
           { title:'Screening call completed', note:'13 Aug · Arjun Pillai · notes attached', dot:'#2563EB' },
-          { title:'NexAI interview · scored 88', note:'14 Aug · shortlisted automatically', dot:'#22D3EE' },
+          { title:'Enteri AI interview · scored 88', note:'14 Aug · shortlisted automatically', dot:'#22D3EE' },
           { title:'Level 1 panel scheduled', note:'Tue 11:00 · Meera Krishnan, Dev Bhatia', dot:'#5FB4FF' },
           { title:'Offer approval', note:'Pending L2 sign-off', dot:'var(--track)' }
         ],
@@ -1009,7 +1009,7 @@ class Component extends DCLogic {
       interviews: [
         ['09:30','Today','Ananya Gupta','Final panel','Ritu Malhotra, Dev Bhatia','Confirmed','#22D3EE'],
         ['11:00','Today','Sneha Iyer','Level 1 panel','Meera Krishnan','Confirmed','#2563EB'],
-        ['14:15','Today','Rohit Bansal','NexAI round','Automated','In progress','#5FB4FF'],
+        ['14:15','Today','Rohit Bansal','Enteri AI round','Automated','In progress','#5FB4FF'],
         ['10:00','Tomorrow','Karthik Reddy','HM screening','Sana Kapoor','Pending','#E9BF57'],
         ['16:30','Tomorrow','Vikram Joshi','Level 2 panel','Leena Thomas','Confirmed','#2563EB']
       ].map(([time, day, who, round, panel, state, accent]) => ({

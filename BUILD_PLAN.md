@@ -63,11 +63,11 @@ Build it, then STOP and tell the user: the command to run, the URL, and what to 
 
 ---
 
-# PART 2 — Role views, reports, and NexAI (continue in order after Part 1)
+# PART 2 — Role views, reports, and Enteri AI (continue in order after Part 1)
 
 ## STEP 9 — Fix the role views so all four roles differ (CRITICAL BUG)
 Right now TA Admin and TA Manager see the same view. They must not. Make each role land on a genuinely different home screen and see different nav, per these definitions:
-- **TA Admin** — system administration: manage logins, grant custom access per user, monitor NexAI bot health/status, manage/inspect the database. NOT recruiting analytics. Nav: Users & Access, Bot Health, Database, System Logs.
+- **TA Admin** — system administration: manage logins, grant custom access per user, monitor Enteri AI bot health/status, manage/inspect the database. NOT recruiting analytics. Nav: Users & Access, Bot Health, Database, System Logs.
 - **TA Manager** — people + analytics: assign recruiters to requisitions, view and DOWNLOAD all reports. Nav: Dashboard, Requisitions, Team, Reports, Analytics.
 - **Recruiter** — works requisitions, builds candidate data, runs pipeline. Nav: Dashboard, Requisitions, Candidates, Interviews, My Reports.
 - **Hiring Manager** — reviews profiles, interviews, gives feedback. Nav: Profiles to Review, Interviews, My Reports.
@@ -98,12 +98,12 @@ Verify: a recruiter sees only their own numbers, can download.
 Scoped to the logged-in hiring manager: interviews taken, by period; outcomes (selected/rejected ratio); average feedback turnaround; pending reviews. Same period selector, same chart types, Excel download.
 Verify: a hiring manager sees only their interview activity.
 
-## STEP 14 — NexAI: the interview bot (named NexAI), built in STAGES
-The current "bot" is a stub returning a fake score. Build NexAI properly, in stages — do NOT build the photorealistic face first.
-- **14a (voice-first):** NexAI conducts a structured interview using text-to-speech to ask JD-based questions and speech-to-text to capture spoken answers; it produces a transcript and an ASSISTIVE score (recruiter still decides). Consent-gated via the existing notetaker consent flow.
+## STEP 14 — Enteri AI: the interview bot (named Enteri AI), built in STAGES
+The current "bot" is a stub returning a fake score. Build Enteri AI properly, in stages — do NOT build the photorealistic face first.
+- **14a (voice-first):** Enteri AI conducts a structured interview using text-to-speech to ask JD-based questions and speech-to-text to capture spoken answers; it produces a transcript and an ASSISTIVE score (recruiter still decides). Consent-gated via the existing notetaker consent flow.
 - **14b (face, later):** add an AI-generated talking human face via a vendor avatar service, only after 14a works and the per-interview cost is validated.
-Keep NexAI assistive only — it never auto-rejects. Surface NexAI's health/status on the TA Admin "Bot Health" screen.
+Keep Enteri AI assistive only — it never auto-rejects. Surface Enteri AI's health/status on the TA Admin "Bot Health" screen.
 Verify (14a): a candidate hears a spoken question, answers by voice, and a transcript + score is saved.
 
-## Honest scope note for NexAI
+## Honest scope note for Enteri AI
 A real-time human-face, human-voice interviewer means combining speech-to-text, a conversational model, text-to-speech, and a talking-avatar service — mostly paid vendors with per-minute cost. Voice-first (14a) delivers most value cheaply; the face (14b) is the expensive, risky part. Validate 14a with real candidates before paying for avatars.

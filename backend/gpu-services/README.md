@@ -1,4 +1,4 @@
-# NexAI GPU Avatar Services — STEP A3
+# Enteri AI GPU Avatar Services — STEP A3
 
 Two open-source lip-sync options. Both take: **face image + audio → MP4 video**.
 
@@ -44,8 +44,8 @@ Same pattern — use `Dockerfile.wav2lip` and set `WAV2LIP_SERVICE_URL`.
 ## Face images
 
 Store AI-generated faces in `frontend/assets/avatars/`:
-- `nexai-female.png` — AI-generated female face
-- `nexai-male.png` — AI-generated male face
+- `enteri-ai-female.png` — AI-generated female face
+- `enteri-ai-male.png` — AI-generated male face
 
 Generate from:
 - https://thispersondoesnotexist.com (JPEG, free, no attribution needed)
