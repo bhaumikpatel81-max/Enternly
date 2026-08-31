@@ -2971,6 +2971,7 @@ _RESUME_MIME = {
 # Paths that do NOT require a JWT
 _PUBLIC = {
     "/", "/login", "/api/health", "/api/auth/login",
+    "/platform-login", "/platform-admin", "/api/platform/auth/login",
     "/set-password",
     "/candidate-portal",
     "/vendor-portal",
