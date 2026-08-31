@@ -64,6 +64,8 @@ from .routers.notifications_api import router as _notifications_router
 from .routers.google_calendar_api import router as _google_calendar_router
 from .routers.platform_auth_api import router as _platform_auth_router
 from .routers.platform_admin_api import router as _platform_admin_router
+from .routers.document_api import router as _document_router
+from .routers.bgv_api import router as _bgv_router
 from .routers.cv_api import ingest_and_link as _cv_ingest_and_link
 from .auth_utils import _decode, assert_staff, require_company_admin
 
@@ -103,6 +105,8 @@ app.include_router(_notifications_router)
 app.include_router(_google_calendar_router)
 app.include_router(_platform_auth_router)
 app.include_router(_platform_admin_router)
+app.include_router(_document_router)
+app.include_router(_bgv_router)
 
 
 @app.get("/api/subscription/status")
@@ -2711,6 +2715,143 @@ END $$""",
             value      JSONB NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )""",
+        # ── Migration 105: Document Collection & Verification (2026-08).
+        # ATS spec §10 -- a tenant-configurable list of required document
+        # types, per-candidate requests against that list, and the uploaded/
+        # verified/rejected file rows themselves. Gated tenant-wide via
+        # require_tenant_module('documents') like the other GATED_NAV_MODULES
+        # routers; no per-recruiter delegation concept. See
+        # database/67_document_collection.sql for the doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS document_type_config (
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id   UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            key         TEXT NOT NULL,
+            label       TEXT NOT NULL,
+            is_required BOOLEAN NOT NULL DEFAULT TRUE,
+            is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (tenant_id, key)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_document_type_config_tenant ON document_type_config(tenant_id)",
+        """INSERT INTO document_type_config (tenant_id, key, label) VALUES
+             ('00000000-0000-0000-0000-000000000001','pan','PAN Card'),
+             ('00000000-0000-0000-0000-000000000001','aadhaar','Aadhaar Card'),
+             ('00000000-0000-0000-0000-000000000001','passport','Passport'),
+             ('00000000-0000-0000-0000-000000000001','education','Education Certificates'),
+             ('00000000-0000-0000-0000-000000000001','relieving_letter','Relieving Letter'),
+             ('00000000-0000-0000-0000-000000000001','experience_letter','Experience Letter'),
+             ('00000000-0000-0000-0000-000000000001','salary_slip','Salary Slip'),
+             ('00000000-0000-0000-0000-000000000001','bank_details','Bank Details')
+           ON CONFLICT (tenant_id, key) DO NOTHING""",
+        """CREATE TABLE IF NOT EXISTS document_request (
+            id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id            UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            candidate_id         UUID NOT NULL REFERENCES candidate(id),
+            requested_doc_types  TEXT[] NOT NULL,
+            requested_by         UUID REFERENCES app_user(id),
+            message              TEXT,
+            status               TEXT NOT NULL DEFAULT 'sent'
+                                 CHECK (status IN ('sent','partial','complete')),
+            created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_document_request_tenant ON document_request(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_document_request_candidate ON document_request(candidate_id)",
+        """CREATE TABLE IF NOT EXISTS candidate_document (
+            id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id                UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            candidate_id             UUID NOT NULL REFERENCES candidate(id),
+            application_id           UUID REFERENCES application(id),
+            doc_type                 TEXT NOT NULL,
+            file_path                TEXT,
+            file_name                TEXT,
+            uploaded_by              UUID,
+            uploaded_at              TIMESTAMPTZ,
+            status                   TEXT NOT NULL DEFAULT 'requested'
+                                     CHECK (status IN ('requested','uploaded','verified','rejected','compliance_review')),
+            hr_verified_by           UUID,
+            hr_verified_at           TIMESTAMPTZ,
+            compliance_reviewed_by   UUID,
+            compliance_reviewed_at   TIMESTAMPTZ,
+            rejection_reason        TEXT,
+            notes                    TEXT,
+            created_at               TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_candidate_document_tenant ON candidate_document(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_candidate_document_candidate ON candidate_document(candidate_id)",
+        """INSERT INTO module_catalog (key, label, "group", default_route, icon) VALUES
+             ('documents','Document Collection & Verification','Pipeline','documents','📄')
+           ON CONFLICT (key) DO NOTHING""",
+        """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
+           SELECT t.id, 'documents', TRUE, now() FROM tenant t
+           ON CONFLICT (tenant_id, module_key) DO NOTHING""",
+        # ── Migration 106: module_catalog display-label renames (2026-08).
+        # Display text only -- module_catalog.key ('vendors', 'kpi_dashboard')
+        # and every route/identifier that depends on it are untouched.
+        # A plain UPDATE rather than editing Migration 102's INSERT rows in
+        # place, since those rows already shipped and must stay a truthful
+        # record of what actually ran. See database/68_*.sql for the
+        # doc-only snapshot.
+        "UPDATE module_catalog SET label='Recruitment Consultant / Agency Module' WHERE key='vendors'",
+        "UPDATE module_catalog SET label='Dashboard & Analytics' WHERE key='kpi_dashboard'",
+        # ── Migration 107: Background Verification (BGV) (2026-08). ATS spec
+        # §10.1 -- a tenant-configurable list of BGV check types, one
+        # bgv_case per candidate verification run, and the individual
+        # bgv_check rows within it. Mirrors Migration 105's Document
+        # Collection shape (config-over-code check types + case/check
+        # split) and gates the same way via require_tenant_module('bgv').
+        # See database/69_bgv.sql for the doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS bgv_check_type_config (
+            id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id  UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            key        TEXT NOT NULL,
+            label      TEXT NOT NULL,
+            is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (tenant_id, key)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_bgv_check_type_config_tenant ON bgv_check_type_config(tenant_id)",
+        """INSERT INTO bgv_check_type_config (tenant_id, key, label) VALUES
+             ('00000000-0000-0000-0000-000000000001','employment','Employment Verification'),
+             ('00000000-0000-0000-0000-000000000001','education','Education Verification'),
+             ('00000000-0000-0000-0000-000000000001','identity','Identity Verification'),
+             ('00000000-0000-0000-0000-000000000001','criminal','Criminal Record Check'),
+             ('00000000-0000-0000-0000-000000000001','reference','Reference Check'),
+             ('00000000-0000-0000-0000-000000000001','address','Address Verification')
+           ON CONFLICT (tenant_id, key) DO NOTHING""",
+        """CREATE TABLE IF NOT EXISTS bgv_case (
+            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id       UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            candidate_id    UUID NOT NULL REFERENCES candidate(id),
+            application_id  UUID REFERENCES application(id),
+            provider        TEXT NOT NULL DEFAULT 'manual',
+            external_ref    TEXT,
+            overall_status  TEXT NOT NULL DEFAULT 'pending'
+                            CHECK (overall_status IN ('pending','in_progress','flagged','approved','rejected')),
+            initiated_by    UUID REFERENCES app_user(id),
+            initiated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+            completed_at    TIMESTAMPTZ
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_bgv_case_tenant ON bgv_case(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_bgv_case_candidate ON bgv_case(candidate_id)",
+        """CREATE TABLE IF NOT EXISTS bgv_check (
+            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id       UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            bgv_case_id     UUID NOT NULL REFERENCES bgv_case(id) ON DELETE CASCADE,
+            check_type      TEXT NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'pending'
+                            CHECK (status IN ('pending','in_progress','flagged','approved','rejected')),
+            result_summary  TEXT,
+            evidence_url    TEXT,
+            updated_by      UUID,
+            updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_bgv_check_case ON bgv_check(bgv_case_id)",
+        """INSERT INTO module_catalog (key, label, "group", default_route, icon) VALUES
+             ('bgv','Background Verification','Pipeline','bgv','🛡️')
+           ON CONFLICT (key) DO NOTHING""",
+        """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
+           SELECT t.id, 'bgv', TRUE, now() FROM tenant t
+           ON CONFLICT (tenant_id, module_key) DO NOTHING""",
     ]
     for sql in migrations:
         try:
@@ -3017,6 +3158,7 @@ _PUBLIC_PREFIXES = (
     "/api/campus/session/",            # campus resume upload + is-campus check (token-auth, no JWT)
     "/api/scheduling/pick",            # candidate slot validate/confirm — token-auth, no JWT
     "/api/scheduling/reschedule",       # self-service reschedule validate/confirm — token-auth, no JWT
+    "/api/bgv/webhooks/",               # inbound BGV vendor webhook — no JWT, signature-authenticated (see bgv_api.bgv_webhook)
 )
 
 

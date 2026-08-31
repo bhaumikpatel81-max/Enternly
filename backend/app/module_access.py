@@ -21,9 +21,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from .db import query, query_one, transaction, tx_exec
 
 DELEGABLE_MODULES = {
-    "vendors":         "Vendor Management",
+    "vendors":         "Recruitment Consultant / Agency Module",
     "form_fields":     "Application Form Fields",
-    "req_approvals":   "Requisition Approvals",
+    "req_approvals":   "Requisition Approval",
     "organisation":    "Organisation",
     "sla_settings":    "SLA Settings",
     "chain_templates": "Approval Chain Templates",
@@ -39,6 +39,7 @@ DELEGABLE_MODULES = {
 GATED_NAV_MODULES = (
     "campus_hiring", "enteri_ai_tracker", "kpi_dashboard", "gamification",
     "proctoring_review", "hiring_plan", "cv_repository", "ai_scorecard", "no_poach",
+    "documents", "bgv",
 )
 
 

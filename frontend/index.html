@@ -885,7 +885,7 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
 <!-- ── Score-Why Modal ── -->
 <div class="modal-bg" id="score-why-modal" onclick="if(event.target===this)closeScoreWhy()">
   <div class="modal" style="max-width:560px">
-    <h2 id="sw-title">Screening Score Breakdown</h2>
+    <h2 id="sw-title">AI CV Scoring Engine Score Breakdown</h2>
     <div id="sw-body" style="font-size:13px">
       <p class="empty">Loading…</p>
     </div>
@@ -2003,9 +2003,9 @@ function roleLabel(r) {
   return ROLE_LABELS[r] || (r || '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 const MODULE_NAV_META = {
-  vendors:         {id:'vendors',          icon:'🤝', label:'Vendors'},
+  vendors:         {id:'vendors',          icon:'🤝', label:'Recruitment Consultant / Agency Module'},
   form_fields:     {id:'form_fields',      icon:'🧾', label:'Form Fields'},
-  req_approvals:   {id:'ta_req_approvals', icon:'📝', label:'Req Approvals'},
+  req_approvals:   {id:'ta_req_approvals', icon:'📝', label:'Requisition Approval'},
   organisation:    {id:'organisation',     icon:'🏢', label:'Organisation'},
   sla_settings:    {id:'sla_settings',     icon:'⏱', label:'SLA Settings'},
   chain_templates: {id:'chain_templates',  icon:'⛓', label:'Approval Chains'},
@@ -2038,7 +2038,7 @@ const NAV_DEF = {
     {id:'tickets',    icon:'🎫', label:'Support Tickets'},
     {id:'users',      icon:'👥', label:'Users & Access'},
     {id:'module_access', icon:'🔐', label:'Recruiter Access'},
-    {id:'vendors',    icon:'🤝', label:'Vendors'},
+    {id:'vendors',    icon:'🤝', label:'Recruitment Consultant / Agency Module'},
     {id:'bot_health', icon:'🤖', label:'Bot Health'},
     {id:'cv_repository', icon:'📂', label:'CV Repository'},
     {id:'ai_scorecard',  icon:'🎯', label:'AI Scorecard'},
@@ -2064,7 +2064,7 @@ const NAV_DEF = {
     {id:'campus_hiring',      icon:'🎓', label:'Campus Hiring'},
     {id:'enteri_ai_tracker',      icon:'🤖', label:'Enteri AI'},
     {group:'Analytics'},
-    {id:'kpi_dashboard',      icon:'📈', label:'KPI Dashboard'},
+    {id:'kpi_dashboard',      icon:'📈', label:'Dashboard & Analytics'},
     {id:'reports',            icon:'📊', label:'Reports (Team)'},
     {id:'my_reports',         icon:'📊', label:'My Reports'},
     {id:'sla_dashboard',      icon:'🚦', label:'SLA / Breaches'},
@@ -2072,9 +2072,9 @@ const NAV_DEF = {
     {group:'Admin'},
     {id:'users',              icon:'👥', label:'Users & Access'},
     {id:'module_access',      icon:'🔐', label:'Recruiter Access'},
-    {id:'vendors',            icon:'🤝', label:'Vendors'},
+    {id:'vendors',            icon:'🤝', label:'Recruitment Consultant / Agency Module'},
     {id:'team',               icon:'👤', label:'Team'},
-    {id:'ta_req_approvals',   icon:'📝', label:'Req Approvals'},
+    {id:'ta_req_approvals',   icon:'📝', label:'Requisition Approval'},
     {id:'proctoring_review',  icon:'🔍', label:'Proctoring'},
     {id:'appeals',            icon:'⚖️', label:'Appeals'},
     {id:'organisation',       icon:'🏢', label:'Organisation'},
@@ -2098,7 +2098,7 @@ const NAV_DEF = {
     {id:'campus_hiring',      icon:'🎓', label:'Campus Hiring'},
     {id:'enteri_ai_tracker',      icon:'🤖', label:'Enteri AI'},
     {group:'Analytics'},
-    {id:'kpi_dashboard',      icon:'📈', label:'KPI Dashboard'},
+    {id:'kpi_dashboard',      icon:'📈', label:'Dashboard & Analytics'},
     {id:'my_reports',         icon:'📊', label:'My Reports'},
     {id:'sla_dashboard',      icon:'🚦', label:'SLA / Breaches'},
     {id:'proctoring_review',  icon:'🔍', label:'Proctoring'},
@@ -2112,7 +2112,7 @@ const NAV_DEF = {
     {id:'home', icon:'⌂', label:'Home'},
     {id:'hm_dashboard', icon:'📊', label:'My Dashboard'},
     {id:'hm_my_reqs',   icon:'📋', label:'My Requisitions'},
-    {id:'kpi_dashboard',icon:'📈', label:'KPI Dashboard'},
+    {id:'kpi_dashboard',icon:'📈', label:'Dashboard & Analytics'},
     {id:'profiles',     icon:'✅', label:'Profiles to Review'},
     {id:'interviews',   icon:'📅', label:'Interviews'},
     {id:'offers',       icon:'📄', label:'Offers & Approvals'},
@@ -6095,9 +6095,9 @@ async function clearEmailCfg() {
 
 // ── SCREEN: Vendor Management ──────────────────────────────────────────────────
 async function screenVendors(){
-  setTitle('Vendors');
+  setTitle('Recruitment Consultant / Agency Module');
   if(!hasModuleAccess('vendors')){
-    document.getElementById('content').innerHTML=moduleRestrictedHtml('Vendor Management');
+    document.getElementById('content').innerHTML=moduleRestrictedHtml('Recruitment Consultant / Agency Module');
     return;
   }
   const vendors=await api('/api/vendors/');
@@ -6122,7 +6122,7 @@ async function screenVendors(){
     </tr>`;
   }).join('');
   document.getElementById('content').innerHTML=`
-    <div class="page-header"><h1>Vendors</h1><button class="btn btn-primary" onclick="openAddVendor()">+ Add vendor</button></div>
+    <div class="page-header"><h1>Recruitment Consultant / Agency Module</h1><button class="btn btn-primary" onclick="openAddVendor()">+ Add vendor</button></div>
     <div class="card" id="add-vendor-card" style="display:none;margin-bottom:16px">
       <div style="font-weight:600;margin-bottom:12px">New vendor</div>
       <div class="form-row">
@@ -8823,7 +8823,7 @@ async function screenHMMyReqs(){
 // ── SCREEN: TA Req Approvals ──────────────────────────────────────────────────
 async function screenTAReqApprovals(){
   _currentScreen = 'ta_req_approvals';
-  setTitle('Requisition Approvals');
+  setTitle('Requisition Approval');
   document.getElementById('content').innerHTML =
     '<p class="empty" style="padding:40px">Loading…</p>';
 
@@ -8849,7 +8849,7 @@ async function screenTAReqApprovals(){
     </div>`).join('');
 
   document.getElementById('content').innerHTML = `
-    <div class="page-header"><h1>Pending Requisition Approvals ${reqs.length>0?`<span style="font-size:14px;background:var(--accent);color:#fff;border-radius:10px;padding:2px 8px;margin-left:8px">${reqs.length}</span>`:''}</h1></div>
+    <div class="page-header"><h1>Pending Requisition Approval ${reqs.length>0?`<span style="font-size:14px;background:var(--accent);color:#fff;border-radius:10px;padding:2px 8px;margin-left:8px">${reqs.length}</span>`:''}</h1></div>
     ${reqs.length===0?'<p class="empty">No requisitions pending approval.</p>':rowsHtml}`;
 }
 
@@ -8893,7 +8893,7 @@ async function _updateReqApprovalBadge(){
     const count = r?.count||0;
     const navEl = document.getElementById('nav-ta_req_approvals');
     if(navEl){
-      navEl.innerHTML = `<span class="nav-icon">📝</span>${count>0?`Req Approvals (${count})`:'Req Approvals'}`;
+      navEl.innerHTML = `<span class="nav-icon">📝</span>${count>0?`Requisition Approval (${count})`:'Requisition Approval'}`;
     }
   } catch(e){}
 }
@@ -8901,13 +8901,13 @@ async function _updateReqApprovalBadge(){
 // ── SCREEN: KPI Dashboard ─────────────────────────────────────────────────────
 async function screenKPIDashboard(){
   _currentScreen='kpi_dashboard';
-  setTitle('KPI Dashboard');
+  setTitle('Dashboard & Analytics');
   const yr=_year;
   const periodBar=`<div class="period-bar">${['weekly','monthly','quarterly','half_yearly','yearly'].map(p=>`<button class="period-btn${p===_period?' active':''}" onclick="setPeriodKPI('${p}')">${p.split('_').join(' ')}</button>`).join('')}</div>`;
 
   document.getElementById('content').innerHTML=`
     <div class="page-header">
-      <h1>KPI Dashboard &mdash; ${yr}</h1>
+      <h1>Dashboard &amp; Analytics &mdash; ${yr}</h1>
       <button class="btn btn-green" onclick="downloadAuth('/api/kpi/excel?period=${_period}&year=${yr}','enternly_kpi_${yr}_${_period}.xlsx')">&#8595; Excel</button>
     </div>
     ${periodBar}
@@ -8986,7 +8986,7 @@ async function screenKPIDashboard(){
   // ── Render full page ───────────────────────────────────────────────────────
   document.getElementById('content').innerHTML=`
     <div class="page-header">
-      <h1>KPI Dashboard &mdash; ${yr}</h1>
+      <h1>Dashboard &amp; Analytics &mdash; ${yr}</h1>
       <button class="btn btn-green" onclick="downloadAuth('/api/kpi/excel?period=${_period}&year=${yr}','enternly_kpi_${yr}_${_period}.xlsx')">&#8595; Excel</button>
     </div>
     ${periodBar}
@@ -13703,7 +13703,7 @@ async function _cvDoSearch(resetPage) {
                 onclick="_cvOpenFile('${r.id}','${escAttr(r.file_name||'cv')}')">View</button>
         <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px"
                 onclick="downloadAuth('/api/cv/${r.id}/file','${escAttr(r.file_name||'cv')}')">↓</button>
-        <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px;color:#5FB4FF" title="Generate AI screening scorecard against a requisition"
+        <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px;color:#5FB4FF" title="Generate AI CV Scoring Engine against a requisition"
                 onclick="_cvQuickScore('${r.id}','${escAttr(r.cand_full_name||r.candidate_name||r.file_name||'Candidate')}')">🎯 Score</button>
         <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px;color:#e2455a" title="Remove this CV"
                 onclick="_cvDeleteEntry('${r.id}','${escAttr(r.file_name||'this CV')}')">🗑</button>
@@ -14185,7 +14185,7 @@ async function screenAiScorecard() {
   }
   _currentScreen = 'ai_scorecard';
   setActive('ai_scorecard');
-  setTitle('AI Screening Scorecard');
+  setTitle('AI CV Scoring Engine');
   await aiScorecardMount('content');
 }
 
