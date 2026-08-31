@@ -53,13 +53,18 @@ def login(body: LoginIn, request: Request):
         _fail()                      # was "Account not set up — contact your admin" (enumeration leak) — now generic
     if not verify_password(body.password, user["password_hash"]):
         _fail()
-    if user.get("tenant_deleted") or user.get("tenant_status") == "suspended":
-        _fail()
-    _end_date = user.get("subscription_end_date")
-    if _end_date is not None:
-        from datetime import date as _date, timedelta as _timedelta
-        if _date.today() > _end_date + _timedelta(days=user.get("grace_period_days") or 0):
+    # EXEMPT platform superadmins from their own (Enternstech/seed) tenant's
+    # suspended/deleted/expired-grace status -- otherwise a superadmin who
+    # suspends or lets expire their own tenant locks out every platform
+    # superadmin, including from the only login that could undo it.
+    if not user.get("is_platform_superadmin"):
+        if user.get("tenant_deleted") or user.get("tenant_status") == "suspended":
             _fail()
+        _end_date = user.get("subscription_end_date")
+        if _end_date is not None:
+            from datetime import date as _date, timedelta as _timedelta
+            if _date.today() > _end_date + _timedelta(days=user.get("grace_period_days") or 0):
+                _fail()
 
     # 3. Success: log success, and CLEAR this pair's recent failures so a
     #    legit user who mistyped a couple times isn't left near lockout.

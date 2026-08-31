@@ -136,13 +136,22 @@ def _refresh_staff_claims(payload: dict) -> dict:
     # past its grace period, ends every open session immediately rather than
     # waiting for token expiry. A NULL subscription_end_date never blocks
     # (no subscription configured yet = unrestricted, per design decision).
-    if row.get("tenant_deleted") or row.get("tenant_status") == "suspended":
-        raise HTTPException(401, "This company's account is no longer active")
-    end_date = row.get("subscription_end_date")
-    if end_date is not None:
-        from datetime import date as _date, timedelta as _timedelta
-        if _date.today() > end_date + _timedelta(days=row.get("grace_period_days") or 0):
-            raise HTTPException(401, "This company's subscription has expired")
+    #
+    # EXEMPT platform superadmins from this check entirely. They belong to
+    # the Enternstech/seed tenant, which this same check would otherwise
+    # apply to like any other -- meaning a superadmin who suspends (or lets
+    # expire) their OWN tenant would lock out every platform superadmin,
+    # including from the only account that could undo it via the API. A
+    # platform superadmin's access is never meant to depend on their home
+    # tenant's commercial status.
+    if not row.get("is_platform_superadmin"):
+        if row.get("tenant_deleted") or row.get("tenant_status") == "suspended":
+            raise HTTPException(401, "This company's account is no longer active")
+        end_date = row.get("subscription_end_date")
+        if end_date is not None:
+            from datetime import date as _date, timedelta as _timedelta
+            if _date.today() > end_date + _timedelta(days=row.get("grace_period_days") or 0):
+                raise HTTPException(401, "This company's subscription has expired")
     payload["role"] = row["role"]
     payload["tenant_id"] = str(row["tenant_id"]) if row.get("tenant_id") else None
     payload["name"] = row["full_name"]
