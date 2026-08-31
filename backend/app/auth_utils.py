@@ -259,29 +259,45 @@ require_staff = get_current_user
 
 def is_platform_tier(user: dict) -> bool:
     """True if `user` qualifies as platform-superadmin tier: the
-    is_platform_superadmin flag, or the legacy 'admin' role string (kept as
-    an explicit fallback so no account that predates the flags is locked
-    out -- every 'admin'-role account was backfilled onto the flag by
-    Migration 100 anyway, so this rarely does any actual work, but it keeps
-    every platform-tier check in the codebase consistent with the same
-    fallback rule rather than some checks having it and others not).
-    Shared by require_platform_admin below and by every router-local
-    platform-only gate migrated off the retired role-string pattern
-    (Step 1 full audit, finding #3)."""
-    return bool(user.get("is_platform_superadmin") or user.get("role") == "admin")
+    is_platform_superadmin flag ONLY -- deliberately NO 'admin'-role-string
+    fallback. Unlike company-tier below, a role fallback here would be
+    actively unsafe: platform_admin_api.py::create_tenant/add_tenant_admin
+    both create ordinary company admins with role='admin' (kept for
+    NAV_DEF/index.html nav compatibility, see PLATFORM_ADMIN_MAPPING.md
+    §5b) + is_company_admin=TRUE, is_platform_superadmin=FALSE -- so
+    'role == admin' is NOT a reliable platform-tier signal once this
+    project's own tenant-creation flow exists; it would let any ordinary
+    company admin reach cross-tenant /api/platform/* endpoints. Migration
+    100's backfill already sets is_platform_superadmin=TRUE for every
+    genuine legacy admin/platform_admin account on the seed tenant, so no
+    role-string fallback is actually needed for correctness here -- confirmed
+    live: an earlier version of this function WITH the fallback let a
+    freshly-created company admin (role=admin, is_company_admin=TRUE,
+    is_platform_superadmin=FALSE) successfully call GET /api/platform/stats;
+    caught and fixed during Fix #3's own live verification before it was
+    ever committed. Shared by require_platform_admin below and by every
+    router-local platform-only gate migrated off the retired role-string
+    pattern (Step 1 full audit, finding #3)."""
+    return bool(user.get("is_platform_superadmin"))
 
 
 def is_company_tier(user: dict) -> bool:
     """True if `user` qualifies as company-admin tier: is_company_admin,
     is_platform_superadmin (platform staff can still reach into a tenant's
-    own admin surface), or the legacy 'admin' role fallback (see
-    is_platform_tier above for the same rationale). Shared by
+    own admin surface), or the legacy 'admin' role fallback. The 'admin'
+    fallback IS safe here (unlike is_platform_tier above) -- every
+    'admin'-role account is guaranteed at least one of the two flags by
+    Migration 100's backfill (is_platform_superadmin on the seed tenant,
+    is_company_admin everywhere else), so the fallback is redundant for any
+    real account and only matters as defense-in-depth; it can never grant
+    a company admin anything beyond company-tier access, which they'd
+    already have via is_company_admin regardless. Shared by
     require_company_admin below and by every router-local company-admin
     gate migrated off the retired role-string pattern (Step 1 full audit,
     finding #3) -- accepts any dict carrying these keys, not just a
     decoded JWT payload, so it also works directly against a plain
     app_user row fetched via query_one() (see password_api.py)."""
-    return bool(user.get("is_company_admin") or is_platform_tier(user))
+    return bool(user.get("is_company_admin") or user.get("is_platform_superadmin") or user.get("role") == "admin")
 
 
 def require_platform_admin(user: dict = Depends(get_current_user)) -> dict:
