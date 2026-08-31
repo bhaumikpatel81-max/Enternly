@@ -1999,8 +1999,16 @@ const MODULE_NAV_META = {
   chain_templates: {id:'chain_templates',  icon:'⛓', label:'Approval Chains'},
   email_templates: {id:'email_templates',  icon:'✉️', label:'Email Templates'},
 };
+// Flag-based company-tier check (Step 1 cleanup) -- reads the
+// is_company_admin/is_platform_superadmin JWT claims (added alongside the
+// platform-admin work) instead of the platform_admin/company_admin role
+// strings. 'admin' is kept as an explicit legacy OR so no pre-existing
+// account is locked out.
+function isCompanyTier() {
+  return !!(ME.is_company_admin || ME.is_platform_superadmin || ME.role === 'admin');
+}
 function hasModuleAccess(key) {
-  return ['admin','platform_admin','company_admin'].includes(ME.role) || !!MY_MODULE_ACCESS[key];
+  return isCompanyTier() || !!MY_MODULE_ACCESS[key];
 }
 function moduleRestrictedHtml(label) {
   return `<div class="card" style="text-align:center;padding:60px 40px;max-width:480px;margin:40px auto">
@@ -7024,8 +7032,8 @@ async function screenOrganisation(){
   setTitle('Organisation');
   document.getElementById('content').innerHTML='<p class="empty">Loading…</p>';
   try {
-  const canManageGCal = ['admin','platform_admin','company_admin'].includes(ME.role);
-  const canManageBands = ['admin','platform_admin','company_admin'].includes(ME.role);
+  const canManageGCal = isCompanyTier();
+  const canManageBands = isCompanyTier();
   const isCompanyAdmin = canManageBands;
   const [gcs, bus, hrbpUsers, gcalStatus, bands, clients, roleLabels] = await Promise.all([
     api('/api/org/group-companies'),

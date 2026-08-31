@@ -21,6 +21,21 @@ _VALID_ROLES = {
 # reserved for a Platform Admin (Enternstech) or the legacy admin role.
 _PLATFORM_ONLY_ROLES = {"admin", "platform_admin", "company_admin"}
 
+
+# ── Flag-based gating helpers (Step 1 cleanup, per PLATFORM_ADMIN_MAPPING.md
+# §6) -- gating reads is_company_admin/is_platform_superadmin now, not the
+# platform_admin/company_admin role strings. 'admin' is kept as an explicit
+# legacy OR everywhere below so no pre-existing account that used to pass
+# these checks is locked out (per decision 5: migrate to flags, don't strand
+# accounts that predate them). The role strings themselves are untouched --
+# still used for nav/labels/_VALID_ROLES, just no longer for gating. ──
+def _is_company_tier(user: dict) -> bool:
+    return bool(user.get("is_company_admin") or user.get("is_platform_superadmin") or user.get("role") == "admin")
+
+
+def _is_platform_tier(user: dict) -> bool:
+    return bool(user.get("is_platform_superadmin") or user.get("role") == "admin")
+
 _USER_COLS = """id, full_name, email, role, is_active, created_at, gmail_address,
     (SELECT COALESCE(array_agg(bu_id), ARRAY[]::uuid[]) FROM app_user_bu WHERE user_id = app_user.id) AS bu_ids,
     (SELECT full_name FROM app_user creator WHERE creator.id = app_user.created_by) AS created_by_name"""
@@ -31,7 +46,7 @@ def require_users_read(user: dict = Depends(get_current_user)) -> dict:
     view of their company's users (team management, not account management);
     Recruiters get a read-only Hiring Manager list plus the ability to create
     HM accounts (see create_user's recruiter branch below)."""
-    if user.get("role") not in ("admin", "platform_admin", "company_admin", "ta_manager", "recruiter"):
+    if not (_is_company_tier(user) or user.get("role") in ("ta_manager", "recruiter")):
         raise HTTPException(403, "Company Admin, TA Manager, or Recruiter access required")
     return user
 
@@ -41,7 +56,7 @@ def require_user_write(user: dict = Depends(get_current_user)) -> dict:
     is deliberately excluded -- restricted to managing their team + reports,
     not the accounts themselves. Recruiters keep their narrower carve-out
     (may only create Hiring Manager accounts, enforced in create_user)."""
-    if user.get("role") not in ("admin", "platform_admin", "company_admin", "recruiter"):
+    if not (_is_company_tier(user) or user.get("role") == "recruiter"):
         raise HTTPException(403, "Company Admin or Recruiter access required")
     return user
 
@@ -84,7 +99,7 @@ def _assert_can_assign_role(actor: dict, target_role: Optional[str]) -> None:
     a user into admin/platform_admin/company_admin -- a Company Admin may
     manage TA Managers and Recruiters in their own company, but not mint
     another admin tier."""
-    if target_role in _PLATFORM_ONLY_ROLES and actor.get("role") not in ("admin", "platform_admin"):
+    if target_role in _PLATFORM_ONLY_ROLES and not _is_platform_tier(actor):
         raise HTTPException(403, "Only a Platform Admin can assign that role")
 
 
@@ -97,7 +112,7 @@ def _assert_can_act_on_user(actor: dict, target_user_id: str) -> None:
     admin/platform_admin are intentionally exempt from the tenant check
     (Platform Admin cross-tenant support access doesn't have its own
     audited path yet -- see the tenancy blueprint)."""
-    if actor.get("role") in ("admin", "platform_admin"):
+    if _is_platform_tier(actor):
         return
     target = query_one("SELECT role, tenant_id FROM app_user WHERE id = %s", [target_user_id])
     if not target:
@@ -406,7 +421,7 @@ _SETTING_DEFAULTS = {
 
 
 def _require_settings_access(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
+    if not _is_company_tier(user):
         raise HTTPException(403, "Company Admin access required")
     return user
 
@@ -467,7 +482,7 @@ def save_role_labels(body: RoleLabelsIn, user: dict = Depends(require_company_ad
 
 
 def _require_admin_settings(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
+    if not _is_company_tier(user):
         raise HTTPException(403, "Company Admin access required")
     return user
 
@@ -484,10 +499,9 @@ from ..module_access import (
 
 def _require_module_access(module_key: str):
     def dep(user: dict = Depends(get_current_user)) -> dict:
-        role = user.get("role")
-        if role in ("admin", "platform_admin", "company_admin"):
+        if _is_company_tier(user):
             return user
-        if role == "recruiter" and recruiter_has_module(user.get("sub"), module_key):
+        if user.get("role") == "recruiter" and recruiter_has_module(user.get("sub"), module_key):
             return user
         raise HTTPException(403, "Company Admin or delegated Recruiter access required")
     return dep
