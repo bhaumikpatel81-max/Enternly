@@ -324,7 +324,20 @@ def require_company_admin(user: dict = Depends(get_current_user)) -> dict:
 
 def require_ta_manager(user: dict = Depends(get_current_user)) -> dict:
     """Team management + reporting only -- anyone who can already act as a
-    Company Admin passes too, since that role is a superset."""
+    Company Admin passes too, since that role is a superset.
+
+    Confirmed zero call sites anywhere in the codebase as of the Platform
+    Admin closeout pass (2026-08-31) -- intentionally retained rather than
+    removed, since the ta_manager tier boundary it documents is real and
+    actively checked ad hoc (role == "ta_manager") across many routers
+    (pipeline_api.py, offers_api.py, scheduling_api.py, reports_api.py,
+    etc.); this is the one place that boundary is expressed as a reusable
+    FastAPI dependency, for whichever future endpoint wants it instead of
+    repeating the role check inline. Still string-based rather than
+    flag-based (see is_company_tier above) since ta_manager has no
+    dedicated boolean flag today -- not part of the is_company_tier/
+    is_platform_tier flag migration (Step 1 full audit, finding #3), which
+    only covered company-admin/platform-admin tier, not this one."""
     if user.get("role") not in ("admin", "platform_admin", "company_admin", "ta_manager"):
         raise HTTPException(403, "TA Manager access required")
     return user
