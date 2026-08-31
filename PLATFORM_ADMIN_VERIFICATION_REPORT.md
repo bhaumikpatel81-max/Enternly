@@ -178,3 +178,237 @@ Reasoning:
 The `enternly` stack (from this verification) is still running: `enternly-backend-1` on `http://localhost:8081`, `enternly-db-1` internal-only. Test data created this session (all disposable, in the throwaway `enternly_pgdata_dev` volume): tenants "Acme Corp" (`ET_0002`), "State University" (`ET_0003`, College), a `restricted-test` subscription plan, and several test users (`test.recruiter@example.com`, `testhm@enternstech.example`, `acmetest@acmecorp.example`, `jane@acmecorp.example`, `dean@stateuni.example`, `placement@stateuni.example`). The seed `admin@example.com` account's password was set to `VerifyTest#2026` for testing (it was previously unset/NULL).
 
 To tear down: `docker compose -p enternly -f docker-compose.dev.yml down -v` (safe — scoped entirely to the `enternly` project, will not affect `ats-hr`).
+
+---
+
+## 10. Fix session (2026-08-31): findings #2, #1(new), #3(new), #4(new) closed
+
+This section covers the follow-up session that fixed the four open findings
+above, mapped to the user's fix-order numbering: **Fix #4 = old finding #5**
+(self-lockout), **Fix #1 = old finding #2** (plan constraint no-op), **Fix #2
+= old finding #3** (nav-hiding), **Fix #3 = old finding #4** (incomplete
+role-flag migration). Old finding #1 (middleware allowlist) was already fixed
+and committed prior to this session. Work was done against the same running
+`enternly` stack on `localhost:8081`; each fix was verified live before
+moving to the next.
+
+### Fix #4 — superadmin self-lockout — ✅ FIXED, verified, committed `5aafe9e`
+
+**Change**: both tenant-lifecycle checks (`auth.py::login()` and
+`auth_utils.py::_refresh_staff_claims()`) now skip the
+suspended/deleted/expired-grace check entirely when
+`is_platform_superadmin` is true on the account being checked.
+
+**Live verification**:
+- Suspended the seed tenant via `PATCH /api/platform/tenants/{seed}/status`.
+- Platform superadmin: still able to log in, still able to call
+  `/api/platform/*` (used it to un-suspend the tenant itself — the exact
+  recovery path finding #5 said didn't exist).
+- Ordinary user on the same (suspended) tenant: still correctly blocked
+  (401), confirming the exemption is scoped to the superadmin flag, not a
+  blanket bypass of the suspension feature.
+
+### Fix #1 — plan constraint no-op for new tenants — ✅ FIXED, verified, committed `135538b`
+
+**Change**: `POST /api/platform/tenants` now seeds `tenant_module_config`
+rows for the new tenant inside the same atomic tenant+first-admin
+transaction, honoring the initial plan's `allowed_modules_json` (empty `[]`
+= all enabled, matching the existing convention used everywhere else).
+
+**Live verification**:
+- Created a tenant on a plan with a restrictive `allowed_modules_json` →
+  out-of-plan modules came up disabled immediately, no manual toggle needed.
+- Created a tenant on the default `standard` plan (`[]`) → all 16 modules
+  enabled, matching pre-existing tenant behavior.
+- Confirmed no regression to the existing all-enabled backfill for
+  pre-existing tenants.
+- **Related nuance, not a regression from this fix**: Migration 102's
+  idempotent backfill still re-runs on every backend restart and grants
+  all-enabled to any tenant that *still* has zero `tenant_module_config`
+  rows. This briefly reset a pre-existing test tenant's restrictive config
+  after a routine restart during this session (tenants created *before* Fix
+  #1 existed had no rows yet). Recovered via the existing, unmodified `PUT
+  /tenants/{id}/subscription` endpoint. Not fixed further — out of scope,
+  and now a one-time transition concern only, since every tenant created
+  after Fix #1 always has rows from the moment it exists.
+
+### Fix #2 — nav-hiding half of the module outer gate — ✅ FIXED, verified, committed `d6936f6`
+
+**Change**: `/api/admin/my-module-access` (already called by the frontend at
+boot) now returns `client_module_status(user)` — a new
+`module_access.py` function that combines the existing 7-key delegable
+access map with a live `tenant_module_enabled()` check for the 9 gated
+feature keys — instead of only the 7-key delegable map. `index.html` now
+calls this endpoint unconditionally at boot for every role (previously only
+for recruiters), and `buildNav()` filters out any of the 9 gated nav items
+where `MY_MODULE_ACCESS[key] === false`. No new endpoint was added — the
+existing bootstrap call was extended, per the instruction to reuse it rather
+than invent a new one.
+
+**Live verification**:
+- Disabled `kpi_dashboard` for a test tenant → its nav entry disappeared for
+  that tenant's users, and `GET /api/kpi/dashboard` still correctly 403'd
+  (backend gate untouched — this fix is UX alignment only).
+- Other tenants (module still enabled): nav entry still present, API still
+  200.
+
+### Fix #3 — incomplete role-flag migration (full audit) — ✅ FIXED, verified, committed `2f39ca7` + `bb87922`
+
+**Scope correction**: the earlier "commit 8" cleanup pass covered 2 files.
+A full grep sweep for `platform_admin`/`company_admin`/`role in (...)` used
+*for gating* (excluding display labels, the `ALL_ROLES` picker, and the
+legacy `role` column itself) found **10 files**. All 10 were migrated to the
+shared `is_company_tier()`/`is_platform_tier()` helpers (centralized in
+`auth_utils.py`, previously duplicated locally in `admin_users.py`).
+
+**Site-by-site table**:
+
+| File | Site | Old check | New check | Scope |
+|---|---|---|---|---|
+| `activity_log_api.py` | `/logins` (list) | `role not in (...)` | `not is_company_tier(user)` | Company |
+| `bands_api.py` | `_require_admin` | `_ADMIN_ROLES` set membership | `is_company_tier(user)` | Company |
+| `chain_templates_api.py` | `_require_write` | role tuple | `is_company_tier(user)` OR recruiter w/ `chain_templates` delegation | Company |
+| `chain_templates_api.py` | `_require_read` | role tuple | `is_company_tier(user)` OR `ta_manager`/`recruiter` | Company |
+| `email_template_api.py` | `_require_template_access` | role tuple | `is_company_tier(user)` OR recruiter w/ `email_templates` delegation | Company |
+| `google_calendar_api.py` | `_require_admin` | role tuple | `is_company_tier(user)` | Company |
+| `org_api.py` | `_require_admin` | `_ADMIN_ROLES` set membership | `is_company_tier(user)` OR recruiter w/ `organisation` delegation | Company |
+| `password_api.py` | `send_setup_link` / `forgot_password` — self-service reset eligibility | `_SELF_SERVICE_ROLES` (checked the **target** user's role) | new `_self_service_eligible(target)`: `is_company_tier(target) or target.role in (ta_manager, recruiter)` | Target-role eligibility (special case — gates on the account being reset, not the actor) |
+| `sla_api.py` | `_require_sla_write` | `_ALLOWED_ROLES_WRITE` | `is_company_tier(user)` OR recruiter w/ `sla_settings` delegation | Company |
+| `sla_api.py` | `_require_sla_read` | `_ALLOWED_ROLES_READ` | `is_company_tier(user)` OR `ta_manager`/`recruiter` | Company |
+| `tickets_api.py` | `list_tickets` ("see all" branch) | role tuple | `is_company_tier(user)` | Company |
+| `tickets_api.py` | `update_ticket` | role tuple | `is_company_tier(user)` | Company |
+| `tickets_api.py` | `system_health` | role tuple (left as-is in commit 8 for an unrelated reason, not an intentional exemption) | `is_platform_tier(user)` | Platform |
+| `vendor_api.py` | `_require_internal` | role tuple | `is_company_tier(user)` OR recruiter w/ `vendors` delegation | Company |
+| `vendor_api.py` | `_assert_ta_or_admin` | role tuple | `is_company_tier(user)` | Company |
+| `admin_users.py` | local `_is_company_tier`/`_is_platform_tier` | duplicated locally | now imports the shared `auth_utils.is_company_tier`/`is_platform_tier` | (dedup, no behavior change) |
+
+**Confirmed still untouched (exemptions, re-grepped this session)**:
+- `auth_utils.py::require_ta_manager` — untouched, no reference to the
+  retired role strings.
+- `module_access.py::effective_module_access`'s role-hierarchy check
+  (`role in ("admin", "platform_admin", "company_admin")`, line 155) —
+  untouched, still on the pre-flag pattern by design (it's the 7-key
+  delegable-access map, a different mechanism from the outer gate).
+- `main.py`'s 6 pre-existing `role == "admin"` sites (db-stats,
+  cv-database, sys-logs, `/api/schedule`, `serve_resume`, req-form-data
+  helper) — grepped, zero matches for `role == "admin"` in `main.py` at all
+  (all 6 sites use a different comparison form / were already
+  reorganized); none reference the retired `platform_admin`/
+  `company_admin` strings, none edited this session.
+
+**Live verification — 4-role × 10-file authorization matrix** (PS = platform
+superadmin, CA = company/tenant admin, R = recruiter, HM = hiring manager;
+all endpoints hit with real tokens against `localhost:8081`):
+
+| Endpoint | PS | CA | R | HM |
+|---|---|---|---|---|
+| `GET /api/activity-log/logins` | 200 | 200 | 403 | 403 |
+| `GET /api/bands/all` | 200 | 200 | 403 | 403 |
+| `GET /api/offer-chain-templates` | 200 | 200 | 200¹ | 403 |
+| `GET /api/email-templates` | 200 | 200 | 403 | 403 |
+| `GET /api/org/hrbp-users` | 200 | 200 | 403 | 403 |
+| `GET /api/sla/dashboard` | 200 | 200 | 200¹ | 403 |
+| `GET /api/sla/config` | 200 | 200 | 403 | 403 |
+| `GET /api/vendors/` | 200 | 200 | 403 | 403 |
+| `GET /api/google/status` | 200 | 200 | 403 | 403 |
+| `GET /api/admin/system-health` | 200 | 403² | 403 | 403 |
+| `PATCH /api/tickets/{id}` | 200 | 404³ | 403 | 403 |
+
+¹ recruiter delegation grants read access on these two — expected, not a gate failure.
+² correct: this site is platform-scoped (system_health), a company admin should not see it.
+³ correct: not a gate failure — the ticket belongs to the seed tenant, not CA's own tenant (Acme Corp), so the tenant-scope `WHERE` clause correctly returns 404 (isolation working as intended).
+
+**Flag-decoupling proof** (the actual point of this migration): created a
+test account with `role='ta_manager'` (a role the *old* string-tuple checks
+would have denied) plus `is_company_admin=TRUE`. Confirmed it now correctly
+gets 200 on a company-tier-only endpoint (`/api/bands/all`) and still
+correctly gets 403 on the platform-only endpoint
+(`/api/admin/system-health`) — proving gating now genuinely follows the
+flag, independent of the `role` string, as designed.
+
+### ⚠️ Critical: a real privilege-escalation bug was introduced and shipped during this fix, then found and closed within the same session
+
+While migrating `admin_users.py` and the 10 router files, the shared
+`is_platform_tier(user)` helper was first written with a `role == "admin"`
+fallback (copying the pattern from `admin_users.py`'s pre-existing local
+version). **This was unsafe**: `platform_admin_api.py::create_tenant()` /
+`add_tenant_admin()` create ordinary company admins with `role='admin'` +
+`is_company_admin=TRUE`, `is_platform_superadmin=FALSE` (a deliberate,
+documented choice for `NAV_DEF`/nav compatibility — see
+`PLATFORM_ADMIN_MAPPING.md` §5b). With the fallback in place, **any company
+admin could reach cross-tenant `/api/platform/*` endpoints.**
+
+This version was committed under a generic `"Bug Fixing"` commit
+(`2f39ca7`) alongside the rest of the Fix #3 file set, made outside this
+session's own commit flow — **and that commit was already on
+`origin/main`** by the time this was caught. It was found via this
+session's own live authorization testing, before the matrix above was
+considered complete: `curl` with Acme Corp's company-admin token returned
+`HTTP 200` on `GET /api/platform/stats` (should be 403).
+
+**Fixed immediately** (commit `bb87922`, on top of `2f39ca7`): removed the
+`role == "admin"` fallback from `is_platform_tier()` entirely — it now
+checks only `is_platform_superadmin`. `is_company_tier()` was changed to
+inline its own `admin`-role fallback directly (`is_company_admin OR
+is_platform_superadmin OR role == "admin"`) rather than delegating to
+`is_platform_tier()`, so legacy `admin`-role accounts don't lose their
+legitimate company-tier access as a side effect (that fallback stays safe
+there — Migration 100's backfill guarantees every real `admin`-role account
+already carries one of the two flags, and `is_company_tier` never gates a
+platform-only endpoint).
+
+**Re-verified live after the fix**: company admin → 403 on
+`/api/platform/stats` (closed) and still 200 on its own company-tier
+endpoints (no regression); platform superadmin → unaffected, still 200
+everywhere it should be. This result is reflected in the matrix above.
+
+**Status as of this report**: commit `bb87922` is committed locally on
+`main` but **has not been pushed**. `origin/main` currently still has the
+vulnerable `2f39ca7` as its tip. **Recommend pushing `bb87922` before
+anyone else pulls or deploys from `origin/main`.**
+
+### ats-hr confirmation
+
+`docker ps -a --filter name=ats-hr` shows `ats-hr-backend-1` /
+`ats-hr-db-1` unchanged (`Exited (137)` / `Exited (0)`, same as the original
+verification pass). `git status` shows no changes outside the `Enternly`
+working tree. ats-hr was not touched at any point in this session.
+
+### Deferred — future projects (not started this session)
+
+Per instruction, the intra-company role model (recruiter / hiring-manager /
+ta_manager / company-admin gating, as fixed by Fix #3 above) was **not**
+changed in shape — only migrated from role-strings to flags, same
+permissions as before. Planned build order for later sessions:
+
+1. **Platform Admin** (this build) — stands on its own, in scope for the
+   staging sign-off below.
+2. **Company Super Admin** — a later project giving each tenant's own admin
+   the ability to manage company logins, comms/org-level settings, and
+   define the company's own roles. The fixed-role gates touched by Fix #3
+   are expected to be revisited once this project makes intra-company
+   roles tenant-configurable.
+3. **Recruitment flow** — role-based candidate status/edit access, to be
+   scoped after the recruitment flow itself is shared.
+
+No work on #2 or #3 was started or implied by this session's changes.
+
+### Updated Go / No-Go
+
+**Conditional GO for the Platform Admin control plane specifically, pending
+one push.** All four findings from §7 that were open (#5 self-lockout, #2
+plan-constraint no-op, #3 nav-hiding, #4 incomplete flag migration) are now
+fixed and live-verified. The one new issue surfaced during this session (the
+`is_platform_tier` privilege-escalation bug) has been found, fixed, and
+re-verified closed — but the fix is **not yet pushed**, and the vulnerable
+version is currently the tip of `origin/main`. Recommend: push commit
+`bb87922` immediately, then this control plane is clear for staging.
+
+This sign-off covers **only** the Platform Admin control plane. It does not
+extend to the two future projects above (Company Super Admin, Recruitment
+flow) — neither has been scoped or built yet.
+
+**Still open from §7, not part of this fix session** (not requested for
+this pass): the §4 pre-existing infra gap (missing `database/35-52`
+snapshots) — needs a decision on fix-forward (a) vs (b), unrelated to
+platform-admin code.
