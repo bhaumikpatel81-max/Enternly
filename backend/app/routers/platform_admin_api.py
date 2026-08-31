@@ -166,6 +166,13 @@ def create_tenant(body: CreateTenantIn, actor=Depends(require_platform_admin)):
     base_slug = _slugify(body.name)
     pwd_hash = hash_password(body.admin_password) if body.admin_password else None
 
+    # Reference data for module seeding below -- pure reads, not written to
+    # as part of tenant creation, so safe to fetch outside the transaction.
+    # allowed=None means "no restriction" (matches _plan_allowed_modules'
+    # existing convention used by the module-toggle live-constraint check).
+    catalog_keys = [r["key"] for r in query("SELECT key FROM module_catalog") or []]
+    allowed = _plan_allowed_modules(body.plan)
+
     # Tenant + its first company admin are created atomically -- a failure
     # partway through (e.g. a last-second email collision) must never leave
     # an orphaned tenant holding a consumed ET_NNNN code.
@@ -193,6 +200,25 @@ def create_tenant(body: CreateTenantIn, actor=Depends(require_platform_admin)):
                     [body.admin_full_name, admin_email, pwd_hash, tenant_row["id"], actor.get("sub")],
                 )
                 admin_id = admin_rows[0]["id"]
+                # Seed tenant_module_config for every catalog module,
+                # honoring the initial plan's allowed_modules_json, in the
+                # SAME transaction as the tenant/admin insert -- so the
+                # plan/module live constraint actually applies from the
+                # moment the tenant exists, not only after someone first
+                # visits the Module Catalog UI and triggers the first
+                # explicit toggle (finding #1). A plan with no restriction
+                # (allowed is None) seeds every module enabled, matching the
+                # existing all-enabled backfill for pre-existing tenants.
+                for key in catalog_keys:
+                    enabled = allowed is None or key in allowed
+                    tx_exec(
+                        cur,
+                        """INSERT INTO tenant_module_config
+                             (tenant_id, module_key, is_enabled, enabled_at, disabled_at)
+                           VALUES (%s, %s, %s, CASE WHEN %s THEN now() ELSE NULL END,
+                                                CASE WHEN %s THEN NULL ELSE now() END)""",
+                        [tenant_row["id"], key, enabled, enabled, enabled],
+                    )
             break
         except psycopg2.errors.UniqueViolation:
             if attempt == 2:
