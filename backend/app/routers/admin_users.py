@@ -13,6 +13,8 @@ _VALID_ROLES = {
     "platform_admin", "company_admin",
     "admin", "ta_manager", "recruiter",
     "hiring_manager", "bu_head", "director", "interviewer", "hrbp",
+    "placement_officer",  # College-tenant campus recruiting contact -- created only via
+                          # POST /api/platform/tenants/{id}/placement-officers, not this router
 }
 
 # Roles a Company Admin (non-platform) may not create/promote-to or act on --

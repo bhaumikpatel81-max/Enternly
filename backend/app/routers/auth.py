@@ -30,14 +30,19 @@ def login(body: LoginIn, request: Request):
         raise HTTPException(429, "Too many login attempts. Please wait 15 minutes and try again.")
 
     user = query_one(
-        "SELECT id, full_name, email, role, password_hash, is_active, bu_id, "
-        "tenant_id, token_version, is_platform_superadmin, is_company_admin "
-        "FROM app_user WHERE email = %s", [email],
+        """SELECT u.id, u.full_name, u.email, u.role, u.password_hash, u.is_active, u.bu_id,
+                  u.tenant_id, u.token_version, u.is_platform_superadmin, u.is_company_admin,
+                  t.status AS tenant_status, t.is_deleted AS tenant_deleted,
+                  t.subscription_end_date, t.grace_period_days
+           FROM app_user u
+           LEFT JOIN tenant t ON t.id = u.tenant_id
+           WHERE u.email = %s""", [email],
     )
 
     # 2. Generic 401 for ALL failure modes (no user / inactive / not-set-up /
-    #    wrong password) — identical message, so none of them are distinguishable.
-    #    Every failure is logged for rate-limiting.
+    #    wrong password / suspended-or-deleted-or-expired tenant) — identical
+    #    message, so none of them are distinguishable. Every failure is
+    #    logged for rate-limiting.
     def _fail() -> NoReturn:
         _log_attempt(email, ip, False)
         raise HTTPException(401, "Invalid email or password")
@@ -48,6 +53,13 @@ def login(body: LoginIn, request: Request):
         _fail()                      # was "Account not set up — contact your admin" (enumeration leak) — now generic
     if not verify_password(body.password, user["password_hash"]):
         _fail()
+    if user.get("tenant_deleted") or user.get("tenant_status") == "suspended":
+        _fail()
+    _end_date = user.get("subscription_end_date")
+    if _end_date is not None:
+        from datetime import date as _date, timedelta as _timedelta
+        if _date.today() > _end_date + _timedelta(days=user.get("grace_period_days") or 0):
+            _fail()
 
     # 3. Success: log success, and CLEAR this pair's recent failures so a
     #    legit user who mistyped a couple times isn't left near lockout.

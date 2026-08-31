@@ -253,6 +253,51 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
   <div id="content"><p class="empty">Loading…</p></div>
 </div>
 
+<!-- ── Create company modal (Feature C) ── -->
+<div class="modal-bg" id="create-tenant-modal" onmousedown="modalBgMouseDown(event)" onclick="modalBgClick(event,closeCreateTenantModal)">
+  <div class="modal">
+    <h2>New company</h2>
+    <div class="form-group"><label>Company name</label><input id="ct-name" placeholder="Acme Corp"></div>
+    <div class="form-group"><label>Type</label>
+      <select id="ct-type"><option value="Company">Company</option><option value="College">College</option></select>
+    </div>
+    <div class="form-group"><label>Admin full name</label><input id="ct-admin-name" placeholder="Jane Doe"></div>
+    <div class="form-group"><label>Admin email</label><input id="ct-admin-email" type="email" placeholder="jane@acme.com"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeCreateTenantModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doCreateTenant()">Create company</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit company modal (Feature C) ── -->
+<div class="modal-bg" id="edit-tenant-modal" onmousedown="modalBgMouseDown(event)" onclick="modalBgClick(event,closeEditTenantModal)">
+  <div class="modal">
+    <h2>Edit company</h2>
+    <div class="form-group"><label>Company name</label><input id="et-name"></div>
+    <div class="form-group"><label>Slug</label><input id="et-slug"></div>
+    <div class="form-group"><label>Logo URL</label><input id="et-logo" placeholder="https://…"></div>
+    <div class="form-group"><label>Primary colour</label><input id="et-colour" placeholder="#2563EB"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeEditTenantModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doEditTenant()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add company admin / placement officer modal (Feature C) ── -->
+<div class="modal-bg" id="add-tenant-user-modal" onmousedown="modalBgMouseDown(event)" onclick="modalBgClick(event,closeAddTenantUserModal)">
+  <div class="modal">
+    <h2 id="atu-title">Add user</h2>
+    <div class="form-group"><label>Full name</label><input id="atu-name"></div>
+    <div class="form-group"><label>Email</label><input id="atu-email" type="email"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeAddTenantUserModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doAddTenantUser()">Add</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Same click-outside-to-close guard as index.html (against the native
 // <select> click-through quirk) -- reused verbatim so future modal screens
@@ -371,9 +416,169 @@ function screenComingSoon(label) {
      <div class="card"><p class="empty">This screen lands in a later commit.</p></div>`;
 }
 
+// ── Dashboard (Feature B) ────────────────────────────────────────────────────
+async function screenDashboard() {
+  setTitle('Dashboard');
+  const s = await api('/api/platform/stats');
+  if (!s) { showErr('Could not load platform stats.'); return; }
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Dashboard</h1></div>
+    <div class="stage-grid">
+      <div class="stage-card dash-link" onclick="navigate('companies')"><div class="n">${s.totalTenants}</div><div class="lbl">Companies</div></div>
+      <div class="stage-card dash-link" onclick="navigate('companies')"><div class="n">${s.activeTenants}</div><div class="lbl">Active</div></div>
+      <div class="stage-card dash-link" onclick="navigate('all_users')"><div class="n">${s.totalUsers}</div><div class="lbl">Total Users</div></div>
+      <div class="stage-card"><div class="n">${s.newTenantsThisMonth}</div><div class="lbl">New This Month</div></div>
+      <div class="stage-card"><div class="n">${s.totalCandidates.toLocaleString()}</div><div class="lbl">Candidate Pool</div></div>
+    </div>
+    <div class="card"><p class="empty">Companies, Subscriptions, Users, and the rest of the console are on the left.</p></div>`;
+}
+
+// ── Companies (Feature C) ────────────────────────────────────────────────────
+function _tenantPill(t) {
+  if (t.is_deleted) return '<span class="pill deleted">Deleted</span>';
+  return `<span class="pill ${t.status}">${esc(t.status)}</span>`;
+}
+
+async function screenCompanies(param) {
+  if (param) return screenCompanyDetail(param);
+  setTitle('Companies');
+  const tenants = await api('/api/platform/tenants');
+  if (!tenants) { showErr('Could not load companies.'); return; }
+  const rows = tenants.map(t => `
+    <tr class="clickable-row" onclick="navigate('companies','${t.id}')">
+      <td><strong>${esc(t.name)}</strong><br><span style="font-size:11px;color:var(--muted)">${esc(t.tenant_code||'')}</span></td>
+      <td>${esc(t.tenant_type)}</td>
+      <td>${_tenantPill(t)}</td>
+      <td>${esc(t.subscription_plan||'')}</td>
+      <td>${t.employee_count}</td>
+      <td>${t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</td>
+    </tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Companies</h1><button class="btn btn-primary" onclick="openCreateTenantModal()">+ New company</button></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${rows ? `<table><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Plan</th><th>Users</th><th>Created</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No companies yet.</p>'}
+    </div>`;
+}
+
+async function screenCompanyDetail(id) {
+  setTitle('Company');
+  const t = await api(`/api/platform/tenants/${id}`);
+  if (!t) { showErr('Could not load company.'); return; }
+  const userRows = (t.users||[]).map(u => `
+    <tr><td>${esc(u.full_name)}<br><span style="font-size:11px;color:var(--muted)">${esc(u.email)}</span></td>
+        <td>${esc(u.role)}</td>
+        <td><span class="pill ${u.is_active?'active':'inactive'}">${u.is_active?'Active':'Inactive'}</span></td>
+        <td>${u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td></tr>`).join('');
+  const placementBtn = t.tenant_type === 'College'
+    ? `<button class="btn btn-ghost btn-sm" onclick="openAddTenantUserModal('${t.id}','placement-officers')">+ Add placement officer</button>` : '';
+  document.getElementById('content').innerHTML = `
+    <div class="page-header">
+      <h1>${esc(t.name)} <span style="font-size:12px;color:var(--muted)">${esc(t.tenant_code||'')}</span></h1>
+      <button class="btn btn-ghost" onclick="navigate('companies')">← Back</button>
+      <button class="btn btn-ghost" onclick="openEditTenantModal('${t.id}','${escAttr(t.name)}','${escAttr(t.slug)}','${escAttr(t.logo_url||'')}','${escAttr(t.primary_colour||'')}')">Edit</button>
+      ${t.status !== 'suspended'
+        ? `<button class="btn btn-danger" onclick="setTenantStatus('${t.id}','suspended')">Suspend</button>`
+        : `<button class="btn btn-green" onclick="setTenantStatus('${t.id}','active')">Reactivate</button>`}
+      <button class="btn btn-danger" onclick="deleteTenant('${t.id}','${escAttr(t.name)}')">Delete</button>
+    </div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="sv">${_tenantPill(t)}</div><div class="sl">Status</div></div>
+      <div class="stat-box"><div class="sv">${esc(t.tenant_type)}</div><div class="sl">Type</div></div>
+      <div class="stat-box"><div class="sv">${esc(t.subscription_plan||'—')}</div><div class="sl">Plan</div></div>
+      <div class="stat-box"><div class="sv">${(t.users||[]).length}</div><div class="sl">Users</div></div>
+    </div>
+    <div class="page-header" style="margin-top:8px"><h1 style="font-size:16px">Users</h1>
+      <button class="btn btn-ghost btn-sm" onclick="openAddTenantUserModal('${t.id}','admins')">+ Add company admin</button>
+      ${placementBtn}
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${userRows ? `<table><thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Last login</th></tr></thead><tbody>${userRows}</tbody></table>` : '<p class="empty">No users yet.</p>'}
+    </div>`;
+}
+
+function openCreateTenantModal() {
+  document.getElementById('ct-name').value = '';
+  document.getElementById('ct-type').value = 'Company';
+  document.getElementById('ct-admin-name').value = '';
+  document.getElementById('ct-admin-email').value = '';
+  document.getElementById('create-tenant-modal').classList.add('open');
+}
+function closeCreateTenantModal() { document.getElementById('create-tenant-modal').classList.remove('open'); }
+async function doCreateTenant() {
+  const body = {
+    name: document.getElementById('ct-name').value.trim(),
+    tenant_type: document.getElementById('ct-type').value,
+    admin_full_name: document.getElementById('ct-admin-name').value.trim(),
+    admin_email: document.getElementById('ct-admin-email').value.trim(),
+  };
+  if (!body.name || !body.admin_full_name || !body.admin_email) { flash('Fill in all fields.', false); return; }
+  const res = await api('/api/platform/tenants', { method: 'POST', body });
+  if (res && res.id) {
+    flash(`Company created — code ${res.tenant_code}.${res.setup_email_sent ? '' : ' (setup email not sent — check email config)'}`);
+    closeCreateTenantModal();
+    navigate('companies', res.id);
+  } else flash(res?.detail || _lastApiError || 'Could not create company.', false);
+}
+
+let _editTenantId = null;
+function openEditTenantModal(id, name, slug, logo, colour) {
+  _editTenantId = id;
+  document.getElementById('et-name').value = name;
+  document.getElementById('et-slug').value = slug;
+  document.getElementById('et-logo').value = logo;
+  document.getElementById('et-colour').value = colour;
+  document.getElementById('edit-tenant-modal').classList.add('open');
+}
+function closeEditTenantModal() { document.getElementById('edit-tenant-modal').classList.remove('open'); }
+async function doEditTenant() {
+  const body = {
+    name: document.getElementById('et-name').value.trim(),
+    slug: document.getElementById('et-slug').value.trim(),
+    logo_url: document.getElementById('et-logo').value.trim() || null,
+    primary_colour: document.getElementById('et-colour').value.trim() || null,
+  };
+  const res = await api(`/api/platform/tenants/${_editTenantId}`, { method: 'PUT', body });
+  if (res && res.id) { flash('Saved.'); closeEditTenantModal(); navigate('companies', _editTenantId); }
+  else flash(res?.detail || _lastApiError || 'Could not save.', false);
+}
+
+async function setTenantStatus(id, status) {
+  if (!confirm(`${status === 'suspended' ? 'Suspend' : 'Reactivate'} this company? Its users will ${status === 'suspended' ? 'immediately lose' : 'regain'} access.`)) return;
+  const res = await api(`/api/platform/tenants/${id}/status`, { method: 'PATCH', body: { status } });
+  if (res && res.id) { flash('Status updated.'); navigate('companies', id); }
+  else flash(res?.detail || _lastApiError || 'Could not update status.', false);
+}
+
+async function deleteTenant(id, name) {
+  if (!confirm(`Delete "${name}"? This soft-deletes the company — its users can no longer log in. This cannot be undone from the console.`)) return;
+  const res = await api(`/api/platform/tenants/${id}`, { method: 'DELETE' });
+  if (res && res.ok) { flash('Company deleted.'); navigate('companies'); }
+  else flash(res?.detail || _lastApiError || 'Could not delete company.', false);
+}
+
+let _addUserTenantId = null, _addUserKind = 'admins';
+function openAddTenantUserModal(tenantId, kind) {
+  _addUserTenantId = tenantId; _addUserKind = kind;
+  document.getElementById('atu-title').textContent = kind === 'placement-officers' ? 'Add placement officer' : 'Add company admin';
+  document.getElementById('atu-name').value = '';
+  document.getElementById('atu-email').value = '';
+  document.getElementById('add-tenant-user-modal').classList.add('open');
+}
+function closeAddTenantUserModal() { document.getElementById('add-tenant-user-modal').classList.remove('open'); }
+async function doAddTenantUser() {
+  const body = {
+    full_name: document.getElementById('atu-name').value.trim(),
+    email: document.getElementById('atu-email').value.trim(),
+  };
+  if (!body.full_name || !body.email) { flash('Fill in all fields.', false); return; }
+  const res = await api(`/api/platform/tenants/${_addUserTenantId}/${_addUserKind}`, { method: 'POST', body });
+  if (res && res.id) { flash('User added.'); closeAddTenantUserModal(); navigate('companies', _addUserTenantId); }
+  else flash(res?.detail || _lastApiError || 'Could not add user.', false);
+}
+
 const SCREENS = {
-  dashboard:     () => screenComingSoon('Dashboard'),
-  companies:     () => screenComingSoon('Companies'),
+  dashboard:     screenDashboard,
+  companies:     screenCompanies,
   subscriptions: () => screenComingSoon('Subscriptions'),
   all_users:     () => screenComingSoon('All Users'),
   tickets:       () => screenComingSoon('Issues & Tickets'),

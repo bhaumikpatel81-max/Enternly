@@ -102,14 +102,31 @@ def _refresh_staff_claims(payload: dict) -> dict:
     if not is_staff_payload(payload):
         return payload
     row = query_one(
-        "SELECT role, tenant_id, token_version, is_active, full_name, "
-        "is_platform_superadmin, is_company_admin FROM app_user WHERE id = %s",
+        """SELECT u.role, u.tenant_id, u.token_version, u.is_active, u.full_name,
+                  u.is_platform_superadmin, u.is_company_admin,
+                  t.status AS tenant_status, t.is_deleted AS tenant_deleted,
+                  t.subscription_end_date, t.grace_period_days
+           FROM app_user u
+           LEFT JOIN tenant t ON t.id = u.tenant_id
+           WHERE u.id = %s""",
         [payload.get("sub")],
     )
     if not row or not row.get("is_active"):
         raise HTTPException(401, "Account is inactive or no longer exists")
     if int(row.get("token_version") or 0) != int(payload.get("tver") or 0):
         raise HTTPException(401, "Session expired — please log in again")
+    # Tenant lifecycle -- checked live on every request (not just at login)
+    # so suspending/deleting a tenant, or letting its subscription run out
+    # past its grace period, ends every open session immediately rather than
+    # waiting for token expiry. A NULL subscription_end_date never blocks
+    # (no subscription configured yet = unrestricted, per design decision).
+    if row.get("tenant_deleted") or row.get("tenant_status") == "suspended":
+        raise HTTPException(401, "This company's account is no longer active")
+    end_date = row.get("subscription_end_date")
+    if end_date is not None:
+        from datetime import date as _date, timedelta as _timedelta
+        if _date.today() > end_date + _timedelta(days=row.get("grace_period_days") or 0):
+            raise HTTPException(401, "This company's subscription has expired")
     payload["role"] = row["role"]
     payload["tenant_id"] = str(row["tenant_id"]) if row.get("tenant_id") else None
     payload["name"] = row["full_name"]
