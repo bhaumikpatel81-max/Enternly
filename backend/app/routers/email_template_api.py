@@ -53,9 +53,9 @@ def _require_template_access(user=Depends(get_current_user)):
 
 
 def _require_send_access(user=Depends(get_current_user)):
-    if user["role"] not in ("admin", "ta_manager", "recruiter"):
-        raise HTTPException(403, "Not authorised to send emails.")
-    return user
+    if is_company_tier(user) or user["role"] in ("ta_manager", "recruiter"):
+        return user
+    raise HTTPException(403, "Not authorised to send emails.")
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
