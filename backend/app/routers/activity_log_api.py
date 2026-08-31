@@ -19,7 +19,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..db import query, query_one
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier
 from ..services import excel_export
 from .enteri_ai_api import _recruiter_owns_req, _application_req_id
 
@@ -285,7 +285,7 @@ def login_history(
     the UNION above. Scoped to the caller's own tenant via the app_user join
     (login_log itself has no tenant_id -- a login with no matching app_user,
     e.g. a since-deleted account, is excluded rather than shown unscoped)."""
-    if user["role"] not in ("admin", "platform_admin", "company_admin"):
+    if not is_company_tier(user):
         raise HTTPException(403, "Company Admin access required")
     where_parts = ["au.tenant_id = %s"]
     params = [user.get("tenant_id")]

@@ -257,29 +257,51 @@ def get_current_user(
 require_staff = get_current_user
 
 
+def is_platform_tier(user: dict) -> bool:
+    """True if `user` qualifies as platform-superadmin tier: the
+    is_platform_superadmin flag, or the legacy 'admin' role string (kept as
+    an explicit fallback so no account that predates the flags is locked
+    out -- every 'admin'-role account was backfilled onto the flag by
+    Migration 100 anyway, so this rarely does any actual work, but it keeps
+    every platform-tier check in the codebase consistent with the same
+    fallback rule rather than some checks having it and others not).
+    Shared by require_platform_admin below and by every router-local
+    platform-only gate migrated off the retired role-string pattern
+    (Step 1 full audit, finding #3)."""
+    return bool(user.get("is_platform_superadmin") or user.get("role") == "admin")
+
+
+def is_company_tier(user: dict) -> bool:
+    """True if `user` qualifies as company-admin tier: is_company_admin,
+    is_platform_superadmin (platform staff can still reach into a tenant's
+    own admin surface), or the legacy 'admin' role fallback (see
+    is_platform_tier above for the same rationale). Shared by
+    require_company_admin below and by every router-local company-admin
+    gate migrated off the retired role-string pattern (Step 1 full audit,
+    finding #3) -- accepts any dict carrying these keys, not just a
+    decoded JWT payload, so it also works directly against a plain
+    app_user row fetched via query_one() (see password_api.py)."""
+    return bool(user.get("is_company_admin") or is_platform_tier(user))
+
+
 def require_platform_admin(user: dict = Depends(get_current_user)) -> dict:
-    """Enternstech-only tier: manages the tenant/company roster itself.
-    Gated on the explicit is_platform_superadmin flag (Migration 100), not
-    the legacy role string -- 'admin'/'platform_admin' accounts were
-    backfilled onto this flag when it was introduced, so nothing that used
-    to pass this check is locked out. An impersonation token can never
-    satisfy this, regardless of the impersonated user's own flags -- the
-    platform console must always be operated from a real platform session."""
+    """Enternstech-only tier: manages the tenant/company roster itself. An
+    impersonation token can never satisfy this, regardless of the
+    impersonated user's own flags -- the platform console must always be
+    operated from a real platform session."""
     if user.get("isImpersonation"):
         raise HTTPException(403, "Platform Admin access required")
-    if not user.get("is_platform_superadmin"):
+    if not is_platform_tier(user):
         raise HTTPException(403, "Platform Admin access required")
     return user
 
 
 def require_company_admin(user: dict = Depends(get_current_user)) -> dict:
     """A customer's own super admin: user management, org settings,
-    SMTP/calendar integrations -- scoped to their company. Gated on
-    is_company_admin OR is_platform_superadmin (platform staff can still
-    reach into a tenant's own admin surface). ta_manager is deliberately
-    excluded -- it's restricted to team management + reports, see
-    require_ta_manager below."""
-    if user.get("is_company_admin") or user.get("is_platform_superadmin"):
+    SMTP/calendar integrations -- scoped to their company. ta_manager is
+    deliberately excluded -- it's restricted to team management + reports,
+    see require_ta_manager below."""
+    if is_company_tier(user):
         return user
     raise HTTPException(403, "Company Admin access required")
 

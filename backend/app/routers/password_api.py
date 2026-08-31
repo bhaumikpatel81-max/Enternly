@@ -18,15 +18,25 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from ..db import query, query_one
-from ..auth_utils import hash_password, require_company_admin, get_current_user
+from ..auth_utils import hash_password, require_company_admin, get_current_user, is_company_tier
 from ..services.connectors import send_email, _load_email_cfg
 from ..services.activity_log import log_activity
 
 router = APIRouter(prefix="/api/auth", tags=["password"])
 
 _TOKEN_TTL_HOURS = 24
-# Only these roles may use self-service staff password set/reset
-_SELF_SERVICE_ROLES = {"admin", "platform_admin", "company_admin", "ta_manager", "recruiter"}
+
+
+def _self_service_eligible(target: dict) -> bool:
+    """Which staff roles may use self-service set/reset -- checks the
+    TARGET account's own row (not the caller's), so is_company_tier() is
+    applied directly to whatever dict was fetched via query_one(), same
+    is_company_admin/is_platform_superadmin/role keys either way. Kept as
+    a narrower allow-list than 'every staff role' on purpose -- deliberately
+    excludes hiring_manager/bu_head/director/interviewer/hrbp/
+    placement_officer, unchanged from the original role-string list's
+    intent (Step 1 full audit, finding #3)."""
+    return is_company_tier(target) or target.get("role") in ("ta_manager", "recruiter")
 
 
 def _hash_token(raw: str) -> str:
@@ -138,12 +148,13 @@ class InviteIn(BaseModel):
 def send_setup_link(body: InviteIn, admin=Depends(require_company_admin)):
     """Company Admin triggers a first-time 'set your password' email to a staff user."""
     user = query_one(
-        "SELECT id, full_name, email, role, is_active FROM app_user WHERE email=%s AND tenant_id=%s",
+        "SELECT id, full_name, email, role, is_active, is_company_admin, is_platform_superadmin "
+        "FROM app_user WHERE email=%s AND tenant_id=%s",
         [body.email.lower().strip(), admin.get("tenant_id")],
     )
     if not user or not user["is_active"]:
         raise HTTPException(404, "Active user with that email not found")
-    if user["role"] not in _SELF_SERVICE_ROLES:
+    if not _self_service_eligible(user):
         raise HTTPException(400, "Self-service password is only for staff roles (Company Admin / TA Manager / Recruiter)")
     raw = _issue_token(str(user["id"]), "invite", account_type="staff")
     _send_link_email(user["email"], user["full_name"], raw, "invite", tenant_id=admin.get("tenant_id"))
@@ -170,9 +181,10 @@ def forgot_password(body: ForgotIn):
 
     # 1. Staff (app_user) — only self-service roles, active
     staff = query_one(
-        "SELECT id, full_name, email, role, is_active, tenant_id FROM app_user WHERE email=%s", [email]
+        "SELECT id, full_name, email, role, is_active, tenant_id, is_company_admin, is_platform_superadmin "
+        "FROM app_user WHERE email=%s", [email]
     )
-    if staff and staff["is_active"] and staff["role"] in _SELF_SERVICE_ROLES:
+    if staff and staff["is_active"] and _self_service_eligible(staff):
         raw = _issue_token(str(staff["id"]), "reset", account_type="staff")
         try:
             _send_link_email(staff["email"], staff["full_name"], raw, "reset", tenant_id=staff.get("tenant_id"))

@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
 from ..db import query, query_one
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier
 from ..services import google_calendar as gcal
 from .enteri_ai_api import _get_base_url
 
@@ -29,7 +29,7 @@ _STATE_TTL_MINUTES = 10
 
 
 def _require_admin(user: dict):
-    if user["role"] not in ("admin", "platform_admin", "company_admin"):
+    if not is_company_tier(user):
         raise HTTPException(403, "Company Admin access required")
 
 

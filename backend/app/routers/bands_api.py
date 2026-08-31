@@ -18,16 +18,14 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier
 from ..db import query, query_one
 
 router = APIRouter(prefix="/api/bands", tags=["bands"])
 
-_ADMIN_ROLES = {"admin", "platform_admin", "company_admin"}
-
 
 def _require_admin(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in _ADMIN_ROLES:
+    if not is_company_tier(user):
         raise HTTPException(403, "Company Admin only")
     return user
 

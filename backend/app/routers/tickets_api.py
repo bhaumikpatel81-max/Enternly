@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from ..db import query, query_one
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier, is_platform_tier
 
 router = APIRouter(prefix="/api", tags=["tickets"])
 
@@ -37,7 +37,7 @@ def list_tickets(
     offset: int = Query(0, ge=0),
     user: dict = Depends(get_current_user),
 ):
-    if user["role"] in ("admin", "platform_admin", "company_admin"):
+    if is_company_tier(user):
         return query(
             """SELECT t.id, t.category, t.subject, t.description, t.status,
                       t.reply, t.created_at, t.resolved_at,
@@ -69,7 +69,7 @@ def list_tickets(
 def update_ticket(
     ticket_id: str, body: TicketUpdate, user: dict = Depends(get_current_user)
 ):
-    if user["role"] not in ("admin", "platform_admin", "company_admin"):
+    if not is_company_tier(user):
         raise HTTPException(403, "Only a Company Admin can update tickets")
     ticket_scope = query_one(
         """SELECT t.id FROM support_ticket t
@@ -179,11 +179,15 @@ def business_metrics_snapshot() -> dict:
 def system_health(user: dict = Depends(get_current_user)):
     # Deliberately platform-wide, not tenant-scoped -- this is Enternstech's
     # own operator dashboard (every tenant's user/ticket/login volume), not a
-    # per-customer view, so only the Platform Admin tier sees it. Left
-    # reachable by the legacy admin/platform_admin role strings unchanged --
-    # the new platform console's own superset endpoint (GET
-    # /api/platform/system-health) is the flag-gated replacement, this one
-    # isn't removed per Step 1's "don't break existing flows."
-    if user["role"] not in ("admin", "platform_admin"):
+    # per-customer view, so only the Platform Admin tier sees it. This
+    # endpoint itself isn't removed (the platform console's own superset
+    # endpoint, GET /api/platform/system-health, is the primary UI now, but
+    # this one stays reachable per Step 1's "don't break existing flows") --
+    # its gate is migrated to the flags here as part of the Step 1 full
+    # audit (finding #3): it was previously left on the retired
+    # role-string check for an unrelated reason (avoiding touching a site
+    # about to be superseded), not because it was meant to be exempt from
+    # the flag migration.
+    if not is_platform_tier(user):
         raise HTTPException(403, "Platform Admin only")
     return business_metrics_snapshot()

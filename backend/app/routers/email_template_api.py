@@ -22,7 +22,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier
 from ..module_access import recruiter_has_module
 from ..services.connectors import send_email
 from ..db import query, query_one
@@ -45,10 +45,9 @@ _PH_RE = re.compile(r'\{\{(\w+)\}\}')
 # ── Permission guards ─────────────────────────────────────────────────────────
 
 def _require_template_access(user=Depends(get_current_user)):
-    role = user["role"]
-    if role in ("admin", "platform_admin", "company_admin"):
+    if is_company_tier(user):
         return user
-    if role == "recruiter" and recruiter_has_module(user.get("sub"), "email_templates"):
+    if user["role"] == "recruiter" and recruiter_has_module(user.get("sub"), "email_templates"):
         return user
     raise HTTPException(403, "Email template management is restricted to Company Admins.")
 

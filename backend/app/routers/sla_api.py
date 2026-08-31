@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import query
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier
 from ..module_access import recruiter_has_module
 from ..services import excel_export
 from ..services.sla import (
@@ -36,23 +36,18 @@ from ..services.sla import (
 
 router = APIRouter(prefix="/api/sla", tags=["sla"])
 
-_ALLOWED_ROLES_WRITE = {"admin", "platform_admin", "company_admin"}
-_ALLOWED_ROLES_READ  = {"admin", "platform_admin", "company_admin", "ta_manager", "recruiter"}
-
-
 def _require_sla_write(user: dict = Depends(get_current_user)) -> dict:
-    role = user.get("role")
-    if role in _ALLOWED_ROLES_WRITE:
+    if is_company_tier(user):
         return user
-    if role == "recruiter" and recruiter_has_module(user.get("sub"), "sla_settings"):
+    if user.get("role") == "recruiter" and recruiter_has_module(user.get("sub"), "sla_settings"):
         return user
     raise HTTPException(403, "Company Admin access required")
 
 
 def _require_sla_read(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in _ALLOWED_ROLES_READ:
-        raise HTTPException(403, "Recruiter, TA Manager or Admin access required")
-    return user
+    if is_company_tier(user) or user.get("role") in ("ta_manager", "recruiter"):
+        return user
+    raise HTTPException(403, "Recruiter, TA Manager or Admin access required")
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────────

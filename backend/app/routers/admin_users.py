@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from ..db import query, query_one
-from ..auth_utils import hash_password, require_company_admin, get_current_user
+from ..auth_utils import (
+    hash_password, require_company_admin, get_current_user,
+    is_company_tier as _is_company_tier, is_platform_tier as _is_platform_tier,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -22,19 +25,12 @@ _VALID_ROLES = {
 _PLATFORM_ONLY_ROLES = {"admin", "platform_admin", "company_admin"}
 
 
-# ── Flag-based gating helpers (Step 1 cleanup, per PLATFORM_ADMIN_MAPPING.md
-# §6) -- gating reads is_company_admin/is_platform_superadmin now, not the
-# platform_admin/company_admin role strings. 'admin' is kept as an explicit
-# legacy OR everywhere below so no pre-existing account that used to pass
-# these checks is locked out (per decision 5: migrate to flags, don't strand
-# accounts that predate them). The role strings themselves are untouched --
-# still used for nav/labels/_VALID_ROLES, just no longer for gating. ──
-def _is_company_tier(user: dict) -> bool:
-    return bool(user.get("is_company_admin") or user.get("is_platform_superadmin") or user.get("role") == "admin")
-
-
-def _is_platform_tier(user: dict) -> bool:
-    return bool(user.get("is_platform_superadmin") or user.get("role") == "admin")
+# _is_company_tier/_is_platform_tier are now shared helpers imported from
+# auth_utils.py (moved there in the Step 1 full audit, finding #3, so every
+# router migrated off the retired platform_admin/company_admin role-string
+# pattern reuses the same one definition instead of each having its own
+# copy) -- kept as local aliases here so the many existing call sites below
+# don't need touching.
 
 _USER_COLS = """id, full_name, email, role, is_active, created_at, gmail_address,
     (SELECT COALESCE(array_agg(bu_id), ARRAY[]::uuid[]) FROM app_user_bu WHERE user_id = app_user.id) AS bu_ids,

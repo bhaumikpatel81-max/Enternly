@@ -21,20 +21,17 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier
 from ..db import query, query_one
 from ..module_access import recruiter_has_module
 
 router = APIRouter(prefix="/api/org", tags=["organisation"])
 
-_ADMIN_ROLES = {"admin", "platform_admin", "company_admin"}
-
 
 def _require_admin(user: dict = Depends(get_current_user)) -> dict:
-    role = user.get("role")
-    if role in _ADMIN_ROLES:
+    if is_company_tier(user):
         return user
-    if role == "recruiter" and recruiter_has_module(user.get("sub"), "organisation"):
+    if user.get("role") == "recruiter" and recruiter_has_module(user.get("sub"), "organisation"):
         return user
     raise HTTPException(403, "Company Admin only")
 

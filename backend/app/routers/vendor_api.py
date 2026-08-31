@@ -26,7 +26,7 @@ from pydantic import BaseModel
 
 from ..auth_utils import (
     SECRET_KEY, ALGORITHM, AUD_VENDOR, get_current_user,
-    hash_password, verify_password,
+    hash_password, verify_password, is_company_tier,
 )
 from ..db import query, query_one
 from ..module_access import recruiter_has_module
@@ -102,10 +102,9 @@ def get_current_vendor(
 
 
 def _require_internal(user: dict = Depends(get_current_user)) -> dict:
-    role = user.get("role")
-    if role in ("admin", "platform_admin", "company_admin"):
+    if is_company_tier(user):
         return user
-    if role == "recruiter" and recruiter_has_module(user.get("sub"), "vendors"):
+    if user.get("role") == "recruiter" and recruiter_has_module(user.get("sub"), "vendors"):
         return user
     raise HTTPException(403, "Company Admin or delegated Recruiter access required")
 
@@ -361,7 +360,7 @@ def patch_vendor(
 # ── Internal: suspend or reactivate ONE vendor user (not the whole vendor) ───
 
 def _assert_ta_or_admin(user: dict) -> None:
-    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
+    if not is_company_tier(user):
         raise HTTPException(403, "Company Admin access required")
 
 

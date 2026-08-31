@@ -19,25 +19,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import query, query_one
-from ..auth_utils import get_current_user
+from ..auth_utils import get_current_user, is_company_tier
 from ..module_access import recruiter_has_module
 
 router = APIRouter(prefix="/api/offer-chain-templates", tags=["chain_templates"])
 
 
 def _require_write(user: dict = Depends(get_current_user)) -> dict:
-    role = user.get("role")
-    if role in ("admin", "platform_admin", "company_admin"):
+    if is_company_tier(user):
         return user
-    if role == "recruiter" and recruiter_has_module(user.get("sub"), "chain_templates"):
+    if user.get("role") == "recruiter" and recruiter_has_module(user.get("sub"), "chain_templates"):
         return user
     raise HTTPException(403, "Company Admin access required")
 
 
 def _require_read(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "platform_admin", "company_admin", "ta_manager", "recruiter"):
-        raise HTTPException(403, "Not authorised")
-    return user
+    if is_company_tier(user) or user.get("role") in ("ta_manager", "recruiter"):
+        return user
+    raise HTTPException(403, "Not authorised")
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
