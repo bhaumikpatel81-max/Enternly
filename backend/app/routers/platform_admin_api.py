@@ -508,3 +508,180 @@ def set_tenant_modules(tenant_id: str, body: TenantModulesIn, actor=Depends(requ
             to_value=key, detail={"enabled": enabled},
         )
     return get_tenant_modules(tenant_id)
+
+
+# ── Subscriptions & plans (Feature E) ─────────────────────────────────────────
+
+class SubscriptionPlanIn(BaseModel):
+    plan_name: str
+    allowed_modules_json: List[str] = []
+    price_monthly: Optional[float] = None
+    price_yearly: Optional[float] = None
+
+
+class SubscriptionPlanUpdateIn(BaseModel):
+    allowed_modules_json: Optional[List[str]] = None
+    price_monthly: Optional[float] = None
+    price_yearly: Optional[float] = None
+
+
+class TenantSubscriptionIn(BaseModel):
+    plan: str
+    subscription_start_date: Optional[date] = None
+    subscription_end_date: Optional[date] = None
+
+
+class GraceConfigIn(BaseModel):
+    grace_period_days: int
+
+
+@router.get("/subscription-plans")
+def list_subscription_plans():
+    return query("SELECT * FROM subscription_plan_config ORDER BY plan_name")
+
+
+@router.post("/subscription-plans", status_code=201)
+def create_subscription_plan(body: SubscriptionPlanIn):
+    if query_one("SELECT plan_name FROM subscription_plan_config WHERE plan_name = %s", [body.plan_name]):
+        raise HTTPException(400, "That plan already exists")
+    query(
+        """INSERT INTO subscription_plan_config (plan_name, allowed_modules_json, price_monthly, price_yearly)
+           VALUES (%s, %s::jsonb, %s, %s)""",
+        [body.plan_name, json.dumps(body.allowed_modules_json), body.price_monthly, body.price_yearly],
+        fetch=False,
+    )
+    return query_one("SELECT * FROM subscription_plan_config WHERE plan_name = %s", [body.plan_name])
+
+
+@router.put("/subscription-plans/{plan_name}")
+def update_subscription_plan(plan_name: str, body: SubscriptionPlanUpdateIn):
+    if not query_one("SELECT plan_name FROM subscription_plan_config WHERE plan_name = %s", [plan_name]):
+        raise HTTPException(404, "Plan not found")
+    sets, params = [], []
+    if body.allowed_modules_json is not None:
+        sets.append("allowed_modules_json = %s::jsonb"); params.append(json.dumps(body.allowed_modules_json))
+    if body.price_monthly is not None:
+        sets.append("price_monthly = %s"); params.append(body.price_monthly)
+    if body.price_yearly is not None:
+        sets.append("price_yearly = %s"); params.append(body.price_yearly)
+    if sets:
+        sets.append("updated_at = now()")
+        params.append(plan_name)
+        query(f"UPDATE subscription_plan_config SET {', '.join(sets)} WHERE plan_name = %s", params, fetch=False)
+    return query_one("SELECT * FROM subscription_plan_config WHERE plan_name = %s", [plan_name])
+
+
+@router.delete("/subscription-plans/{plan_name}")
+def delete_subscription_plan(plan_name: str):
+    if plan_name == "standard":
+        raise HTTPException(400, "Cannot delete the default 'standard' plan")
+    if query_one("SELECT id FROM tenant WHERE plan = %s AND NOT is_deleted", [plan_name]):
+        raise HTTPException(409, "This plan is still assigned to at least one company")
+    query("DELETE FROM subscription_plan_config WHERE plan_name = %s", [plan_name], fetch=False)
+    return {"ok": True}
+
+
+@router.get("/subscriptions")
+def list_subscriptions():
+    rows = query(
+        f"""SELECT {_TENANT_COLS},
+                   (SELECT u.full_name || ' <' || u.email || '>' FROM app_user u
+                    WHERE u.tenant_id = t.id AND u.is_company_admin AND u.is_active
+                    ORDER BY u.created_at LIMIT 1) AS admin_contact,
+                   (t.subscription_end_date - CURRENT_DATE) AS days_remaining
+            FROM tenant t WHERE NOT t.is_deleted ORDER BY t.subscription_end_date NULLS LAST"""
+    )
+    return [_tenant_row_out(r) for r in rows]
+
+
+@router.put("/tenants/{tenant_id}/subscription")
+def set_tenant_subscription(tenant_id: str, body: TenantSubscriptionIn, actor=Depends(require_platform_admin)):
+    tenant = query_one("SELECT plan FROM tenant WHERE id = %s AND NOT is_deleted", [tenant_id])
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    query(
+        "UPDATE tenant SET plan = %s, subscription_start_date = %s, subscription_end_date = %s WHERE id = %s",
+        [body.plan, body.subscription_start_date, body.subscription_end_date, tenant_id],
+        fetch=False,
+    )
+    log_activity(
+        "tenant", "subscription_change", entity_id=tenant_id,
+        actor_id=actor.get("sub"), actor_role=actor.get("role"),
+        from_value=tenant["plan"], to_value=body.plan,
+    )
+    # Live constraint: auto-disable any currently-enabled module the new
+    # plan doesn't cover, rather than leaving the tenant in a state its own
+    # plan no longer allows.
+    allowed = _plan_allowed_modules(body.plan)
+    if allowed is not None:
+        enabled_rows = query(
+            "SELECT module_key FROM tenant_module_config WHERE tenant_id = %s AND is_enabled",
+            [tenant_id],
+        ) or []
+        for r in enabled_rows:
+            if r["module_key"] not in allowed:
+                query(
+                    "UPDATE tenant_module_config SET is_enabled = FALSE, disabled_at = now(), updated_at = now() "
+                    "WHERE tenant_id = %s AND module_key = %s",
+                    [tenant_id, r["module_key"]], fetch=False,
+                )
+                log_activity(
+                    "tenant_module", "auto_disabled_by_plan_change", entity_id=tenant_id,
+                    actor_id=actor.get("sub"), actor_role=actor.get("role"),
+                    to_value=r["module_key"], detail={"new_plan": body.plan},
+                )
+    return _tenant_row_out(query_one(f"SELECT {_TENANT_COLS} FROM tenant WHERE id = %s", [tenant_id]))
+
+
+@router.post("/tenants/{tenant_id}/send-renewal-reminder")
+def send_renewal_reminder(tenant_id: str, actor=Depends(require_platform_admin)):
+    tenant = query_one(
+        "SELECT id, name, plan, subscription_end_date FROM tenant WHERE id = %s AND NOT is_deleted", [tenant_id],
+    )
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    admin = query_one(
+        "SELECT full_name, email FROM app_user WHERE tenant_id = %s AND is_company_admin AND is_active "
+        "ORDER BY created_at LIMIT 1",
+        [tenant_id],
+    )
+    if not admin:
+        raise HTTPException(404, "This company has no active company admin to notify")
+    from ..services.email_layout import build_branded_email
+    from ..services.connectors import send_email
+    end_date_str = tenant["subscription_end_date"].strftime("%d %b %Y") if tenant["subscription_end_date"] else "soon"
+    html = build_branded_email(
+        eyebrow="Enternly — Subscription",
+        hero_title_html=f"Your subscription renews {end_date_str}",
+        hero_subtitle=f"Hi {admin['full_name']}, this is a reminder that {tenant['name']}'s Enternly subscription "
+                       f"({tenant['plan']} plan) is due for renewal on {end_date_str}.",
+        footer_note="Questions about your plan or billing? Simply reply to this email.",
+    )
+    send_email(
+        admin["email"], f"Enternly subscription renewal — {tenant['name']}",
+        f"Hi {admin['full_name']}, your Enternly subscription ({tenant['plan']} plan) renews on {end_date_str}.",
+        html=html, tenant_id=tenant_id,
+    )
+    log_activity(
+        "tenant", "renewal_reminder_sent", entity_id=tenant_id,
+        actor_id=actor.get("sub"), actor_role=actor.get("role"), to_value=admin["email"],
+    )
+    return {"ok": True, "sent_to": admin["email"]}
+
+
+@router.get("/tenants/{tenant_id}/grace-config")
+def get_grace_config(tenant_id: str):
+    row = query_one("SELECT grace_period_days FROM tenant WHERE id = %s AND NOT is_deleted", [tenant_id])
+    if not row:
+        raise HTTPException(404, "Tenant not found")
+    return row
+
+
+@router.put("/tenants/{tenant_id}/grace-config")
+def set_grace_config(tenant_id: str, body: GraceConfigIn):
+    if body.grace_period_days < 0:
+        raise HTTPException(400, "grace_period_days cannot be negative")
+    if not query_one("SELECT id FROM tenant WHERE id = %s AND NOT is_deleted", [tenant_id]):
+        raise HTTPException(404, "Tenant not found")
+    query("UPDATE tenant SET grace_period_days = %s WHERE id = %s", [body.grace_period_days, tenant_id], fetch=False)
+    return {"grace_period_days": body.grace_period_days}

@@ -285,6 +285,19 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
   </div>
 </div>
 
+<!-- ── Subscription modal (Feature E) ── -->
+<div class="modal-bg" id="subscription-modal" onmousedown="modalBgMouseDown(event)" onclick="modalBgClick(event,closeSubscriptionModal)">
+  <div class="modal">
+    <h2>Subscription</h2>
+    <div class="form-group"><label>Plan</label><input id="sub-plan" placeholder="standard"></div>
+    <div class="form-group"><label>Renews on</label><input id="sub-end-date" type="date"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeSubscriptionModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doSetSubscription()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Add company admin / placement officer modal (Feature C) ── -->
 <div class="modal-bg" id="add-tenant-user-modal" onmousedown="modalBgMouseDown(event)" onclick="modalBgClick(event,closeAddTenantUserModal)">
   <div class="modal">
@@ -476,6 +489,7 @@ async function screenCompanyDetail(id) {
       <h1>${esc(t.name)} <span style="font-size:12px;color:var(--muted)">${esc(t.tenant_code||'')}</span></h1>
       <button class="btn btn-ghost" onclick="navigate('companies')">← Back</button>
       <button class="btn btn-ghost" onclick="openEditTenantModal('${t.id}','${escAttr(t.name)}','${escAttr(t.slug)}','${escAttr(t.logo_url||'')}','${escAttr(t.primary_colour||'')}')">Edit</button>
+      <button class="btn btn-ghost" onclick="openSubscriptionModal('${t.id}','${escAttr(t.subscription_plan||'')}','${t.subscription_end_date||''}')">Subscription</button>
       ${t.status !== 'suspended'
         ? `<button class="btn btn-danger" onclick="setTenantStatus('${t.id}','suspended')">Suspend</button>`
         : `<button class="btn btn-green" onclick="setTenantStatus('${t.id}','active')">Reactivate</button>`}
@@ -625,10 +639,75 @@ async function disableModule(key) {
   else flash(_lastApiError || 'Could not disable module.', false);
 }
 
+// ── Subscriptions & plans (Feature E) ───────────────────────────────────────
+async function screenSubscriptions() {
+  setTitle('Subscriptions');
+  const subs = await api('/api/platform/subscriptions');
+  if (!subs) { showErr('Could not load subscriptions.'); return; }
+  const rows = subs.map(t => {
+    const dr = t.days_remaining;
+    let drBadge = '<span class="pill">—</span>';
+    if (dr != null) drBadge = `<span class="pill ${dr < 0 ? 'suspended' : dr <= 14 ? 'trial' : 'active'}">${dr < 0 ? 'Expired' : dr + ' days left'}</span>`;
+    return `<tr class="clickable-row" onclick="navigate('companies','${t.id}')">
+      <td><strong>${esc(t.name)}</strong></td>
+      <td>${esc(t.subscription_plan||'—')}</td>
+      <td>${t.subscription_end_date ? new Date(t.subscription_end_date).toLocaleDateString() : '—'}</td>
+      <td>${drBadge}</td>
+      <td>${esc(t.admin_contact||'—')}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-ghost btn-sm" onclick="sendRenewalReminder('${t.id}')">Send reminder</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Subscriptions</h1><button class="btn btn-ghost" onclick="screenSubscriptionPlans()">Manage plans</button></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${rows ? `<table><thead><tr><th>Company</th><th>Plan</th><th>Renews</th><th>Remaining</th><th>Admin</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No companies yet.</p>'}
+    </div>`;
+}
+
+async function sendRenewalReminder(tenantId) {
+  const res = await api(`/api/platform/tenants/${tenantId}/send-renewal-reminder`, { method: 'POST' });
+  if (res && res.ok) flash(`Reminder sent to ${res.sent_to}.`);
+  else flash(res?.detail || _lastApiError || 'Could not send reminder.', false);
+}
+
+async function screenSubscriptionPlans() {
+  setTitle('Subscription Plans');
+  const plans = await api('/api/platform/subscription-plans');
+  if (!plans) { showErr('Could not load plans.'); return; }
+  const rows = plans.map(p => `
+    <tr><td><strong>${esc(p.plan_name)}</strong></td>
+        <td>${(p.allowed_modules_json||[]).length ? esc(p.allowed_modules_json.join(', ')) : 'All modules'}</td>
+        <td>${p.price_monthly != null ? '$'+p.price_monthly : '—'}</td>
+        <td>${p.price_yearly != null ? '$'+p.price_yearly : '—'}</td></tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Subscription Plans</h1><button class="btn btn-ghost" onclick="navigate('subscriptions')">← Back</button></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Plan</th><th>Allowed modules</th><th>Monthly</th><th>Yearly</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+}
+
+let _subTenantId = null;
+function openSubscriptionModal(tenantId, plan, endDate) {
+  _subTenantId = tenantId;
+  document.getElementById('sub-plan').value = plan || 'standard';
+  document.getElementById('sub-end-date').value = endDate || '';
+  document.getElementById('subscription-modal').classList.add('open');
+}
+function closeSubscriptionModal() { document.getElementById('subscription-modal').classList.remove('open'); }
+async function doSetSubscription() {
+  const body = {
+    plan: document.getElementById('sub-plan').value.trim(),
+    subscription_end_date: document.getElementById('sub-end-date').value || null,
+  };
+  const res = await api(`/api/platform/tenants/${_subTenantId}/subscription`, { method: 'PUT', body });
+  if (res && res.id) { flash('Subscription updated.'); closeSubscriptionModal(); navigate('companies', _subTenantId); }
+  else flash(res?.detail || _lastApiError || 'Could not update subscription.', false);
+}
+
 const SCREENS = {
   dashboard:     screenDashboard,
   companies:     screenCompanies,
-  subscriptions: () => screenComingSoon('Subscriptions'),
+  subscriptions: screenSubscriptions,
   all_users:     () => screenComingSoon('All Users'),
   tickets:       () => screenComingSoon('Issues & Tickets'),
   audit:         () => screenComingSoon('Audit Logs'),

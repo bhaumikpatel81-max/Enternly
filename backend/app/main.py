@@ -20,7 +20,7 @@ if _env_file.exists():
     load_dotenv(_env_file, override=False)
     print(f"[config] Loaded env from {_env_file.name}")
 
-from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Form
+from fastapi import Depends, FastAPI, HTTPException, Request, File, UploadFile, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -65,7 +65,7 @@ from .routers.google_calendar_api import router as _google_calendar_router
 from .routers.platform_auth_api import router as _platform_auth_router
 from .routers.platform_admin_api import router as _platform_admin_router
 from .routers.cv_api import ingest_and_link as _cv_ingest_and_link
-from .auth_utils import _decode, assert_staff
+from .auth_utils import _decode, assert_staff, require_company_admin
 
 app = FastAPI(title="Enternly API", version="0.1.0")
 app.include_router(_auth_router)
@@ -103,6 +103,32 @@ app.include_router(_notifications_router)
 app.include_router(_google_calendar_router)
 app.include_router(_platform_auth_router)
 app.include_router(_platform_admin_router)
+
+
+@app.get("/api/subscription/status")
+def subscription_status(user: dict = Depends(require_company_admin)):
+    """Tenant-facing read of the caller's OWN subscription -- deliberately
+    NOT under /api/platform (that prefix is reserved for the platform
+    console's deliberate cross-tenant reach). A company admin (or a
+    platform superadmin acting on behalf of a tenant) can see their plan,
+    dates, and days remaining, but nothing about any other tenant."""
+    row = query_one(
+        "SELECT plan, subscription_start_date, subscription_end_date, grace_period_days, status "
+        "FROM tenant WHERE id = %s",
+        [user.get("tenant_id")],
+    )
+    if not row:
+        raise HTTPException(404, "No tenant on this account")
+    end_date = row.get("subscription_end_date")
+    days_remaining = (end_date - datetime.utcnow().date()).days if end_date else None
+    return {
+        "subscription_plan": row["plan"],
+        "subscription_start_date": row["subscription_start_date"],
+        "subscription_end_date": end_date,
+        "grace_period_days": row["grace_period_days"],
+        "status": row["status"],
+        "days_remaining": days_remaining,
+    }
 
 
 @app.on_event("startup")
