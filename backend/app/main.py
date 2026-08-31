@@ -62,6 +62,7 @@ from .routers.scheduling_api import router as _scheduling_router
 from .routers.activity_log_api import router as _activity_log_router
 from .routers.notifications_api import router as _notifications_router
 from .routers.google_calendar_api import router as _google_calendar_router
+from .routers.platform_auth_api import router as _platform_auth_router
 from .routers.cv_api import ingest_and_link as _cv_ingest_and_link
 from .auth_utils import _decode, assert_staff
 
@@ -99,6 +100,7 @@ app.include_router(_scheduling_router)
 app.include_router(_activity_log_router)
 app.include_router(_notifications_router)
 app.include_router(_google_calendar_router)
+app.include_router(_platform_auth_router)
 
 
 @app.on_event("startup")
@@ -3718,6 +3720,16 @@ if os.path.isdir(_FRONTEND_DIR):
     @app.get("/set-password", response_class=HTMLResponse)
     def set_password_page():
         with open(os.path.join(_FRONTEND_DIR, "set-password.html"), encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), headers=_NO_CACHE)
+
+    @app.get("/platform-login", response_class=HTMLResponse)
+    def platform_login_page():
+        with open(os.path.join(_FRONTEND_DIR, "platform-login.html"), encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), headers=_NO_CACHE)
+
+    @app.get("/platform-admin", response_class=HTMLResponse)
+    def platform_admin_page():
+        with open(os.path.join(_FRONTEND_DIR, "platform-admin.html"), encoding="utf-8") as f:
             return HTMLResponse(content=f.read(), headers=_NO_CACHE)
 
     @app.get("/candidate-portal", response_class=HTMLResponse)

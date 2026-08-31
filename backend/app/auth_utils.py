@@ -78,6 +78,15 @@ def create_token(user: dict) -> str:
     return _build_token(user)
 
 
+def create_platform_token(user: dict) -> str:
+    """Same staff token shape as create_token, plus platform=True so the
+    platform console's own auth guard can tell a platform login apart from
+    an ordinary staff login -- still aud=AUD_STAFF, so it's accepted by every
+    existing staff-only dependency (require_company_admin etc), it just also
+    satisfies require_platform_admin's is_platform_superadmin check."""
+    return _build_token(user, extra_claims={"platform": True})
+
+
 def _refresh_staff_claims(payload: dict) -> dict:
     """A staff JWT is valid for up to TOKEN_HOURS, but role/tenant_id are
     read live here on every request rather than trusted from the (possibly
