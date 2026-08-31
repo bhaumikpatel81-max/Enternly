@@ -355,8 +355,13 @@ if (!ME || !ME.platform) {
 
 // ── Theme (shared preference with the main app -- purely cosmetic, not a
 // security boundary, so reusing the same key is intentional) ──────────────────
+function _preferredTheme() {
+  const stored = localStorage.getItem('enternly_theme');
+  if (stored === 'dark' || stored === 'light') return stored;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 function initTheme() {
-  const t = localStorage.getItem('enternly_theme') === 'dark' ? 'dark' : 'light';
+  const t = _preferredTheme();
   document.body.setAttribute('data-theme', t);
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) btn.textContent = t === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
@@ -369,6 +374,11 @@ function toggleTheme() {
   if (btn) btn.textContent = next === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
 }
 initTheme();
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!localStorage.getItem('enternly_theme')) initTheme();
+  });
+}
 
 // ── API (identical shape to index.html's api(), pointed at the platform
 // token instead) ────────────────────────────────────────────────────────────

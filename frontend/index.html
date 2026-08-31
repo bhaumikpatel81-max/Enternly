@@ -1658,8 +1658,13 @@ if (ME.isImpersonation) {
 // the one known exception is Chart.js canvases, which bake colors into the
 // chart config at creation time and won't re-color until that screen is
 // re-entered.
+function _preferredTheme() {
+  const stored = localStorage.getItem('enternly_theme');
+  if (stored === 'dark' || stored === 'light') return stored;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 function initTheme() {
-  const t = localStorage.getItem('enternly_theme') === 'dark' ? 'dark' : 'light';
+  const t = _preferredTheme();
   document.body.setAttribute('data-theme', t);
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) btn.textContent = t === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
@@ -1672,6 +1677,13 @@ function toggleTheme() {
   if (btn) btn.textContent = next === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
 }
 initTheme();
+// Follow a live OS theme change (e.g. macOS/Windows auto dark mode) as long
+// as the user hasn't made an explicit in-app choice.
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!localStorage.getItem('enternly_theme')) initTheme();
+  });
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 let _lastApiError = null;

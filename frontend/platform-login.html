@@ -2,6 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+(function () {
+  var t = localStorage.getItem('enternly_theme');
+  if (t !== 'light' && t !== 'dark') {
+    t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,19 +22,41 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #0A1F44; --accent: #2563EB; --muted: #596A83;
+    --bg: linear-gradient(180deg,#F4FAFF 0%,#F8FCFE 48%,#FFFFFF 100%);
+    --glass: rgba(255,255,255,.78); --bd: #D7E0EC;
+    --ink: #0A1F44; --ink3: #596A83; --ink4: #9AA7BD;
+    --accent: #2563EB; --navy: #0A1F44; --signal: #0E9BB4;
+    --orb1: rgba(37,99,235,.10); --orb2: rgba(34,211,238,.08);
+    --lift: 0 30px 70px rgba(10,31,68,.12);
+    --input-bg: #FFFFFF; --input-line: #D7E0EC;
+    --err-bg: rgba(224,90,90,.10); --err-border: rgba(224,90,90,.32); --err-text: #C22B42;
+    --ok-bg: rgba(14,159,110,.10); --ok-border: rgba(14,159,110,.32); --ok-text: #0e9f6e;
+    --live-bg: rgba(14,155,180,.10); --live-border: rgba(14,155,180,.28); --live-fg: #0E9BB4;
     --font-head: 'Space Grotesk', system-ui, sans-serif;
     --font-body: 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', monospace;
   }
+  :root[data-theme="dark"] {
+    --bg: radial-gradient(1200px 760px at 50% -10%, #14316B 0%, #0A1F44 48%, #050F24 100%);
+    --glass: rgba(9,24,52,.62); --bd: rgba(255,255,255,.14);
+    --ink: #F2F7FF; --ink3: #AFC0CD; --ink4: #7E93B4;
+    --accent: #2563EB; --navy: #0A1F44; --signal: #22D3EE;
+    --orb1: rgba(37,99,235,.4); --orb2: rgba(34,211,238,.24);
+    --lift: 0 34px 80px rgba(3,10,26,.6);
+    --input-bg: rgba(5,15,36,.5); --input-line: rgba(255,255,255,.16);
+    --err-bg: rgba(224,90,90,.16); --err-border: rgba(224,90,90,.4); --err-text: #ff9fae;
+    --ok-bg: rgba(14,159,110,.16); --ok-border: rgba(14,159,110,.4); --ok-text: #6fe0b8;
+    --live-bg: rgba(34,211,238,.14); --live-border: rgba(34,211,238,.3); --live-fg: #22D3EE;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  :focus-visible { outline: 2px solid #22D3EE; outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
   html, body { height: 100%; }
   body {
-    font-family: var(--font-body); color: #F2F7FF;
-    background: radial-gradient(1200px 760px at 50% -10%, #14316B 0%, #0A1F44 48%, #050F24 100%);
+    font-family: var(--font-body); color: var(--ink);
+    background: var(--bg);
     min-height: 100vh; overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    transition: background .3s ease, color .3s ease;
   }
   button { touch-action: manipulation; -webkit-appearance: none; appearance: none; }
 
@@ -37,18 +68,27 @@
 
   .login-scene { position: relative; min-height: 100vh; overflow: hidden; animation: fadeIn .4s ease both; }
   .orb { position: absolute; border-radius: 50%; pointer-events: none; }
-  .orb-a { width: 760px; height: 760px; left: -220px; top: -260px; background: radial-gradient(circle, rgba(37,99,235,.4), transparent 68%); filter: blur(56px); animation: orbA 28s ease-in-out infinite; }
-  .orb-b { width: 560px; height: 560px; right: -150px; bottom: -190px; background: radial-gradient(circle, rgba(34,211,238,.24), transparent 70%); filter: blur(60px); animation: orbB 34s ease-in-out infinite; }
+  .orb-a { width: 760px; height: 760px; left: -220px; top: -260px; background: radial-gradient(circle, var(--orb1), transparent 68%); filter: blur(56px); animation: orbA 28s ease-in-out infinite; }
+  .orb-b { width: 560px; height: 560px; right: -150px; bottom: -190px; background: radial-gradient(circle, var(--orb2), transparent 70%); filter: blur(60px); animation: orbB 34s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) {
     .orb-a, .orb-b { animation: none !important; }
   }
 
+  .theme-toggle-btn {
+    position: fixed; top: 20px; right: 24px; z-index: 5;
+    height: 34px; padding: 0 13px; border: 1px solid var(--bd); border-radius: 20px;
+    background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    color: var(--ink3); font-family: var(--font-body); font-size: 11.5px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: border-color .25s, color .25s;
+  }
+  .theme-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
   .login-wrap { position: relative; min-height: 100vh; display: grid; place-items: center; padding: 44px 24px; }
   .login-card {
     width: min(430px, 100%); border-radius: 24px; padding: 32px;
-    background: rgba(9,24,52,.62); border: 1px solid rgba(255,255,255,.14);
+    background: var(--glass); border: 1px solid var(--bd);
     backdrop-filter: blur(26px) saturate(160%); -webkit-backdrop-filter: blur(26px) saturate(160%);
-    box-shadow: 0 34px 80px rgba(3,10,26,.6);
+    box-shadow: var(--lift);
     display: flex; flex-direction: column; gap: 17px;
     animation: popIn .5s cubic-bezier(.2,.8,.25,1) both;
   }
@@ -57,57 +97,61 @@
   .logo-chip img { width: 88px; height: auto; display: block; }
   .live-chip {
     display: flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 20px;
-    background: rgba(34,211,238,.14); border: 1px solid rgba(34,211,238,.3);
-    font-size: 10.5px; font-weight: 700; color: #22D3EE; white-space: nowrap;
+    background: var(--live-bg); border: 1px solid var(--live-border);
+    font-size: 10.5px; font-weight: 700; color: var(--live-fg); white-space: nowrap;
   }
-  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22D3EE; animation: pulseRing 2.6s ease-out infinite; }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--live-fg); animation: pulseRing 2.6s ease-out infinite; }
 
-  .login-title { font-family: var(--font-head); font-size: 25px; font-weight: 700; color: #fff; line-height: 1.22; }
-  .login-sub { font-size: 12.5px; color: #AFC0CD; margin-top: 7px; }
+  .login-title { font-family: var(--font-head); font-size: 25px; font-weight: 700; color: var(--ink); line-height: 1.22; }
+  .login-sub { font-size: 12.5px; color: var(--ink3); margin-top: 7px; }
 
-  .error-box { background: rgba(224,90,90,.16); border: 1px solid rgba(224,90,90,.4); color: #ff9fae; font-size: 13px; padding: 10px 14px; border-radius: 10px; }
-  .error-box.success { background: rgba(14,159,110,.16); border-color: rgba(14,159,110,.4); color: #6fe0b8; }
+  .error-box { background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); font-size: 13px; padding: 10px 14px; border-radius: 10px; }
+  .error-box.success { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-text); }
 
-  label { display: flex; flex-direction: column; gap: 7px; font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase; color: #AFC0CD; }
+  label { display: flex; flex-direction: column; gap: 7px; font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink3); }
   input {
     width: 100%; height: 44px; padding: 0 13px; margin-top: 7px;
-    border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
-    background: rgba(5,15,36,.5); font-family: inherit; font-size: 13px; color: #fff;
+    border: 1px solid var(--input-line); border-radius: 12px;
+    background: var(--input-bg); font-family: inherit; font-size: 13px; color: var(--ink);
     outline: none; transition: border-color .25s;
   }
-  input::placeholder { color: rgba(255,255,255,.35); }
-  input:focus { border-color: #22D3EE; }
+  input::placeholder { color: var(--ink4); }
+  input:focus { border-color: var(--signal); }
   .pw-wrap { position: relative; }
   .pw-wrap input { padding-right: 42px; }
   .pw-toggle {
     position: absolute; top: calc(50% + 3px); right: 6px; transform: translateY(-50%);
     background: none; border: none; cursor: pointer; padding: 10px;
-    line-height: 0; font-size: 17px; color: #AFC0CD;
+    line-height: 0; font-size: 17px; color: var(--ink3);
   }
-  .pw-toggle:hover { color: #fff; }
+  .pw-toggle:hover { color: var(--ink); }
 
   .btn {
     width: 100%; margin-top: 5px; height: 46px; border: 0; border-radius: 12px;
-    background: linear-gradient(90deg, #2563EB, #22D3EE); color: #04142E;
+    background: var(--navy); color: #fff;
     font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
-    transition: filter .25s, transform .25s;
+    transition: filter .25s, transform .25s, background .3s;
   }
+  :root[data-theme="dark"] .btn { background: linear-gradient(90deg, #2563EB, #22D3EE); color: #04142E; }
   .btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
   .btn:disabled { opacity: .6; cursor: not-allowed; }
 
-  .login-foot { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #AFC0CD; }
-  .login-foot a { color: #7FB0FF; text-decoration: none; }
-  .login-foot a:hover { color: #22D3EE; }
-  .login-foot-brand { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.1px; text-transform: uppercase; color: rgba(255,255,255,.42); }
+  .login-foot { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--ink3); }
+  .login-foot a { color: var(--accent); text-decoration: none; }
+  .login-foot a:hover { color: var(--signal); }
+  .login-foot-brand { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--ink4); }
 
   @media (max-width: 540px) {
     .login-wrap { padding: 24px 16px; }
     .login-card { padding: 24px 22px; border-radius: 18px; }
     .login-title { font-size: 21px; }
+    .theme-toggle-btn { width: 34px; padding: 0; font-size: 0; top: 14px; right: 14px; }
+    .theme-toggle-btn::before { content: "🌓"; font-size: 15px; }
   }
 </style>
 </head>
 <body>
+<button id="theme-toggle-btn" class="theme-toggle-btn" onclick="toggleTheme()" title="Switch color theme">🌙 Dark mode</button>
 <div class="login-scene">
   <div class="orb orb-a"></div>
   <div class="orb orb-b"></div>
@@ -147,6 +191,26 @@
 </div>
 
 <script>
+function _themeBtnLabel(t) {
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = t === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
+}
+_themeBtnLabel(document.documentElement.getAttribute('data-theme'));
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('enternly_theme', next);
+  _themeBtnLabel(next);
+}
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if (localStorage.getItem('enternly_theme')) return;
+    const t = e.matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+    _themeBtnLabel(t);
+  });
+}
+
 // Already have a platform session? Skip straight to the console.
 if (localStorage.getItem('enternly_platform_token')) window.location.replace('/platform-admin');
 

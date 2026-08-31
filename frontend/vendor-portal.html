@@ -2,6 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+(function () {
+  var t = localStorage.getItem('enternly_theme');
+  if (t !== 'light' && t !== 'dark') {
+    t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0A1F44">
@@ -12,11 +21,27 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --ink: #0A1F44; --paper: #F8FCFE; --card: #ffffff; --navy: #0A1F44;
-    --line: #D7E0EC; --accent: #2563EB; --muted: #596A83;
+    --bg: linear-gradient(180deg,#F4FAFF 0%,#F8FCFE 48%,#FFFFFF 100%);
+    --surface: #FFFFFF; --surface2: #F8FCFE; --glass: rgba(255,255,255,.78);
+    --bd: #D7E0EC; --bd2: #EDF2F8;
+    --ink: #0A1F44; --ink2: #33445F; --ink3: #596A83; --ink4: #9AA7BD;
+    --wash: #EAF0FF; --washfg: #2563EB; --hov: #F4FAFF; --signal: #0E9BB4;
+    --shadow: 0 1px 2px rgba(10,31,68,.05); --lift: 0 18px 40px rgba(10,31,68,.13);
+    --paper: var(--bg); --card: var(--surface); --navy: var(--ink); --line: var(--bd);
+    --accent: var(--washfg); --muted: var(--ink3);
     --font-head: 'Space Grotesk', system-ui, sans-serif;
     --font-body: 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', monospace;
+  }
+  :root[data-theme="dark"] {
+    --bg: radial-gradient(1000px 620px at 16% -6%,#14316B 0%,#0A1F44 46%,#050F24 100%);
+    --surface: rgba(255,255,255,.06); --surface2: rgba(5,15,36,.34); --glass: rgba(255,255,255,.07);
+    --bd: rgba(255,255,255,.13); --bd2: rgba(255,255,255,.08);
+    --ink: #F2F7FF; --ink2: #C3D0E6; --ink3: #AFC0CD; --ink4: #7E93B4;
+    --wash: rgba(34,211,238,.16); --washfg: #22D3EE; --hov: rgba(255,255,255,.05); --signal: #22D3EE;
+    --shadow: 0 1px 2px rgba(0,0,0,.3); --lift: 0 22px 50px rgba(3,10,26,.55);
+    --paper: var(--bg); --card: var(--surface); --navy: var(--ink); --line: var(--bd);
+    --accent: var(--washfg); --muted: var(--ink3);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -24,6 +49,19 @@
     font-family: var(--font-body);
     background: var(--paper); color: var(--ink);
     min-height: 100vh;
+    transition: background .3s ease, color .3s ease;
+  }
+  .theme-toggle-btn {
+    position: fixed; top: 16px; right: 16px; z-index: 500;
+    height: 34px; padding: 0 13px; border: 1px solid var(--line); border-radius: 20px;
+    background: var(--card); color: var(--muted); font-family: var(--font-body);
+    font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    box-shadow: var(--shadow); transition: border-color .25s, color .25s;
+  }
+  .theme-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 540px) {
+    .theme-toggle-btn { top: 10px; right: 10px; width: 34px; padding: 0; font-size: 0; }
+    .theme-toggle-btn::before { content: "🌓"; font-size: 15px; }
   }
   /* ---- login screen ---- */
   #login-screen {
@@ -55,9 +93,9 @@
   input, select {
     width: 100%; padding: 11px 14px; border: 1px solid var(--line);
     border-radius: 6px; font-family: inherit; font-size: 16px;
-    background: #f7f8fc; outline: none; transition: border-color 0.15s;
+    background: var(--surface2); color: var(--ink); outline: none; transition: border-color 0.15s, background 0.15s;
   }
-  input:focus, select:focus { border-color: var(--accent); background: #fff; }
+  input:focus, select:focus { border-color: var(--accent); background: var(--card); }
   .pw-wrap { position: relative; }
   .pw-wrap input { padding-right: 42px; }
   .pw-toggle {
@@ -73,11 +111,11 @@
   .btn:hover { background: var(--navy); }
   .btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-sm { width: auto; margin-top: 0; padding: 8px 16px; font-size: 13px; }
-  .btn-ghost { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
-  .btn-ghost:hover { background: #EAF0FF; }
+  .btn-ghost { background: var(--card); color: var(--accent); border: 1px solid var(--accent); }
+  .btn-ghost:hover { background: var(--wash); }
   .powered-footer {
     display: flex; flex-direction: column; align-items: center; gap: 6px;
-    padding: 16px; border-top: 1px solid var(--line); background: #f7f8fc;
+    padding: 16px; border-top: 1px solid var(--line); background: var(--surface2);
   }
   .powered-footer span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
   .powered-footer img { height: 30px; width: auto; }
@@ -111,14 +149,14 @@
   .req-meta { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
   .req-skills { font-size: 12px; color: var(--muted); }
   .req-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .badge { font-size: 12px; color: var(--muted); background: #F8FCFE; padding: 4px 10px; border-radius: 999px; }
+  .badge { font-size: 12px; color: var(--muted); background: var(--surface2); padding: 4px 10px; border-radius: 999px; }
 
   .sub-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .sub-name { font-size: 15px; font-weight: 700; }
   .sub-meta { font-size: 13px; color: var(--muted); }
   .status-pill {
     display: inline-block; padding: 6px 14px; border-radius: 999px;
-    font-size: 12px; font-weight: 600; background: #EAF0FF; color: var(--accent); white-space: nowrap;
+    font-size: 12px; font-weight: 600; background: var(--wash); color: var(--washfg); white-space: nowrap;
   }
   .status-pill.rejected { background: #fdeaee; color: #e2455a; }
   .status-pill.hired, .status-pill.offered { background: #e8f7f0; color: #0e9f6e; }
@@ -129,7 +167,7 @@
   .period-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
   .period-btn {
     padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
-    background: #fff; color: var(--muted); font-size: 12px; font-weight: 600;
+    background: var(--card); color: var(--muted); font-size: 12px; font-weight: 600;
     cursor: pointer; text-transform: capitalize;
   }
   .period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -150,7 +188,7 @@
   }
   .modal-bg.open { display: flex; }
   .modal {
-    background: #fff; border-radius: 8px; width: 100%; max-width: 480px;
+    background: var(--card); border-radius: 8px; width: 100%; max-width: 480px;
     max-height: 90vh; overflow-y: auto; padding: 24px 28px;
   }
   .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
@@ -171,6 +209,7 @@
 </style>
 </head>
 <body>
+<button id="theme-toggle-btn" class="theme-toggle-btn" onclick="toggleTheme()" title="Switch color theme">🌙 Dark mode</button>
 
 <div id="login-screen">
   <div class="box">
@@ -260,6 +299,26 @@
 </div>
 
 <script>
+function _themeBtnLabel(t) {
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = t === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
+}
+_themeBtnLabel(document.documentElement.getAttribute('data-theme'));
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('enternly_theme', next);
+  _themeBtnLabel(next);
+}
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if (localStorage.getItem('enternly_theme')) return;
+    const t = e.matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+    _themeBtnLabel(t);
+  });
+}
+
 const TOKEN_KEY = 'enternly_vendor_token';
 const NAME_KEY  = 'enternly_vendor_name';
 let currentReqId = null;
