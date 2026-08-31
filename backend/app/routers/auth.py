@@ -81,7 +81,7 @@ def login(body: LoginIn, request: Request):
 
     user = query_one(
         "SELECT id, full_name, email, role, password_hash, is_active, bu_id, "
-        "tenant_id, token_version "
+        "tenant_id, token_version, is_platform_superadmin, is_company_admin "
         "FROM app_user WHERE email = %s", [email],
     )
 

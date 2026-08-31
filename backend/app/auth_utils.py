@@ -46,26 +46,36 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
+def _build_token(user: dict, *, extra_claims: dict | None = None, hours: float = TOKEN_HOURS) -> str:
+    """Shared staff-JWT builder behind create_token/create_platform_token/
+    create_impersonation_token -- one place assembling the base claim set so
+    the three call sites can't drift. `extra_claims` is merged in last (so it
+    can only add claims, e.g. platform=True or isImpersonation=True, never
+    silently override sub/tenant_id/tver/etc)."""
+    expire = datetime.utcnow() + timedelta(hours=hours)
+    claims = {
+        "sub": str(user["id"]),
+        "email": user["email"],
+        "role": user["role"],
+        "name": user["full_name"],
+        "tenant_id": str(user["tenant_id"]) if user.get("tenant_id") else None,
+        "is_platform_superadmin": bool(user.get("is_platform_superadmin")),
+        "is_company_admin": bool(user.get("is_company_admin")),
+        # Snapshot of app_user.token_version at login time -- compared
+        # against the live value on every request by _refresh_staff_claims
+        # so a role change or admin-forced logout doesn't have to wait
+        # out the token's remaining TOKEN_HOURS expiry.
+        "tver": user.get("token_version") or 0,
+        "aud": AUD_STAFF,
+        "exp": expire,
+    }
+    if extra_claims:
+        claims.update(extra_claims)
+    return jwt.encode(claims, SECRET_KEY, algorithm=ALGORITHM)
+
+
 def create_token(user: dict) -> str:
-    expire = datetime.utcnow() + timedelta(hours=TOKEN_HOURS)
-    return jwt.encode(
-        {
-            "sub": str(user["id"]),
-            "email": user["email"],
-            "role": user["role"],
-            "name": user["full_name"],
-            "tenant_id": str(user["tenant_id"]) if user.get("tenant_id") else None,
-            # Snapshot of app_user.token_version at login time -- compared
-            # against the live value on every request by _refresh_staff_claims
-            # so a role change or admin-forced logout doesn't have to wait
-            # out the token's remaining TOKEN_HOURS expiry.
-            "tver": user.get("token_version") or 0,
-            "aud": AUD_STAFF,
-            "exp": expire,
-        },
-        SECRET_KEY,
-        algorithm=ALGORITHM,
-    )
+    return _build_token(user)
 
 
 def _refresh_staff_claims(payload: dict) -> dict:
@@ -83,7 +93,8 @@ def _refresh_staff_claims(payload: dict) -> dict:
     if not is_staff_payload(payload):
         return payload
     row = query_one(
-        "SELECT role, tenant_id, token_version, is_active, full_name FROM app_user WHERE id = %s",
+        "SELECT role, tenant_id, token_version, is_active, full_name, "
+        "is_platform_superadmin, is_company_admin FROM app_user WHERE id = %s",
         [payload.get("sub")],
     )
     if not row or not row.get("is_active"):
@@ -93,6 +104,8 @@ def _refresh_staff_claims(payload: dict) -> dict:
     payload["role"] = row["role"]
     payload["tenant_id"] = str(row["tenant_id"]) if row.get("tenant_id") else None
     payload["name"] = row["full_name"]
+    payload["is_platform_superadmin"] = bool(row.get("is_platform_superadmin"))
+    payload["is_company_admin"] = bool(row.get("is_company_admin"))
     return payload
 
 
@@ -195,22 +208,29 @@ require_staff = get_current_user
 
 def require_platform_admin(user: dict = Depends(get_current_user)) -> dict:
     """Enternstech-only tier: manages the tenant/company roster itself.
-    'admin' is kept as an alias here for every account that predates the
-    platform_admin/company_admin split -- it keeps its full former reach
-    rather than being silently locked out by this migration."""
-    if user.get("role") not in ("admin", "platform_admin"):
+    Gated on the explicit is_platform_superadmin flag (Migration 100), not
+    the legacy role string -- 'admin'/'platform_admin' accounts were
+    backfilled onto this flag when it was introduced, so nothing that used
+    to pass this check is locked out. An impersonation token can never
+    satisfy this, regardless of the impersonated user's own flags -- the
+    platform console must always be operated from a real platform session."""
+    if user.get("isImpersonation"):
+        raise HTTPException(403, "Platform Admin access required")
+    if not user.get("is_platform_superadmin"):
         raise HTTPException(403, "Platform Admin access required")
     return user
 
 
 def require_company_admin(user: dict = Depends(get_current_user)) -> dict:
     """A customer's own super admin: user management, org settings,
-    SMTP/calendar integrations -- scoped to their company. ta_manager is
-    deliberately excluded -- it's restricted to team management + reports,
-    see require_ta_manager below."""
-    if user.get("role") not in ("admin", "platform_admin", "company_admin"):
-        raise HTTPException(403, "Company Admin access required")
-    return user
+    SMTP/calendar integrations -- scoped to their company. Gated on
+    is_company_admin OR is_platform_superadmin (platform staff can still
+    reach into a tenant's own admin surface). ta_manager is deliberately
+    excluded -- it's restricted to team management + reports, see
+    require_ta_manager below."""
+    if user.get("is_company_admin") or user.get("is_platform_superadmin"):
+        return user
+    raise HTTPException(403, "Company Admin access required")
 
 
 def require_ta_manager(user: dict = Depends(get_current_user)) -> dict:
