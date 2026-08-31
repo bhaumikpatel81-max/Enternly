@@ -412,3 +412,145 @@ flow) — neither has been scoped or built yet.
 this pass): the §4 pre-existing infra gap (missing `database/35-52`
 snapshots) — needs a decision on fix-forward (a) vs (b), unrelated to
 platform-admin code.
+
+---
+
+## 11. Platform Admin — Closeout (2026-08-31)
+
+Small follow-up pass closing four incomplete-migration remnants that the
+Company Super Admin Step-0 research (`COMPANY_SUPERADMIN_MAPPING.md`)
+surfaced while cataloging role-string gates. **Not** part of the Company
+Super Admin project — no roles were built, no schema/DB constraint was
+touched, no recruitment-flow router (`pipeline_api.py`, `offers_api.py`,
+`scheduling_api.py`, `scorecard_api.py`, `hm_api.py`, `hrbp_api.py`,
+`kpi_api.py`, `reports_api.py`, `enteri_ai_api.py`, `proctoring_api.py`,
+`campus_bulk_api.py`, `no_poach_api.py`, etc.) was modified. One commit per
+fix, each verified live against the running `enternly` stack on
+`localhost:8081` before moving to the next.
+
+### 1. `module_access.py::effective_module_access()` — ✅ FIXED, committed `4d48422`
+
+**Change**: the blanket-access branch (`role in ("admin","platform_admin",
+"company_admin")`) now calls `is_company_tier(user)` instead (deferred
+import inside the function, matching the existing pattern already used by
+`require_tenant_module` in the same file). The `role == "recruiter"`
+per-user-delegation branch is untouched — that's the intentional grant
+mechanism, not a retired role-string gate.
+
+**Live verification** (`GET /api/admin/my-module-access`, all 7 delegable
+keys):
+- Platform superadmin: all 7 `true`.
+- Company admin (Acme): base `true`, further AND-ed with Acme's existing
+  tenant-level module restriction from an earlier test (§7 #2 / Fix #1
+  verification) — expected, not a regression, confirms the tenant outer
+  gate still applies on top of the fixed inner gate.
+- **Flag-decoupling proof**: a test account with `role='ta_manager'` +
+  `is_company_admin=true` (a combination the *old* raw-string check would
+  have denied, since `ta_manager` isn't in the old tuple) now correctly
+  gets blanket access on an unrestricted tenant — proves the branch
+  follows the flag, not the role string.
+- Non-delegated recruiter: all 7 `false`.
+- Non-tier role (hiring manager): all 7 `false`.
+
+### 2. `email_template_api.py`'s manual-send gate — ✅ FIXED, committed `4c03f8f`
+
+**Correction to the Company Super Admin research's labeling**: the raw
+`role not in ("admin","ta_manager","recruiter")` tuple was in
+`_require_send_access` (gates manually emailing a candidate from an
+application), not `_require_template_access` (template CRUD) — that
+sibling gate was already migrated to `is_company_tier()` + the recruiter/
+`email_templates`-delegation carve-out in the prior Fix #3 audit, and this
+pass found it working correctly, untouched.
+
+**Change**: `_require_send_access` now checks `is_company_tier(user) or
+role in ("ta_manager","recruiter")`. Same allowed accounts as before
+(`is_company_tier` is a superset of the old literal `'admin'` check) — no
+behavior change for any existing account, just flag-based instead of
+string-based. Note: this gate never had a delegation carve-out to
+preserve — unlike `_require_template_access`, any recruiter has always
+been allowed to send a one-off candidate email regardless of the
+`email_templates` module delegation; that's unchanged.
+
+**Live verification** (`POST /api/applications/{fake-id}/send-email`, 403
+= gate rejected, 404 = gate passed and the fake id correctly 404'd
+downstream): platform superadmin, company admin, recruiter → all `404`
+(passed); hiring manager → `403` (correctly still denied). Re-verified the
+untouched sibling gate too: company admin → `200` on template list,
+non-delegated recruiter → `403`, same recruiter after being granted the
+`email_templates` module → `200` (then revoked to leave state clean).
+
+### 3. `require_ta_manager` — kept, documented as intentional, committed `1f7596f`
+
+**Decision: kept, not removed.** Confirmed zero call sites anywhere in the
+codebase. Reasoning: the `ta_manager` tier boundary it expresses is real
+and actively checked ad hoc (`role == "ta_manager"`) across many
+recruitment-flow routers; this is the one place that boundary exists as a
+reusable FastAPI dependency rather than an inline check, available to a
+future endpoint. Removing it would also orphan `require_company_admin`'s
+own docstring, which references it by name. Added a docstring note
+recording this as a deliberate decision. No behavior change — comment
+only, nothing to verify live.
+
+### 4. `bu_head`/`director` nav footgun — ✅ FIXED, committed `df28195`
+
+**Change**: `buildNav()` and `screenHome()` in `index.html` both fell back
+to `NAV_DEF.recruiter` for any `role` missing a `NAV_DEF` entry (only 6 of
+11 live role values have one: `admin, ta_manager, recruiter,
+hiring_manager, interviewer, hrbp`). `bu_head`/`director` are confirmed
+vestigial (zero backend capability logic anywhere, per the Company Super
+Admin research) but were still DB-allowed and pickable in the
+user-management role dropdown — silently granting either the entire
+Recruiter sidebar. Fallback changed from `NAV_DEF.recruiter` to `[]` in
+both sites — an unconfigured role now gets no nav surface (Change
+password / Sign out still always render). `app_user_role_check` and the
+roles themselves were **not** touched — retiring them is a Company Super
+Admin decision, explicitly out of scope here.
+
+**Live verification**: confirmed the served `index.html` reflects both
+changed sites post-restart (curled directly). Created a live `bu_head`
+test account; confirmed it logs in and `/api/auth/me` correctly decodes
+`role=bu_head` with no company/platform flags. `buildNav()`/`screenHome()`
+are pure client-side JS keyed off `NAV_DEF[ME.role]` with no server
+round-trip for nav data, so `NAV_DEF` having no `bu_head` key plus the
+fallback now being `[]` deterministically produces an empty nav for this
+account — traced through the code but **not click-through-tested in an
+actual browser** (no browser automation tool available in this
+environment, same limitation already noted for impersonation-banner
+testing in §6a of this report).
+
+### Confirmation: recruitment-flow routers, schema, and ats-hr untouched
+
+- `git diff --stat` across this pass's 4 commits shows exactly 4 files
+  changed: `backend/app/auth_utils.py`, `backend/app/module_access.py`,
+  `backend/app/routers/email_template_api.py`, `frontend/index.html`. No
+  `database/*.sql` file and no change to `backend/app/main.py` (where
+  `app_user_role_check` and every migration live) — confirmed via `git
+  diff --stat` scoped to `database/` and `main.py`, empty.
+- No recruitment-flow router (`pipeline_api.py`, `offers_api.py`,
+  `scheduling_api.py`, `scorecard_api.py`, `hm_api.py`, `hrbp_api.py`,
+  `kpi_api.py`, `reports_api.py`, `enteri_ai_api.py`, `proctoring_api.py`,
+  `campus_bulk_api.py`, `no_poach_api.py`) appears in the diff.
+- `docker ps -a --filter name=ats-hr` unchanged (`Exited (137)` /
+  `Exited (0)`, same as every prior check this session).
+- No Company Super Admin work (custom roles, `tenant_role` schema, or
+  capability catalog) was started, per instruction.
+
+### Two backend restart warnings observed, pre-existing and unrelated
+
+Restarting `enternly-backend-1` to pick up these fixes logged two
+`[auto-migrate] WARNING: check constraint "app_user_role_check" of
+relation "app_user" is violated by some row` lines. Confirmed **not**
+caused by this pass: `_auto_migrate()` replays every migration in order on
+every boot, including two earlier, narrower `app_user_role_check`
+definitions (`main.py:1161`, missing `platform_admin`/`company_admin`;
+`main.py:2089`, missing `placement_officer`) before landing on the current
+one (`main.py:2622`) — replaying an old, narrower constraint against rows
+that already use a newer role value it doesn't yet include produces
+exactly this warning, harmlessly, matching the same "log but don't crash"
+idempotency pattern already documented for the Migration 99 rename in §4.
+Neither `main.py` nor any migration was touched this pass.
+
+**No change to the go/no-go in §9/§10** — this closeout doesn't alter the
+Platform Admin control plane's readiness assessment, it just closes small
+gaps the next project's research surfaced. Recommend pushing these 4
+commits alongside the earlier ones whenever `origin/main` is next updated.
