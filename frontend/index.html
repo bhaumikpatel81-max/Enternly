@@ -2271,9 +2271,20 @@ function _gamWidgetHtml(g) {
   </div>`;
 }
 
+// The 9 platform-console module_catalog keys that gate a whole nav item
+// (mirrors module_access.py's GATED_NAV_MODULES) -- each id here matches
+// its NAV_DEF nav id exactly. Backend 403 (require_tenant_module) is the
+// real enforcement; this is UX alignment only (finding #2) -- hiding the
+// nav item for a module the tenant has disabled, sourced from the same
+// MY_MODULE_ACCESS payload every role already fetches at boot.
+const GATED_NAV_MODULES = ['campus_hiring','enteri_ai_tracker','kpi_dashboard','gamification',
+                            'proctoring_review','hiring_plan','cv_repository','ai_scorecard','no_poach'];
+
 function buildNav() {
   const role  = ME.role || 'recruiter';
-  let items = NAV_DEF[role] || NAV_DEF.recruiter;
+  let items = (NAV_DEF[role] || NAV_DEF.recruiter).filter(it =>
+    it.group || !GATED_NAV_MODULES.includes(it.id) || MY_MODULE_ACCESS[it.id] !== false
+  );
   if (role === 'recruiter') {
     const granted = Object.entries(MODULE_NAV_META).filter(([k]) => MY_MODULE_ACCESS[k]);
     if (granted.length) {
@@ -14985,9 +14996,13 @@ _resetIdle();
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async function boot(){
-  if (ME.role === 'recruiter') {
-    try { MY_MODULE_ACCESS = await api('/api/admin/my-module-access') || {}; } catch(e){ MY_MODULE_ACCESS = {}; }
-  }
+  // Fetched for every role now, not just recruiters (finding #2) -- it now
+  // also carries the 9 tenant-gated feature keys' on/off status (see
+  // GATED_NAV_MODULES / client_module_status in module_access.py), which
+  // buildNav() below uses to hide a disabled module's nav item for ANY
+  // role, not only the recruiter-delegation keys this call originally
+  // existed for.
+  try { MY_MODULE_ACCESS = await api('/api/admin/my-module-access') || {}; } catch(e){ MY_MODULE_ACCESS = {}; }
   try { ROLE_LABELS = await api('/api/admin/role-labels') || {}; } catch(e){ ROLE_LABELS = {}; }
   try { buildNav(); } catch(e){ console.error('buildNav:',e); }
   _refreshGamChip();

@@ -490,6 +490,7 @@ def _require_admin_settings(user: dict = Depends(get_current_user)) -> dict:
 # ── Per-recruiter module-access delegation (Company Admin controlled) ───────
 from ..module_access import (
     DELEGABLE_MODULES,
+    client_module_status,
     effective_module_access,
     get_recruiter_grants,
     recruiter_has_module,
@@ -558,8 +559,12 @@ def save_module_access(
 
 @router.get("/my-module-access")
 def get_my_module_access(user: dict = Depends(get_current_user)):
-    """What delegable modules the CURRENT user can see — used to build nav dynamically."""
-    return effective_module_access(user)
+    """What modules the CURRENT user can see — used to build nav dynamically.
+    Returns the 7 DELEGABLE_MODULES keys (per-user-aware) plus the 9
+    GATED_NAV_MODULES keys (pure tenant-level status) in one flat dict --
+    finding #2's nav-hiding relies on this same call, made for every role
+    now, not just recruiters (see index.html's boot())."""
+    return client_module_status(user)
 
 
 @router.get("/settings")

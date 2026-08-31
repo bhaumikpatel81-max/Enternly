@@ -30,6 +30,17 @@ DELEGABLE_MODULES = {
     "email_templates": "Email Templates",
 }
 
+# The 9 module_catalog keys added by Feature D that are NOT among
+# DELEGABLE_MODULES -- these have no per-user delegation concept at all
+# (backend enforcement is purely tenant-level, via require_tenant_module on
+# each of their 9 routers). Each key here is identical to its frontend
+# NAV_DEF nav id (confirmed 1:1, unlike req_approvals/ta_req_approvals
+# above), so the frontend can filter nav items directly off these keys.
+GATED_NAV_MODULES = (
+    "campus_hiring", "enteri_ai_tracker", "kpi_dashboard", "gamification",
+    "proctoring_review", "hiring_plan", "cv_repository", "ai_scorecard", "no_poach",
+)
+
 
 def get_recruiter_grants(recruiter_id: str) -> dict:
     """Returns {module_key: bool} for one recruiter (defaults to False)."""
@@ -149,6 +160,23 @@ def effective_module_access(user: dict) -> dict:
         base = {k: False for k in DELEGABLE_MODULES}
     tenant_id = user.get("tenant_id")
     return {k: (v and tenant_module_enabled(tenant_id, k)) for k, v in base.items()}
+
+
+def client_module_status(user: dict) -> dict:
+    """Everything the frontend needs to decide what to show in the nav:
+    effective_module_access()'s 7 per-user-aware keys, PLUS the 9
+    GATED_NAV_MODULES keys' pure tenant-level status (no per-user concept
+    for these -- role-based visibility is unchanged, this only adds the
+    tenant on/off layer on top, matching what require_tenant_module already
+    enforces server-side on every one of their 9 routers). Backing function
+    for GET /api/admin/my-module-access (finding #2) -- the existing
+    bootstrap call already made from index.html's boot(), extended rather
+    than adding a new endpoint."""
+    out = dict(effective_module_access(user))
+    tenant_id = user.get("tenant_id")
+    for key in GATED_NAV_MODULES:
+        out[key] = tenant_module_enabled(tenant_id, key)
+    return out
 
 
 def all_recruiter_grants() -> dict:
