@@ -15,6 +15,9 @@ changing roles.
 """
 import json
 
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from .db import query, query_one, transaction, tx_exec
 
 DELEGABLE_MODULES = {
@@ -78,17 +81,74 @@ def recruiter_has_module(recruiter_id: str, module: str) -> bool:
     return bool(row and row["enabled"])
 
 
+def tenant_module_enabled(tenant_id, module_key: str) -> bool:
+    """The platform-admin OUTER gate (Feature D): a module must be enabled
+    for the tenant before ANY user of that tenant -- even a company admin --
+    can use it; the per-user grants above are the INNER gate on top of that.
+    Defaults to True when there's no tenant_module_config row at all (e.g. a
+    module key added to the catalog after this tenant's row-per-module
+    default-enable backfill ran), so a missing row can never silently lock
+    a tenant out of something it was never explicitly toggled off."""
+    if not tenant_id:
+        return True
+    row = query_one(
+        "SELECT is_enabled FROM tenant_module_config WHERE tenant_id = %s AND module_key = %s",
+        [tenant_id, module_key],
+    )
+    return True if row is None else bool(row["is_enabled"])
+
+
+_bearer_optional = HTTPBearer(auto_error=False)
+
+
+def require_tenant_module(module_key: str):
+    """Router-level outer gate for the 9 module_catalog keys that aren't
+    among the 7 DELEGABLE_MODULES (those are gated via effective_module_access
+    above instead). Apply via APIRouter(..., dependencies=[Depends(
+    require_tenant_module('key'))]) so it runs ahead of every route in that
+    file, closing the "nav hidden client-side, API still open to a direct
+    staff call" gap for a disabled module.
+
+    Deliberately a no-op for any request that ISN'T a decodable staff Bearer
+    token: several of these routers (enteri_ai_api.py, proctoring_api.py,
+    campus_bulk_api.py) also serve public candidate-facing routes
+    authenticated by their own invite/session token, not a staff JWT, and
+    those must keep working exactly as before -- this only ever blocks a
+    genuine STAFF request whose tenant has the module disabled, never a
+    candidate/vendor/public request, which the route's own auth already
+    validates independently."""
+    def dep(creds: HTTPAuthorizationCredentials | None = Depends(_bearer_optional)):
+        if not creds:
+            return
+        from .auth_utils import decode_staff_token
+        try:
+            user = decode_staff_token(creds.credentials)
+        except HTTPException:
+            return
+        if not tenant_module_enabled(user.get("tenant_id"), module_key):
+            raise HTTPException(403, f"The '{module_key}' module is disabled for your company")
+    return dep
+
+
 def effective_module_access(user: dict) -> dict:
     """What the CURRENT user can see, given their role/id. ta_manager is
     deliberately NOT granted blanket access here -- these are org-config
     modules (vendors, approvals, organisation, SLA, templates), and
-    ta_manager is restricted to team management + reports."""
+    ta_manager is restricted to team management + reports.
+
+    Each of the 7 keys here is additionally AND-ed with the tenant-level
+    outer gate (Feature D) -- a company admin's blanket True or a
+    recruiter's delegated grant only actually applies if the tenant has
+    that module enabled at all."""
     role = user.get("role")
     if role in ("admin", "platform_admin", "company_admin"):
-        return {k: True for k in DELEGABLE_MODULES}
-    if role == "recruiter":
-        return get_recruiter_grants(user.get("sub"))
-    return {k: False for k in DELEGABLE_MODULES}
+        base = {k: True for k in DELEGABLE_MODULES}
+    elif role == "recruiter":
+        base = get_recruiter_grants(user.get("sub"))
+    else:
+        base = {k: False for k in DELEGABLE_MODULES}
+    tenant_id = user.get("tenant_id")
+    return {k: (v and tenant_module_enabled(tenant_id, k)) for k, v in base.items()}
 
 
 def all_recruiter_grants() -> dict:

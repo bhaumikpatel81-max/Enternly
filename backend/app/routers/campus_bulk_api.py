@@ -28,7 +28,10 @@ from ..services import prerender as _prerender_svc
 from ..services import excel_export
 from ..services.activity_log import log_activity
 
-router = APIRouter(prefix="/api/campus", tags=["campus"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/campus", tags=["campus"],
+                    dependencies=[Depends(require_tenant_module("campus_hiring"))])
 
 # ── Column name auto-detection ────────────────────────────────────────────────
 #

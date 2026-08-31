@@ -10,6 +10,7 @@ officers. Later commits extend this same file with modules, subscriptions,
 all-users/impersonation, tickets, audit, analytics, system health, and
 settings -- see PLATFORM_ADMIN_MAPPING.md for the full endpoint map.
 """
+import json
 import re
 from datetime import date
 from typing import List, Optional
@@ -380,3 +381,130 @@ def add_placement_officer(tenant_id: str, body: TenantAdminIn, actor=Depends(req
         "SELECT id, full_name, email, role, is_active FROM app_user WHERE id = %s", [new_id],
     )
     return {**row, "setup_email_sent": setup_email_sent}
+
+
+# ── Module catalog + per-tenant gating (Feature D) ────────────────────────────
+
+class ModuleCatalogIn(BaseModel):
+    key: str
+    label: str
+    group: Optional[str] = None
+    default_route: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class ModuleCatalogUpdateIn(BaseModel):
+    label: Optional[str] = None
+    group: Optional[str] = None
+    default_route: Optional[str] = None
+    icon: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class TenantModulesIn(BaseModel):
+    modules: dict  # {module_key: bool}
+
+
+def _plan_allowed_modules(plan_name: Optional[str]) -> Optional[List[str]]:
+    """None means 'no restriction' (empty allowed_modules_json, or the plan
+    isn't in subscription_plan_config at all -- e.g. a legacy/custom plan
+    string). A real list means only those keys may be enabled."""
+    if not plan_name:
+        return None
+    row = query_one("SELECT allowed_modules_json FROM subscription_plan_config WHERE plan_name = %s", [plan_name])
+    if not row or not row["allowed_modules_json"]:
+        return None
+    return list(row["allowed_modules_json"])
+
+
+@router.get("/modules")
+def list_modules():
+    return query("SELECT * FROM module_catalog ORDER BY \"group\", label")
+
+
+@router.post("/modules", status_code=201)
+def create_module(body: ModuleCatalogIn):
+    if query_one("SELECT key FROM module_catalog WHERE key = %s", [body.key]):
+        raise HTTPException(400, "That module key already exists")
+    query(
+        """INSERT INTO module_catalog (key, label, "group", default_route, icon)
+           VALUES (%s, %s, %s, %s, %s)""",
+        [body.key, body.label, body.group, body.default_route, body.icon],
+        fetch=False,
+    )
+    return query_one("SELECT * FROM module_catalog WHERE key = %s", [body.key])
+
+
+@router.put("/modules/{module_key}")
+def update_module(module_key: str, body: ModuleCatalogUpdateIn):
+    if not query_one("SELECT key FROM module_catalog WHERE key = %s", [module_key]):
+        raise HTTPException(404, "Module not found")
+    sets, params = [], []
+    for field, col in (("label", "label"), ("group", '"group"'), ("default_route", "default_route"),
+                        ("icon", "icon"), ("is_active", "is_active")):
+        val = getattr(body, field)
+        if val is not None:
+            sets.append(f"{col} = %s"); params.append(val)
+    if sets:
+        params.append(module_key)
+        query(f"UPDATE module_catalog SET {', '.join(sets)} WHERE key = %s", params, fetch=False)
+    return query_one("SELECT * FROM module_catalog WHERE key = %s", [module_key])
+
+
+@router.delete("/modules/{module_key}")
+def disable_module(module_key: str):
+    """Soft-disable only -- never hard-deleted (tenant_module_config rows
+    reference it, and disabling here just stops it appearing as an option
+    for new toggles; tenants that already have it enabled keep working)."""
+    if not query_one("SELECT key FROM module_catalog WHERE key = %s", [module_key]):
+        raise HTTPException(404, "Module not found")
+    query("UPDATE module_catalog SET is_active = FALSE WHERE key = %s", [module_key], fetch=False)
+    return {"ok": True}
+
+
+@router.get("/tenants/{tenant_id}/modules")
+def get_tenant_modules(tenant_id: str):
+    if not query_one("SELECT id FROM tenant WHERE id = %s AND NOT is_deleted", [tenant_id]):
+        raise HTTPException(404, "Tenant not found")
+    rows = query(
+        """SELECT m.key, m.label, m."group", m.icon,
+                  COALESCE(c.is_enabled, TRUE) AS is_enabled
+           FROM module_catalog m
+           LEFT JOIN tenant_module_config c ON c.tenant_id = %s AND c.module_key = m.key
+           WHERE m.is_active
+           ORDER BY m."group", m.label""",
+        [tenant_id],
+    )
+    return rows
+
+
+@router.put("/tenants/{tenant_id}/modules")
+def set_tenant_modules(tenant_id: str, body: TenantModulesIn, actor=Depends(require_platform_admin)):
+    tenant = query_one("SELECT id, plan FROM tenant WHERE id = %s AND NOT is_deleted", [tenant_id])
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    allowed = _plan_allowed_modules(tenant["plan"])
+    valid_keys = {r["key"] for r in query("SELECT key FROM module_catalog") or []}
+    for key, enabled in body.modules.items():
+        if key not in valid_keys:
+            raise HTTPException(400, f"Unknown module '{key}'")
+        if enabled and allowed is not None and key not in allowed:
+            raise HTTPException(400, f"'{key}' is not included in this tenant's '{tenant['plan']}' plan")
+    for key, enabled in body.modules.items():
+        query(
+            """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at, disabled_at)
+               VALUES (%s, %s, %s, CASE WHEN %s THEN now() ELSE NULL END, CASE WHEN %s THEN NULL ELSE now() END)
+               ON CONFLICT (tenant_id, module_key) DO UPDATE
+                 SET is_enabled = EXCLUDED.is_enabled,
+                     enabled_at = CASE WHEN EXCLUDED.is_enabled THEN now() ELSE tenant_module_config.enabled_at END,
+                     disabled_at = CASE WHEN EXCLUDED.is_enabled THEN NULL ELSE now() END,
+                     updated_at = now()""",
+            [tenant_id, key, enabled, enabled, enabled],
+            fetch=False,
+        )
+        log_activity(
+            "tenant_module", "toggle", entity_id=tenant_id,
+            actor_id=actor.get("sub"), actor_role=actor.get("role"),
+            to_value=key, detail={"enabled": enabled},
+        )
+    return get_tenant_modules(tenant_id)

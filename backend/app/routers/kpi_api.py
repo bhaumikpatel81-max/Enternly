@@ -19,7 +19,10 @@ from ..services.period import period_start as _period_start
 from ..services.report_scope import scope_for as _scope
 from ..services import excel_export
 
-router = APIRouter(prefix="/api/kpi", tags=["kpi"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/kpi", tags=["kpi"],
+                    dependencies=[Depends(require_tenant_module("kpi_dashboard"))])
 
 FUNNEL_STAGES = [
     "applied",

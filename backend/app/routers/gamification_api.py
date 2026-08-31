@@ -22,7 +22,10 @@ from ..db import query, query_one
 from ..services.gamification import get_profile, score_for, tier_for, rank_for, badge_meta, award as gam_award
 from ..services.report_scope import scope_for
 
-router = APIRouter(prefix="/api/gamification", tags=["gamification"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/gamification", tags=["gamification"],
+                    dependencies=[Depends(require_tenant_module("gamification"))])
 
 _TA_ROLES = {"ta_manager", "admin"}
 

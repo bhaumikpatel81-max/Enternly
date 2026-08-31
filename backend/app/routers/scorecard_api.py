@@ -20,7 +20,10 @@ from ..auth_utils import get_current_user
 from ..services.activity_log import log_activity
 from ..services.pdf_export import render_scorecard_pdf, stream_pdf
 
-router = APIRouter(prefix="/api", tags=["scorecard"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api", tags=["scorecard"],
+                    dependencies=[Depends(require_tenant_module("ai_scorecard"))])
 
 
 def _feedback_is_on_time(scheduled_at) -> bool:

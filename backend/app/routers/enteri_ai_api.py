@@ -29,7 +29,10 @@ from ..services.email_templates import render_template as _render_email_tmpl
 from ..services.activity_log import log_activity
 from ..services import proctoring_scorer as _proc_scorer
 
-router = APIRouter(prefix="/api/enteri-ai", tags=["enteri_ai"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/enteri-ai", tags=["enteri_ai"],
+                    dependencies=[Depends(require_tenant_module("enteri_ai_tracker"))])
 
 # ── Phase 3, Part E — server-side proctoring judge, GATED OFF ─────────────
 # When False (must stay false in production until Phase 7), terminate_invite_

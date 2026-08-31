@@ -22,7 +22,10 @@ from ..db import query, query_one
 from ..services import cv_parser as _parser
 from ..services.cv_ingest import ingest_one as _ingest_one
 
-router = APIRouter(prefix="/api/cv", tags=["cv-repository"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/cv", tags=["cv-repository"],
+                    dependencies=[Depends(require_tenant_module("cv_repository"))])
 
 _ALLOWED    = {"ta_manager", "recruiter", "admin"}
 _bearer     = HTTPBearer(auto_error=False)

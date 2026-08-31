@@ -21,7 +21,10 @@ from pydantic import BaseModel
 from ..auth_utils import get_current_user
 from ..db import query, query_one
 
-router = APIRouter(prefix="/api/no-poach", tags=["no-poach"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/no-poach", tags=["no-poach"],
+                    dependencies=[Depends(require_tenant_module("no_poach"))])
 
 _VIEW_ROLES = {"ta_manager", "recruiter", "admin"}
 _MANAGE_ROLES = {"ta_manager", "admin"}

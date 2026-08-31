@@ -493,7 +493,30 @@ async function screenCompanyDetail(id) {
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       ${userRows ? `<table><thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Last login</th></tr></thead><tbody>${userRows}</tbody></table>` : '<p class="empty">No users yet.</p>'}
-    </div>`;
+    </div>
+    <div class="page-header" style="margin-top:8px"><h1 style="font-size:16px">Modules</h1></div>
+    <div class="card" id="tenant-modules-card"><p class="empty">Loading…</p></div>`;
+  _loadTenantModules(id);
+}
+
+async function _loadTenantModules(tenantId) {
+  const mods = await api(`/api/platform/tenants/${tenantId}/modules`);
+  const card = document.getElementById('tenant-modules-card');
+  if (!mods) { card.innerHTML = '<p class="empty">Could not load modules.</p>'; return; }
+  const rows = mods.map(m => `
+    <label class="chip-toggle" style="margin:4px 8px 4px 0;display:inline-flex">
+      <input type="checkbox" data-module="${m.key}" ${m.is_enabled ? 'checked' : ''} onchange="_toggleTenantModule('${tenantId}',this)">
+      <span>${esc(m.icon||'')} ${esc(m.label)}</span>
+    </label>`).join('');
+  card.innerHTML = `<div style="display:flex;flex-wrap:wrap">${rows}</div>`;
+}
+
+async function _toggleTenantModule(tenantId, checkbox) {
+  const key = checkbox.dataset.module;
+  const enabled = checkbox.checked;
+  const res = await api(`/api/platform/tenants/${tenantId}/modules`, { method: 'PUT', body: { modules: { [key]: enabled } } });
+  if (res) { flash('Module updated.'); }
+  else { checkbox.checked = !enabled; flash(_lastApiError || 'Could not update module — check the plan allows it.', false); }
 }
 
 function openCreateTenantModal() {
@@ -576,6 +599,32 @@ async function doAddTenantUser() {
   else flash(res?.detail || _lastApiError || 'Could not add user.', false);
 }
 
+// ── Module Catalog (Feature D) ────────────────────────────────────────────────
+async function screenModuleCatalog() {
+  setTitle('Module Catalog');
+  const mods = await api('/api/platform/modules');
+  if (!mods) { showErr('Could not load module catalog.'); return; }
+  const rows = mods.map(m => `
+    <tr>
+      <td>${esc(m.icon||'')} <strong>${esc(m.label)}</strong><br><span style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${esc(m.key)}</span></td>
+      <td>${esc(m.group||'—')}</td>
+      <td><span class="pill ${m.is_active?'active':'inactive'}">${m.is_active?'Active':'Disabled'}</span></td>
+      <td>${m.is_active ? `<button class="btn btn-danger btn-sm" onclick="disableModule('${m.key}')">Disable</button>` : ''}</td>
+    </tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Module Catalog</h1></div>
+    <div class="card"><p class="empty" style="padding:0 0 14px;text-align:left">Modules toggled per company on its detail page. Disabling a module here removes it from the catalog for future toggling — tenants that already have it enabled keep working.</p></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Module</th><th>Group</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+}
+async function disableModule(key) {
+  if (!confirm(`Disable "${key}" in the catalog? Existing tenant toggles are unaffected.`)) return;
+  const res = await api(`/api/platform/modules/${key}`, { method: 'DELETE' });
+  if (res && res.ok) { flash('Module disabled.'); screenModuleCatalog(); }
+  else flash(_lastApiError || 'Could not disable module.', false);
+}
+
 const SCREENS = {
   dashboard:     screenDashboard,
   companies:     screenCompanies,
@@ -584,7 +633,7 @@ const SCREENS = {
   tickets:       () => screenComingSoon('Issues & Tickets'),
   audit:         () => screenComingSoon('Audit Logs'),
   analytics:     () => screenComingSoon('Usage Analytics'),
-  modules:       () => screenComingSoon('Module Catalog'),
+  modules:       screenModuleCatalog,
   sys_health:    () => screenComingSoon('System Health'),
   settings:      () => screenComingSoon('Settings'),
 };

@@ -43,7 +43,10 @@ from ..services import proctoring_storage as storage
 from ..services import proctoring_scorer as scorer
 from .enteri_ai_api import _recruiter_owns_req
 
-router = APIRouter(prefix="/api/proctoring", tags=["proctoring"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/proctoring", tags=["proctoring"],
+                    dependencies=[Depends(require_tenant_module("proctoring_review"))])
 
 
 def _application_req_id(application_id):

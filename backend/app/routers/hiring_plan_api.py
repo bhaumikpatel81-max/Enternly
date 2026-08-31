@@ -19,7 +19,10 @@ from ..db import query, query_one
 from ..auth_utils import get_current_user
 from ..services import excel_export
 
-router = APIRouter(prefix="/api/hiring-plan", tags=["hiring-plan"])
+from ..module_access import require_tenant_module
+
+router = APIRouter(prefix="/api/hiring-plan", tags=["hiring-plan"],
+                    dependencies=[Depends(require_tenant_module("hiring_plan"))])
 
 _ALLOWED = {"ta_manager", "recruiter", "admin"}
 
