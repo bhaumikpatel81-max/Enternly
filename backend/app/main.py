@@ -2688,6 +2688,29 @@ END $$""",
         """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
            SELECT t.id, m.key, TRUE, now() FROM tenant t CROSS JOIN module_catalog m
            ON CONFLICT (tenant_id, module_key) DO NOTHING""",
+        # ── Migration 103: support_ticket_reply (2026-08). The platform
+        # console's cross-tenant Issues & Tickets screen (Feature G) needs a
+        # threaded reply history on top of support_ticket's existing single
+        # `reply` field. See database/65_*.sql for the doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS support_ticket_reply (
+            id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            ticket_id  UUID NOT NULL REFERENCES support_ticket(id),
+            author_id  UUID NOT NULL REFERENCES app_user(id),
+            body       TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_ticket_reply_ticket ON support_ticket_reply(ticket_id, created_at)",
+        # ── Migration 104: platform_settings (2026-08). A small KV table for
+        # platform-console-configurable defaults (default new-tenant plan,
+        # default enabled modules) -- deliberately separate from
+        # system_status, which is reserved for background-worker
+        # heartbeats/kill-switches, not admin-configurable settings. See
+        # database/66_*.sql for the doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS platform_settings (
+            key        TEXT PRIMARY KEY,
+            value      JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
     ]
     for sql in migrations:
         try:

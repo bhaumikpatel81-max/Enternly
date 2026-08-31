@@ -298,6 +298,19 @@ a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,sele
   </div>
 </div>
 
+<!-- ── Grant superadmin modal (Feature I) ── -->
+<div class="modal-bg" id="grant-superadmin-modal" onmousedown="modalBgMouseDown(event)" onclick="modalBgClick(event,closeGrantSuperadminModal)">
+  <div class="modal">
+    <h2>Add platform superadmin</h2>
+    <div class="form-group"><label>Full name</label><input id="gs-name"></div>
+    <div class="form-group"><label>Email</label><input id="gs-email" type="email"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeGrantSuperadminModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doGrantSuperadmin()">Add</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Add company admin / placement officer modal (Feature C) ── -->
 <div class="modal-bg" id="add-tenant-user-modal" onmousedown="modalBgMouseDown(event)" onclick="modalBgClick(event,closeAddTenantUserModal)">
   <div class="modal">
@@ -757,17 +770,212 @@ async function impersonateUser(userId, name) {
   } else flash(res?.detail || _lastApiError || 'Could not impersonate user.', false);
 }
 
+// ── Issues & Tickets (Feature G) ────────────────────────────────────────────
+async function screenIssuesTickets(param) {
+  if (param) return screenTicketThread(param);
+  setTitle('Issues & Tickets');
+  const tickets = await api('/api/platform/tickets');
+  if (!tickets) { showErr('Could not load tickets.'); return; }
+  const rows = tickets.map(t => `
+    <tr class="clickable-row" onclick="navigate('tickets','${t.id}')">
+      <td>${esc(t.subject)}<br><span style="font-size:11px;color:var(--muted)">${esc(t.category)}</span></td>
+      <td>${esc(t.tenant_name||'—')}</td>
+      <td>${esc(t.raised_by_name)}</td>
+      <td><span class="pill ${t.status}">${esc(t.status)}</span></td>
+      <td>${new Date(t.created_at).toLocaleDateString()}</td>
+    </tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Issues & Tickets</h1></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${rows ? `<table><thead><tr><th>Subject</th><th>Company</th><th>Raised by</th><th>Status</th><th>Created</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No tickets.</p>'}
+    </div>`;
+}
+
+async function screenTicketThread(ticketId) {
+  setTitle('Ticket');
+  const [tickets, replies] = await Promise.all([
+    api('/api/platform/tickets'),
+    api(`/api/platform/tickets/${ticketId}/replies`),
+  ]);
+  const t = (tickets||[]).find(x => x.id === ticketId);
+  if (!t) { showErr('Ticket not found.'); return; }
+  const replyRows = (replies||[]).map(r => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--muted)">${esc(r.author_name)} · ${new Date(r.created_at).toLocaleString()}</div>
+      <div style="margin-top:4px">${esc(r.body)}</div>
+    </div>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>${esc(t.subject)}</h1><button class="btn btn-ghost" onclick="navigate('tickets')">← Back</button></div>
+    <div class="card">
+      <p style="margin-bottom:10px">${esc(t.description||'')}</p>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+        <span class="pill ${t.status}">${esc(t.status)}</span>
+        <select id="ticket-status-select" style="padding:6px 9px;border:1px solid var(--border);border-radius:4px">
+          <option value="open" ${t.status==='open'?'selected':''}>Open</option>
+          <option value="in_progress" ${t.status==='in_progress'?'selected':''}>In progress</option>
+          <option value="resolved" ${t.status==='resolved'?'selected':''}>Resolved</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="updateTicketStatus('${t.id}')">Update status</button>
+      </div>
+      <div class="card-title">Replies</div>
+      ${replyRows || '<p class="empty">No replies yet.</p>'}
+      <div class="form-group" style="margin-top:14px"><label>Add a reply</label><textarea id="ticket-reply-body"></textarea></div>
+      <button class="btn btn-primary" onclick="postTicketReply('${t.id}')">Send reply</button>
+    </div>`;
+}
+
+async function updateTicketStatus(ticketId) {
+  const status = document.getElementById('ticket-status-select').value;
+  const res = await api(`/api/platform/tickets/${ticketId}`, { method: 'PATCH', body: { status } });
+  if (res && res.id) { flash('Status updated.'); navigate('tickets', ticketId); }
+  else flash(res?.detail || _lastApiError || 'Could not update.', false);
+}
+async function postTicketReply(ticketId) {
+  const body = document.getElementById('ticket-reply-body').value.trim();
+  if (!body) return;
+  const res = await api(`/api/platform/tickets/${ticketId}/replies`, { method: 'POST', body: { body } });
+  if (res && res.id) { flash('Reply posted.'); navigate('tickets', ticketId); }
+  else flash(res?.detail || _lastApiError || 'Could not post reply.', false);
+}
+
+// ── Audit Logs (Feature H) ──────────────────────────────────────────────────
+async function screenAuditLogs() {
+  setTitle('Audit Logs');
+  const res = await api('/api/platform/audit');
+  if (!res) { showErr('Could not load audit logs.'); return; }
+  const rows = res.map(r => `
+    <tr>
+      <td>${new Date(r.occurred_at).toLocaleString()}</td>
+      <td>${esc(r.tenant_name||'—')}</td>
+      <td>${esc(r.actor_name||'system')}</td>
+      <td>${esc(r.entity_type)}.${esc(r.action)}</td>
+      <td>${esc(r.from_value||'')}${r.from_value&&r.to_value?' → ':''}${esc(r.to_value||'')}</td>
+    </tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Audit Logs</h1></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${rows ? `<table><thead><tr><th>Time</th><th>Company</th><th>Actor</th><th>Action</th><th>Change</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No audit events yet.</p>'}
+    </div>`;
+}
+
+// ── Usage Analytics (Feature H) ─────────────────────────────────────────────
+async function screenUsageAnalytics() {
+  setTitle('Usage Analytics');
+  const res = await api('/api/platform/analytics');
+  if (!res) { showErr('Could not load analytics.'); return; }
+  const rows = (res.tenants||[]).map(t => `
+    <tr><td>${esc(t.name)}</td><td>${t.user_count}</td><td>${t.candidate_count}</td><td>${t.requisition_count}</td><td>${t.logins_30d}</td></tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Usage Analytics</h1></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr><th>Company</th><th>Users</th><th>Candidates</th><th>Requisitions</th><th>Logins (30d)</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+}
+
+// ── System Health (Feature H) ───────────────────────────────────────────────
+async function screenSystemHealth() {
+  setTitle('System Health');
+  const d = await api('/api/platform/system-health');
+  if (!d) { showErr('Could not load system health.'); return; }
+  const uCounts = d.user_counts||[], tStats = d.ticket_stats||[], pipe = d.pipeline||{}, lt = d.login_trend||{today:0,yesterday:0};
+  const totalUsers = uCounts.reduce((s,x)=>s+parseInt(x.n||0),0);
+  const heartbeatRows = (d.system_status||[]).map(s => `
+    <tr><td>${esc(s.key)}</td><td>${esc(s.value)}</td><td>${new Date(s.updated_at).toLocaleString()}</td></tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>System Health</h1></div>
+    <div class="stage-grid">
+      <div class="stage-card"><div class="n">${totalUsers}</div><div class="lbl">Active users</div></div>
+      <div class="stage-card"><div class="n">${pipe.open_reqs||0}</div><div class="lbl">Open reqs</div></div>
+      <div class="stage-card"><div class="n">${pipe.total_apps||0}</div><div class="lbl">Applications</div></div>
+      <div class="stage-card"><div class="n">${pipe.total_candidates||0}</div><div class="lbl">Candidates</div></div>
+      <div class="stage-card"><div class="n">${lt.today}</div><div class="lbl">Logins today</div></div>
+    </div>
+    <div class="two-col" style="margin-bottom:20px">
+      <div class="card"><div class="card-title">Users by Role</div><div class="chart-wrap" style="height:180px"><canvas id="ph-users-bar"></canvas></div></div>
+      <div class="card"><div class="card-title">Ticket Status</div><div class="chart-wrap" style="height:180px"><canvas id="ph-tickets-pie"></canvas></div></div>
+    </div>
+    <div class="page-header" style="margin-top:8px"><h1 style="font-size:16px">Background Workers (system_status)</h1></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${heartbeatRows ? `<table><thead><tr><th>Key</th><th>Value</th><th>Updated</th></tr></thead><tbody>${heartbeatRows}</tbody></table>` : '<p class="empty">No heartbeat keys recorded.</p>'}
+    </div>`;
+  if (window.Chart) {
+    if (uCounts.length) new Chart(document.getElementById('ph-users-bar'), {
+      type: 'bar',
+      data: { labels: uCounts.map(x=>x.role), datasets: [{ data: uCounts.map(x=>x.n), backgroundColor: '#2563EB' }] },
+      options: { plugins: { legend: { display: false } } },
+    });
+    if (tStats.length) new Chart(document.getElementById('ph-tickets-pie'), {
+      type: 'doughnut',
+      data: { labels: tStats.map(x=>x.status), datasets: [{ data: tStats.map(x=>x.n), backgroundColor: ['#0e9f6e','#b07d00','#596A83'] }] },
+    });
+  }
+}
+
+// ── Settings (Feature I) ────────────────────────────────────────────────────
+async function screenPlatformSettings() {
+  setTitle('Settings');
+  const [admins, defaults] = await Promise.all([
+    api('/api/platform/settings/superadmins'),
+    api('/api/platform/settings/defaults'),
+  ]);
+  if (!admins) { showErr('Could not load settings.'); return; }
+  const rows = admins.map(a => `
+    <tr><td>${esc(a.full_name)}<br><span style="font-size:11px;color:var(--muted)">${esc(a.email)}</span></td>
+        <td><span class="pill ${a.is_active?'active':'inactive'}">${a.is_active?'Active':'Inactive'}</span></td>
+        <td>${a.last_login_at ? new Date(a.last_login_at).toLocaleDateString() : '—'}</td>
+        <td>${a.id !== ME.sub ? `<button class="btn btn-danger btn-sm" onclick="revokeSuperadmin('${a.id}','${escAttr(a.full_name)}')">Revoke</button>` : '<span style="font-size:11px;color:var(--muted)">(you)</span>'}</td></tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>Settings</h1></div>
+    <div class="page-header" style="margin-bottom:12px"><h1 style="font-size:16px">Platform Superadmins</h1><button class="btn btn-primary btn-sm" onclick="openGrantSuperadminModal()">+ Add superadmin</button></div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
+      <table><thead><tr><th>Name</th><th>Status</th><th>Last login</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
+    <div class="page-header" style="margin-bottom:12px"><h1 style="font-size:16px">New-Tenant Defaults</h1></div>
+    <div class="card">
+      <div class="form-group"><label>Default plan</label><input id="pd-plan" value="${escAttr(defaults?.default_plan||'standard')}"></div>
+      <button class="btn btn-primary" onclick="savePlatformDefaults()">Save defaults</button>
+    </div>`;
+}
+function openGrantSuperadminModal() {
+  document.getElementById('gs-name').value = '';
+  document.getElementById('gs-email').value = '';
+  document.getElementById('grant-superadmin-modal').classList.add('open');
+}
+function closeGrantSuperadminModal() { document.getElementById('grant-superadmin-modal').classList.remove('open'); }
+async function doGrantSuperadmin() {
+  const body = {
+    full_name: document.getElementById('gs-name').value.trim(),
+    email: document.getElementById('gs-email').value.trim(),
+  };
+  if (!body.full_name || !body.email) { flash('Fill in all fields.', false); return; }
+  const res = await api('/api/platform/settings/superadmins', { method: 'POST', body });
+  if (res && res.id) { flash('Superadmin added.'); closeGrantSuperadminModal(); navigate('settings'); }
+  else flash(res?.detail || _lastApiError || 'Could not add superadmin.', false);
+}
+async function revokeSuperadmin(id, name) {
+  if (!confirm(`Revoke platform-admin access for ${name}? Their session ends immediately.`)) return;
+  const res = await api(`/api/platform/settings/superadmins/${id}`, { method: 'DELETE' });
+  if (res && res.ok) { flash('Access revoked.'); navigate('settings'); }
+  else flash(res?.detail || _lastApiError || 'Could not revoke access.', false);
+}
+async function savePlatformDefaults() {
+  const body = { default_plan: document.getElementById('pd-plan').value.trim() };
+  const res = await api('/api/platform/settings/defaults', { method: 'PUT', body });
+  if (res) flash('Defaults saved.');
+  else flash(_lastApiError || 'Could not save defaults.', false);
+}
+
 const SCREENS = {
   dashboard:     screenDashboard,
   companies:     screenCompanies,
   subscriptions: screenSubscriptions,
   all_users:     screenAllUsers,
-  tickets:       () => screenComingSoon('Issues & Tickets'),
-  audit:         () => screenComingSoon('Audit Logs'),
-  analytics:     () => screenComingSoon('Usage Analytics'),
+  tickets:       screenIssuesTickets,
+  audit:         screenAuditLogs,
+  analytics:     screenUsageAnalytics,
   modules:       screenModuleCatalog,
-  sys_health:    () => screenComingSoon('System Health'),
-  settings:      () => screenComingSoon('Settings'),
+  sys_health:    screenSystemHealth,
+  settings:      screenPlatformSettings,
 };
 
 function buildNav() {

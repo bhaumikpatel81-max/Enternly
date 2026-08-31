@@ -759,4 +759,239 @@ def impersonate_user(user_id: str, actor=Depends(require_platform_admin)):
         detail={"impersonated_email": target["email"]},
     )
     return {"token": token, "user": {"id": target["id"], "full_name": target["full_name"], "email": target["email"]}}
-    return {"grace_period_days": body.grace_period_days}
+
+
+# ── Issues & Tickets (Feature G) ──────────────────────────────────────────────
+
+class PlatformTicketUpdateIn(BaseModel):
+    status: Optional[str] = None
+    reply: Optional[str] = None
+
+
+class TicketReplyIn(BaseModel):
+    body: str
+
+
+@router.get("/tickets")
+def list_all_tickets(
+    tenantId: Optional[str] = Query(None), status: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0),
+):
+    conds = ["1=1"]
+    params: List = []
+    if tenantId:
+        conds.append("u.tenant_id = %s"); params.append(tenantId)
+    if status:
+        conds.append("t.status = %s"); params.append(status)
+    where = "WHERE " + " AND ".join(conds)
+    return query(
+        f"""SELECT t.id, t.category, t.subject, t.description, t.status, t.reply,
+                   t.created_at, t.resolved_at,
+                   u.full_name AS raised_by_name, u.role AS raised_by_role,
+                   tn.id AS tenant_id, tn.name AS tenant_name
+            FROM support_ticket t
+            JOIN app_user u ON u.id = t.raised_by
+            LEFT JOIN tenant tn ON tn.id = u.tenant_id
+            {where}
+            ORDER BY CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, t.created_at DESC
+            LIMIT %s OFFSET %s""",
+        params + [limit, offset],
+    )
+
+
+@router.patch("/tickets/{ticket_id}")
+def update_ticket_platform(ticket_id: str, body: PlatformTicketUpdateIn, actor=Depends(require_platform_admin)):
+    if not query_one("SELECT id FROM support_ticket WHERE id = %s", [ticket_id]):
+        raise HTTPException(404, "Ticket not found")
+    parts, params = [], []
+    if body.status:
+        parts.append("status = %s"); params.append(body.status)
+        if body.status == "resolved":
+            parts += ["resolved_by = %s", "resolved_at = now()"]
+            params.append(actor.get("sub"))
+    if body.reply is not None:
+        parts.append("reply = %s"); params.append(body.reply)
+    if not parts:
+        raise HTTPException(400, "Nothing to update")
+    parts.append("updated_at = now()")
+    params.append(ticket_id)
+    query(f"UPDATE support_ticket SET {', '.join(parts)} WHERE id = %s", params, fetch=False)
+    return query_one("SELECT id, status, reply FROM support_ticket WHERE id = %s", [ticket_id])
+
+
+@router.get("/tickets/{ticket_id}/replies")
+def list_ticket_replies(ticket_id: str):
+    if not query_one("SELECT id FROM support_ticket WHERE id = %s", [ticket_id]):
+        raise HTTPException(404, "Ticket not found")
+    return query(
+        """SELECT r.id, r.body, r.created_at, u.full_name AS author_name
+           FROM support_ticket_reply r JOIN app_user u ON u.id = r.author_id
+           WHERE r.ticket_id = %s ORDER BY r.created_at""",
+        [ticket_id],
+    )
+
+
+@router.post("/tickets/{ticket_id}/replies", status_code=201)
+def add_ticket_reply(ticket_id: str, body: TicketReplyIn, actor=Depends(require_platform_admin)):
+    if not query_one("SELECT id FROM support_ticket WHERE id = %s", [ticket_id]):
+        raise HTTPException(404, "Ticket not found")
+    row = query_one(
+        "INSERT INTO support_ticket_reply (ticket_id, author_id, body) VALUES (%s, %s, %s) RETURNING id, created_at",
+        [ticket_id, actor.get("sub"), body.body],
+    )
+    return {**row, "author_name": actor.get("name")}
+
+
+# ── Audit Logs + Usage Analytics (Feature H) ──────────────────────────────────
+
+@router.get("/audit")
+def platform_audit(
+    tenantId: Optional[str] = Query(None), userId: Optional[str] = Query(None),
+    action: Optional[str] = Query(None),
+    dateFrom: Optional[date] = Query(None), dateTo: Optional[date] = Query(None),
+    limit: int = Query(200, ge=1, le=500),
+):
+    conds = ["1=1"]
+    params: List = []
+    if tenantId:
+        conds.append("u.tenant_id = %s"); params.append(tenantId)
+    if userId:
+        conds.append("al.actor_id = %s"); params.append(userId)
+    if action:
+        conds.append("al.action = %s"); params.append(action)
+    if dateFrom:
+        conds.append("al.occurred_at >= %s"); params.append(dateFrom)
+    if dateTo:
+        conds.append("al.occurred_at < %s + INTERVAL '1 day'"); params.append(dateTo)
+    where = "WHERE " + " AND ".join(conds)
+    rows = query(
+        f"""SELECT al.occurred_at, al.entity_type, al.action, al.from_value, al.to_value,
+                   u.full_name AS actor_name, u.email AS actor_email, t.name AS tenant_name
+            FROM activity_log al
+            LEFT JOIN app_user u ON u.id = al.actor_id
+            LEFT JOIN tenant t ON t.id = u.tenant_id
+            {where}
+            ORDER BY al.occurred_at DESC LIMIT %s""",
+        params + [limit],
+    )
+    return rows
+
+
+@router.get("/analytics")
+def platform_analytics():
+    per_tenant = query(
+        """SELECT t.id, t.name,
+                  (SELECT COUNT(*) FROM app_user u WHERE u.tenant_id = t.id) AS user_count,
+                  (SELECT COUNT(*) FROM candidate c WHERE c.tenant_id = t.id) AS candidate_count,
+                  (SELECT COUNT(*) FROM requisition r WHERE r.tenant_id = t.id) AS requisition_count,
+                  (SELECT COUNT(*) FROM login_log ll JOIN app_user u2 ON u2.id = ll.user_id
+                    WHERE u2.tenant_id = t.id AND ll.logged_at >= now() - INTERVAL '30 days') AS logins_30d
+           FROM tenant t WHERE NOT t.is_deleted ORDER BY t.name"""
+    )
+    return {"tenants": per_tenant}
+
+
+@router.get("/system-health")
+def platform_system_health():
+    """Superset of the existing /api/admin/system-health: the same business
+    metrics (reused via tickets_api.business_metrics_snapshot, not
+    duplicated) plus the real infra heartbeats/kill-switches from
+    system_status that endpoint never touched."""
+    from .tickets_api import business_metrics_snapshot
+    snapshot = business_metrics_snapshot()
+    heartbeats = query("SELECT key, value, updated_at FROM system_status ORDER BY key")
+    return {**snapshot, "system_status": heartbeats}
+
+
+# ── Settings (Feature I) ──────────────────────────────────────────────────────
+
+class GrantSuperadminIn(BaseModel):
+    full_name: str
+    email: str
+    password: Optional[str] = None
+    send_setup_email: bool = True
+
+
+class PlatformDefaultsIn(BaseModel):
+    default_plan: Optional[str] = None
+    default_enabled_modules: Optional[List[str]] = None
+
+
+@router.get("/settings/superadmins")
+def list_superadmins():
+    return query(
+        "SELECT id, full_name, email, is_active, last_login_at, created_at "
+        "FROM app_user WHERE is_platform_superadmin ORDER BY created_at"
+    )
+
+
+@router.post("/settings/superadmins", status_code=201)
+def create_superadmin(body: GrantSuperadminIn, actor=Depends(require_platform_admin)):
+    if body.password and len(body.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    from ..services.email_validation import assert_real_email
+    try:
+        email = assert_real_email(body.email)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if query_one("SELECT id FROM app_user WHERE email = %s", [email]):
+        raise HTTPException(400, "A user with that email already exists")
+    pwd_hash = hash_password(body.password) if body.password else None
+    new_id = query_one(
+        """INSERT INTO app_user (full_name, email, role, password_hash, tenant_id,
+                                  is_platform_superadmin, created_by)
+           VALUES (%s, %s, 'platform_admin', %s, %s, TRUE, %s) RETURNING id""",
+        [body.full_name, email, pwd_hash, _SEED_TENANT_ID, actor.get("sub")],
+    )["id"]
+    log_activity("app_user", "grant_superadmin", entity_id=str(new_id),
+                 actor_id=actor.get("sub"), actor_role=actor.get("role"), to_value=email)
+    setup_email_sent = False
+    if body.send_setup_email:
+        try:
+            from .password_api import _issue_token, _send_link_email
+            raw = _issue_token(str(new_id), "invite")
+            _send_link_email(email, body.full_name, raw, "invite", tenant_id=_SEED_TENANT_ID)
+            setup_email_sent = True
+        except Exception as exc:
+            print(f"[create_superadmin] setup email failed: {exc}")
+    row = query_one("SELECT id, full_name, email, is_active FROM app_user WHERE id = %s", [new_id])
+    return {**row, "setup_email_sent": setup_email_sent}
+
+
+@router.delete("/settings/superadmins/{user_id}")
+def revoke_superadmin(user_id: str, actor=Depends(require_platform_admin)):
+    if user_id == actor.get("sub"):
+        raise HTTPException(400, "You cannot revoke your own superadmin access")
+    target = query_one("SELECT id, email FROM app_user WHERE id = %s AND is_platform_superadmin", [user_id])
+    if not target:
+        raise HTTPException(404, "Superadmin not found")
+    # Bump token_version so a revoked admin is ejected mid-session on their
+    # very next request, not just the next time they'd otherwise log in.
+    query(
+        "UPDATE app_user SET is_platform_superadmin = FALSE, token_version = token_version + 1 WHERE id = %s",
+        [user_id], fetch=False,
+    )
+    log_activity("app_user", "revoke_superadmin", entity_id=user_id,
+                 actor_id=actor.get("sub"), actor_role=actor.get("role"), to_value=target["email"])
+    return {"ok": True}
+
+
+@router.get("/settings/defaults")
+def get_platform_defaults():
+    row = query_one("SELECT value FROM platform_settings WHERE key = 'new_tenant_defaults'")
+    return row["value"] if row else {"default_plan": "standard", "default_enabled_modules": []}
+
+
+@router.put("/settings/defaults")
+def set_platform_defaults(body: PlatformDefaultsIn):
+    current = get_platform_defaults()
+    if body.default_plan is not None:
+        current["default_plan"] = body.default_plan
+    if body.default_enabled_modules is not None:
+        current["default_enabled_modules"] = body.default_enabled_modules
+    query(
+        """INSERT INTO platform_settings (key, value) VALUES ('new_tenant_defaults', %s::jsonb)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()""",
+        [json.dumps(current)], fetch=False,
+    )
+    return current

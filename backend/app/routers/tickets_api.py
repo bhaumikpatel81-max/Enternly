@@ -106,14 +106,14 @@ def update_ticket(
 
 # ── Admin: system health ────────────────────────────────────────────────────
 
-@router.get("/admin/system-health")
-def system_health(user: dict = Depends(get_current_user)):
-    # Deliberately platform-wide, not tenant-scoped -- this is Enternstech's
-    # own operator dashboard (every tenant's user/ticket/login volume), not a
-    # per-customer view, so only the Platform Admin tier sees it.
-    if user["role"] not in ("admin", "platform_admin"):
-        raise HTTPException(403, "Platform Admin only")
-
+def business_metrics_snapshot() -> dict:
+    """The actual query bodies behind /api/admin/system-health -- factored
+    out so platform_admin_api.py's superset System Health endpoint can reuse
+    this exact snapshot (plus a system_status heartbeat/kill-switch section)
+    instead of duplicating these six queries. Despite the name, this has
+    always been business/usage metrics (user counts, ticket backlog,
+    pipeline volume, login trend) -- not infra heartbeats, which live in
+    system_status and are read separately."""
     # User counts by role
     user_counts = query(
         """SELECT role, COUNT(*) AS n
@@ -173,3 +173,17 @@ def system_health(user: dict = Depends(get_current_user)):
         "recent_logins": recent_logins,
         "login_trend":   dict(login_trend[0]) if login_trend else {"today": 0, "yesterday": 0},
     }
+
+
+@router.get("/admin/system-health")
+def system_health(user: dict = Depends(get_current_user)):
+    # Deliberately platform-wide, not tenant-scoped -- this is Enternstech's
+    # own operator dashboard (every tenant's user/ticket/login volume), not a
+    # per-customer view, so only the Platform Admin tier sees it. Left
+    # reachable by the legacy admin/platform_admin role strings unchanged --
+    # the new platform console's own superset endpoint (GET
+    # /api/platform/system-health) is the flag-gated replacement, this one
+    # isn't removed per Step 1's "don't break existing flows."
+    if user["role"] not in ("admin", "platform_admin"):
+        raise HTTPException(403, "Platform Admin only")
+    return business_metrics_snapshot()
