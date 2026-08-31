@@ -2282,7 +2282,15 @@ const GATED_NAV_MODULES = ['campus_hiring','enteri_ai_tracker','kpi_dashboard','
 
 function buildNav() {
   const role  = ME.role || 'recruiter';
-  let items = (NAV_DEF[role] || NAV_DEF.recruiter).filter(it =>
+  // Falls back to an empty nav (not NAV_DEF.recruiter) for any role with no
+  // NAV_DEF entry -- e.g. the vestigial bu_head/director roles, which are
+  // DB-allowed and pickable in the user-management UI but have zero actual
+  // capability wiring. Silently granting the full Recruiter sidebar to an
+  // unconfigured role was a real gap (Platform Admin closeout, 2026-08-31);
+  // an empty/minimal nav (still keeps Change password / Sign out, added
+  // below regardless of items) is the safe default until that role gets a
+  // real NAV_DEF entry.
+  let items = (NAV_DEF[role] || []).filter(it =>
     it.group || !GATED_NAV_MODULES.includes(it.id) || MY_MODULE_ACCESS[it.id] !== false
   );
   if (role === 'recruiter') {
@@ -2639,7 +2647,7 @@ async function screenHome() {
   setTitle('Home');
   setActive('home');
   const role = ME.role || 'recruiter';
-  const navItems = NAV_DEF[role] || NAV_DEF.recruiter;
+  const navItems = NAV_DEF[role] || []; // see buildNav()'s comment on this fallback
   const byId = {};
   navItems.forEach(it => { if (!it.group) byId[it.id] = it; });
   const tileIds = (HOME_TILES[role] || []).filter(id => byId[id]);
