@@ -87,6 +87,22 @@ def create_platform_token(user: dict) -> str:
     return _build_token(user, extra_claims={"platform": True})
 
 
+def create_impersonation_token(user: dict, impersonated_by: str) -> str:
+    """A platform superadmin briefly acting AS the target user (Feature F).
+    Short-lived (15 min, not TOKEN_HOURS) and carries isImpersonation=True +
+    impersonatedBy so: (1) require_platform_admin above always rejects it --
+    an impersonation session can never reach the platform console itself;
+    (2) index.html can show a "you are impersonating" banner and audit the
+    session; still aud=AUD_STAFF so every ordinary staff-only dependency
+    (require_company_admin etc) accepts it exactly like a real session for
+    that user."""
+    return _build_token(
+        user,
+        extra_claims={"isImpersonation": True, "impersonatedBy": str(impersonated_by)},
+        hours=0.25,
+    )
+
+
 def _refresh_staff_claims(payload: dict) -> dict:
     """A staff JWT is valid for up to TOKEN_HOURS, but role/tenant_id are
     read live here on every request rather than trusted from the (possibly

@@ -599,9 +599,21 @@ span.dq-opt.wrong{background:rgba(224,90,90,.22);border-color:#E05A5A}
 .cr-table-card tbody tr:nth-child(even) td{background:var(--hov)}
 @media(max-width:768px){.cr-header{flex-direction:column}.cr-actions{flex-direction:column;align-items:stretch}}
 a:focus-visible,button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible,.nav-item:focus-visible,.pill:focus-visible,.form-group input:focus-visible,.form-group select:focus-visible,.form-group textarea:focus-visible,.ssel-wrap .ssel-input:focus-visible{outline:2px solid #2563EB;outline-offset:2px}
+/* ── Impersonation banner (platform console, Feature F) ── */
+#impersonation-banner{display:none;position:fixed;top:0;left:0;right:0;height:36px;z-index:250;background:#b07d00;color:#fff;align-items:center;justify-content:center;gap:14px;font-size:12.5px;font-weight:600}
+#impersonation-banner.show{display:flex}
+#impersonation-banner button{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.45);color:#fff;padding:4px 12px;border-radius:14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
+#impersonation-banner button:hover{background:rgba(255,255,255,.32)}
 </style>
 </head>
 <body>
+
+<!-- Platform-admin impersonation banner (shown for the duration of a
+     15-minute impersonation session opened from platform-admin.html) -->
+<div id="impersonation-banner">
+  <span>You're viewing Enternly as <strong id="imp-banner-name"></strong> — impersonation session</span>
+  <button onclick="endImpersonation()">Return to platform admin</button>
+</div>
 
 <!-- B1: Persistent recording badge (shown during proctored sessions) -->
 <div id="rec-badge">● REC</div>
@@ -1582,7 +1594,23 @@ function modalBgClick(e, closeFn){
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-const _tok = localStorage.getItem('enternly_token');
+// Impersonation (platform console, Feature F): the platform console opens
+// this page in a NEW TAB with a one-time ?impersonate=<token> query param.
+// Consumed into THIS TAB's own sessionStorage (never localStorage) so it can
+// never collide with or overwrite an ordinary index.html session running in
+// another tab, and the URL is scrubbed immediately so the token doesn't
+// linger in the address bar/history.
+(function _consumeImpersonationToken() {
+  const params = new URLSearchParams(location.search);
+  const tok = params.get('impersonate');
+  if (!tok) return;
+  sessionStorage.setItem('enternly_impersonation_token', tok);
+  params.delete('impersonate');
+  const qs = params.toString();
+  history.replaceState({}, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+})();
+
+const _tok = sessionStorage.getItem('enternly_impersonation_token') || localStorage.getItem('enternly_token');
 if (!_tok) {
   // Preserve deep-link query params (e.g. ?openScheduling=<id> from the HM
   // availability email) across the login redirect — login.html restores it.
@@ -1595,7 +1623,34 @@ function _jwt(t) {
   catch { return null; }
 }
 const ME = _jwt(_tok);
-if (!ME) { localStorage.removeItem('enternly_token'); window.location.replace('/login'); throw ''; }
+if (!ME) {
+  localStorage.removeItem('enternly_token');
+  sessionStorage.removeItem('enternly_impersonation_token');
+  window.location.replace('/login');
+  throw '';
+}
+
+// Impersonation banner: shown for the lifetime of this tab's 15-minute
+// impersonation token. "Return to platform admin" ends the impersonated
+// session for THIS tab only and goes back to the platform console, which
+// still has its own untouched session in localStorage['enternly_platform_token'].
+function endImpersonation() {
+  sessionStorage.removeItem('enternly_impersonation_token');
+  window.location.replace('/platform-admin');
+}
+if (ME.isImpersonation) {
+  // #impersonation-banner/#sidebar/#main are all already parsed by this
+  // point (this <script> block sits after them in the document), same as
+  // every other immediate DOM read elsewhere in this file (initTheme() etc).
+  const banner = document.getElementById('impersonation-banner');
+  if (banner) {
+    document.getElementById('imp-banner-name').textContent = ME.name || ME.email || 'this user';
+    banner.classList.add('show');
+    const sidebar = document.getElementById('sidebar'), main = document.getElementById('main');
+    if (sidebar) sidebar.style.marginTop = '36px';
+    if (main) main.style.marginTop = '36px';
+  }
+}
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 // CSS custom properties resolve live in the CSSOM, so flipping data-theme on
@@ -1680,7 +1735,15 @@ function flash(msg, ok = true) {
   setTimeout(() => el.remove(), 4000);
 }
 
-function logout() { localStorage.removeItem('enternly_token'); window.location.replace('/login'); }
+function logout() {
+  localStorage.removeItem('enternly_token');
+  // Also clear an active impersonation session, if any -- otherwise clicking
+  // ordinary "Sign out" while impersonating would redirect to /login but
+  // leave sessionStorage's impersonation token in place, and reloading would
+  // silently resume the impersonated session in this tab.
+  sessionStorage.removeItem('enternly_impersonation_token');
+  window.location.replace('/login');
+}
 
 // Show/hide toggle for any password-type input, paired with a .pw-toggle button
 function togglePw(id, btn) {

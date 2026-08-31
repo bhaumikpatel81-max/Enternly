@@ -685,3 +685,78 @@ def set_grace_config(tenant_id: str, body: GraceConfigIn):
         raise HTTPException(404, "Tenant not found")
     query("UPDATE tenant SET grace_period_days = %s WHERE id = %s", [body.grace_period_days, tenant_id], fetch=False)
     return {"grace_period_days": body.grace_period_days}
+
+
+# ── All-users + impersonation (Feature F) ─────────────────────────────────────
+
+class UserStatusIn(BaseModel):
+    is_active: bool
+
+
+@router.get("/users")
+def list_all_users(tenantId: Optional[str] = Query(None), search: Optional[str] = Query(None)):
+    conds = ["NOT u.is_platform_superadmin"]
+    params: List = []
+    if tenantId:
+        conds.append("u.tenant_id = %s"); params.append(tenantId)
+    if search:
+        conds.append("(u.full_name ILIKE %s OR u.email ILIKE %s)")
+        like = f"%{search}%"
+        params += [like, like]
+    where = "WHERE " + " AND ".join(conds)
+    return query(
+        f"""SELECT u.id, u.full_name, u.email, u.role, u.is_active, u.is_company_admin,
+                   u.last_login_at, u.created_at, t.id AS tenant_id, t.name AS tenant_name
+            FROM app_user u
+            LEFT JOIN tenant t ON t.id = u.tenant_id
+            {where}
+            ORDER BY u.created_at DESC""",
+        params,
+    )
+
+
+@router.patch("/users/{user_id}/status")
+def set_user_status(user_id: str, body: UserStatusIn, actor=Depends(require_platform_admin)):
+    target = query_one("SELECT id, is_platform_superadmin FROM app_user WHERE id = %s", [user_id])
+    if not target:
+        raise HTTPException(404, "User not found")
+    if target["is_platform_superadmin"]:
+        raise HTTPException(400, "Use Settings → Superadmins to manage platform-admin accounts")
+    # Bump token_version alongside is_active so a deactivated user's existing
+    # session dies on its very next request (_refresh_staff_claims), not
+    # just the next time they'd otherwise have logged in.
+    query(
+        "UPDATE app_user SET is_active = %s, token_version = token_version + 1 WHERE id = %s",
+        [body.is_active, user_id], fetch=False,
+    )
+    log_activity(
+        "app_user", "deactivate" if not body.is_active else "activate", entity_id=user_id,
+        actor_id=actor.get("sub"), actor_role=actor.get("role"),
+    )
+    return query_one(
+        "SELECT id, full_name, email, role, is_active FROM app_user WHERE id = %s", [user_id],
+    )
+
+
+@router.post("/impersonate/{user_id}")
+def impersonate_user(user_id: str, actor=Depends(require_platform_admin)):
+    target = query_one(
+        "SELECT id, full_name, email, role, tenant_id, token_version, is_active, "
+        "is_platform_superadmin, is_company_admin FROM app_user WHERE id = %s",
+        [user_id],
+    )
+    if not target:
+        raise HTTPException(404, "User not found")
+    if not target["is_active"]:
+        raise HTTPException(400, "Cannot impersonate an inactive user")
+    if target["is_platform_superadmin"]:
+        raise HTTPException(400, "Cannot impersonate a platform superadmin")
+    from ..auth_utils import create_impersonation_token
+    token = create_impersonation_token(dict(target), impersonated_by=actor.get("sub"))
+    log_activity(
+        "app_user", "impersonate", entity_id=user_id,
+        actor_id=actor.get("sub"), actor_role=actor.get("role"),
+        detail={"impersonated_email": target["email"]},
+    )
+    return {"token": token, "user": {"id": target["id"], "full_name": target["full_name"], "email": target["email"]}}
+    return {"grace_period_days": body.grace_period_days}

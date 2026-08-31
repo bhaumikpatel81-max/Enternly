@@ -704,11 +704,64 @@ async function doSetSubscription() {
   else flash(res?.detail || _lastApiError || 'Could not update subscription.', false);
 }
 
+// ── All Users + Impersonation (Feature F) ───────────────────────────────────
+let _usersSearch = '';
+async function screenAllUsers() {
+  setTitle('All Users');
+  const q = _usersSearch ? `?search=${encodeURIComponent(_usersSearch)}` : '';
+  const users = await api(`/api/platform/users${q}`);
+  if (!users) { showErr('Could not load users.'); return; }
+  const rows = users.map(u => `
+    <tr>
+      <td><strong>${esc(u.full_name)}</strong><br><span style="font-size:11px;color:var(--muted)">${esc(u.email)}</span></td>
+      <td>${esc(u.tenant_name||'—')}</td>
+      <td>${esc(u.role)}</td>
+      <td><span class="pill ${u.is_active?'active':'inactive'}">${u.is_active?'Active':'Inactive'}</span></td>
+      <td>${u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td>
+      <td><div class="inline-btns">
+        ${u.is_active ? `<button class="btn btn-ghost btn-sm" onclick="impersonateUser('${u.id}','${escAttr(u.full_name)}')">Impersonate</button>` : ''}
+        ${u.is_active
+          ? `<button class="btn btn-danger btn-sm" onclick="setUserStatus('${u.id}',false)">Deactivate</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="setUserStatus('${u.id}',true)">Activate</button>`}
+      </div></td>
+    </tr>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><h1>All Users</h1>
+      <input id="users-search" placeholder="Search name or email…" value="${escAttr(_usersSearch)}" style="padding:8px 11px;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:13px;min-width:220px">
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${rows ? `<table><thead><tr><th>Name</th><th>Company</th><th>Role</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No users found.</p>'}
+    </div>`;
+  const searchInput = document.getElementById('users-search');
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { _usersSearch = searchInput.value.trim(); screenAllUsers(); }
+  });
+}
+
+async function setUserStatus(userId, isActive) {
+  if (!isActive && !confirm('Deactivate this user? Their session ends immediately and they can no longer log in.')) return;
+  const res = await api(`/api/platform/users/${userId}/status`, { method: 'PATCH', body: { is_active: isActive } });
+  if (res && res.id) { flash('User updated.'); screenAllUsers(); }
+  else flash(res?.detail || _lastApiError || 'Could not update user.', false);
+}
+
+// Opens index.html in a new tab as the impersonated user, WITHOUT touching
+// this tab's own platform session or index.html's normal localStorage
+// session -- the token rides a one-time query param that index.html's boot
+// consumes into its own tab-scoped sessionStorage (see index.html).
+async function impersonateUser(userId, name) {
+  if (!confirm(`Impersonate ${name}? This opens a new tab as them for 15 minutes. The action is logged.`)) return;
+  const res = await api(`/api/platform/impersonate/${userId}`, { method: 'POST' });
+  if (res && res.token) {
+    window.open('/?impersonate=' + encodeURIComponent(res.token), '_blank');
+  } else flash(res?.detail || _lastApiError || 'Could not impersonate user.', false);
+}
+
 const SCREENS = {
   dashboard:     screenDashboard,
   companies:     screenCompanies,
   subscriptions: screenSubscriptions,
-  all_users:     () => screenComingSoon('All Users'),
+  all_users:     screenAllUsers,
   tickets:       () => screenComingSoon('Issues & Tickets'),
   audit:         () => screenComingSoon('Audit Logs'),
   analytics:     () => screenComingSoon('Usage Analytics'),
