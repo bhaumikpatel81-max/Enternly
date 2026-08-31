@@ -150,9 +150,16 @@ def effective_module_access(user: dict) -> dict:
     Each of the 7 keys here is additionally AND-ed with the tenant-level
     outer gate (Feature D) -- a company admin's blanket True or a
     recruiter's delegated grant only actually applies if the tenant has
-    that module enabled at all."""
+    that module enabled at all.
+
+    Blanket-access branch uses is_company_tier() (flag-based, Step 1 full
+    audit finding #3) rather than a raw role-string tuple -- deferred
+    import to match require_tenant_module's own pattern in this file. The
+    role == "recruiter" branch below is untouched: that's the intentional
+    per-user delegation mechanism, not a retired role-string gate."""
+    from .auth_utils import is_company_tier
     role = user.get("role")
-    if role in ("admin", "platform_admin", "company_admin"):
+    if is_company_tier(user):
         base = {k: True for k in DELEGABLE_MODULES}
     elif role == "recruiter":
         base = get_recruiter_grants(user.get("sub"))
