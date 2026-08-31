@@ -135,13 +135,29 @@ Parse the numeric suffix, `+1`, zero-pad to 4 digits, prefix `ET_`. Wrapped in t
 
 ---
 
-## 6. Step 1 audit — role-string gate sites (to be filled in during implementation)
+## 6. Step 1 audit — role-string gate sites, RESOLVED (commit 8)
 
-Table of every `role in (...)`/`role ==` site across `backend/app/routers/*.py` and `frontend/index.html` referencing `platform_admin`/`company_admin`, with the company-scoped-vs-platform-scoped decision for each, will be appended here as Step 1's cleanup pass executes (work-order step 9). Sites already inventoried by research:
-- `auth_utils.py`: `require_platform_admin`, `require_company_admin`, `require_ta_manager` — rewritten in Step 2.
-- `module_access.py::effective_module_access` — role check stays as a fallback for legacy accounts; boolean flags take precedence once Step 2 lands (exact precedence rule TBD at Step 2 implementation, will update here).
-- `admin_users.py`: `_PLATFORM_ONLY_ROLES`, `_VALID_ROLES`, `_require_settings_access`/`_require_admin_settings`/`_require_module_access` — all currently role-string based, migrate per-site.
-- `index.html` lines 1940, 5776, 6964, 6965 — see §3 above.
+Every `role in (...)`/`role ==` site found referencing `platform_admin`/`company_admin` has been migrated to the boolean flags (`is_platform_superadmin`/`is_company_admin`), with `role === 'admin'` kept as an explicit legacy OR everywhere so no pre-existing account is locked out. Final per-site before/after:
+
+| Site | Before | After (commit) |
+|---|---|---|
+| `auth_utils.py::require_platform_admin` | `role in ("admin","platform_admin")` | `is_platform_superadmin` (+ impersonation-token rejection) — commit 1 |
+| `auth_utils.py::require_company_admin` | `role in ("admin","platform_admin","company_admin")` | `is_company_admin or is_platform_superadmin` — commit 1 |
+| `auth_utils.py::require_ta_manager` | `role in ("admin","platform_admin","company_admin","ta_manager")` | **unchanged** — this one is a role-tier check (TA Manager sits below Company Admin in a `role`-ordered hierarchy), not a `platform_admin`/`company_admin`-specific gate; retiring it would require a broader role-hierarchy redesign out of scope here. Flagged, not touched, per "if unsure, leave it and flag it." |
+| `module_access.py::effective_module_access` | `role in ("admin","platform_admin","company_admin")` for the blanket-access branch | Same role-tuple **kept** (this file predates the flags and reads `role`, not the JWT dict shape `auth_utils.py`/`admin_users.py` use) — but every result is now additionally AND-ed with `tenant_module_enabled()` (commit 4), which is the actual new enforcement layer for this function. Revisiting the blanket-access branch itself for flag-consistency is a small follow-up, not required for correctness (the 3 role strings it checks still exist and are still assigned to the same real accounts). |
+| `admin_users.py::require_users_read` | `role in ("admin","platform_admin","company_admin","ta_manager","recruiter")` | `_is_company_tier(user) or role in ("ta_manager","recruiter")` — commit 8 |
+| `admin_users.py::require_user_write` | `role in ("admin","platform_admin","company_admin","recruiter")` | `_is_company_tier(user) or role == "recruiter"` — commit 8 |
+| `admin_users.py::_assert_can_assign_role` | `actor.role not in ("admin","platform_admin")` | `not _is_platform_tier(actor)` — commit 8 |
+| `admin_users.py::_assert_can_act_on_user` | `actor.role in ("admin","platform_admin")` | `_is_platform_tier(actor)` — commit 8 |
+| `admin_users.py::_require_settings_access` | `role in ("admin","platform_admin","company_admin")` | `_is_company_tier(user)` — commit 8 |
+| `admin_users.py::_require_admin_settings` | `role in ("admin","platform_admin","company_admin")` | `_is_company_tier(user)` — commit 8 |
+| `admin_users.py::_require_module_access` | `role in ("admin","platform_admin","company_admin")` | `_is_company_tier(user)` — commit 8 |
+| `index.html:2002` `hasModuleAccess()` | `['admin','platform_admin','company_admin'].includes(ME.role)` | `isCompanyTier()` (new shared helper) — commit 8 |
+| `index.html:7027-7028` `canManageGCal`/`canManageBands` | same array-includes | `isCompanyTier()` — commit 8 |
+| `index.html` `ALL_ROLES` (role-picker dropdown) | — | **unchanged** — `platform_admin`/`company_admin` stay selectable as legacy `role` values for labeling only; the flags are what actually gate. |
+| `main.py`'s 6 pre-existing role-string sites (`db-stats`, `cv-database`, `sys-logs`, `/api/schedule`, `serve_resume`, req-form-data helper) | `role == "admin"` (or similar tuples) | **left untouched** — confirmed in Step 0 research that none of these ever included `platform_admin`/`company_admin` in their allow-lists, so there was nothing to retire; they remain gated by the legacy `admin` role string exactly as before. |
+
+`admin_users.py::_PLATFORM_ONLY_ROLES` and `_VALID_ROLES` themselves are unchanged — they're role-string *sets* used for role-assignment validation (which roles exist / which are platform-tier), not gating checks, so there was nothing to migrate there; the gating checks that consult them (`_assert_can_assign_role`, `_assert_can_act_on_user`) are the ones listed above.
 
 ---
 
