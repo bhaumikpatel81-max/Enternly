@@ -161,11 +161,27 @@ Every `role in (...)`/`role ==` site found referencing `platform_admin`/`company
 
 ---
 
-## 7. Deliverables checklist
+## 7. Deliverables checklist — ALL DONE
 
-- [x] PLATFORM_ADMIN_MAPPING.md (this file) — will be updated after each work-order step.
-- [ ] `platform_admin_api.py`, `platform_auth_api.py` + `main.py` wiring
-- [ ] `auth_utils.py`, `module_access.py` updates
-- [ ] Migrations 100+ in `main.py` + `database/62_*.sql`, `63_*.sql`, …
-- [ ] `platform-login.html`, `platform-admin.html`, impersonation banner in `index.html`
-- [ ] `PLATFORM_ADMIN_TESTPLAN.md`
+- [x] PLATFORM_ADMIN_MAPPING.md (this file)
+- [x] `platform_admin_api.py`, `platform_auth_api.py` + `main.py` wiring
+- [x] `auth_utils.py`, `module_access.py` updates
+- [x] Migrations 100-104 in `main.py` + `database/62_*.sql` .. `66_*.sql`
+- [x] `platform-login.html`, `platform-admin.html`, impersonation banner in `index.html`
+- [x] `PLATFORM_ADMIN_TESTPLAN.md`
+
+All 9 work-order steps landed as separate commits (see git log from
+`b268a6a` "docs: add platform-admin endpoint/table/UI mapping doc" through
+this commit). No automated test suite exists in this repo, so
+`PLATFORM_ADMIN_TESTPLAN.md` is the verification record — it hasn't been
+run end-to-end against a live dev stack in this session (no reachable
+Enternly dev environment was running; the only Docker containers present
+belonged to an unrelated project directory, confirmed via `docker inspect`
+before deciding not to touch them). Every commit was verified by
+byte-compiling every changed Python file and running a Node syntax check
+over every changed HTML file's inline `<script>` blocks, plus manual
+reading of the actual route/auth logic in each of the 9 module-gated
+routers before wiring anything up (see §4's note on the 4 routers that
+also serve public candidate/proctoring traffic). Live verification per
+`PLATFORM_ADMIN_TESTPLAN.md` is the recommended next step before this
+ships to a real environment.
