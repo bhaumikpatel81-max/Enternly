@@ -140,9 +140,13 @@ def convert_to_employee(candidate_id: str, body: ConvertToEmployeeIn, user: dict
         raise HTTPException(409, "This candidate has no accepted offer — cannot convert to an employee record yet")
 
     department_id = body.department_id or (str(offer["bu_id"]) if offer["bu_id"] else None)
-    if department_id and not query_one("SELECT id FROM business_unit WHERE id=%s", [department_id]):
+    if department_id and not query_one(
+        "SELECT bu.id FROM business_unit bu JOIN group_company gc ON gc.id=bu.company_id "
+        "WHERE bu.id=%s AND gc.tenant_id=%s",
+        [department_id, tenant_id],
+    ):
         raise HTTPException(400, "Invalid department_id")
-    if body.manager_id and not query_one("SELECT id FROM app_user WHERE id=%s", [body.manager_id]):
+    if body.manager_id and not query_one("SELECT id FROM app_user WHERE id=%s AND tenant_id=%s", [body.manager_id, tenant_id]):
         raise HTTPException(400, "Invalid manager_id")
 
     location = body.location or offer["hiring_location"]
@@ -202,9 +206,13 @@ def patch_employee_master(candidate_id: str, body: EmployeeMasterPatchIn, user: 
         raise HTTPException(404, "No employee record found for this candidate")
     if row["status"] not in ("pre_sync", "active"):
         raise HTTPException(409, f"Cannot edit an employee record in status '{row['status']}'")
-    if body.department_id and not query_one("SELECT id FROM business_unit WHERE id=%s", [body.department_id]):
+    if body.department_id and not query_one(
+        "SELECT bu.id FROM business_unit bu JOIN group_company gc ON gc.id=bu.company_id "
+        "WHERE bu.id=%s AND gc.tenant_id=%s",
+        [body.department_id, tenant_id],
+    ):
         raise HTTPException(400, "Invalid department_id")
-    if body.manager_id and not query_one("SELECT id FROM app_user WHERE id=%s", [body.manager_id]):
+    if body.manager_id and not query_one("SELECT id FROM app_user WHERE id=%s AND tenant_id=%s", [body.manager_id, tenant_id]):
         raise HTTPException(400, "Invalid manager_id")
 
     fields, params = [], []
