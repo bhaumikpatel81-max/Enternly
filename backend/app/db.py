@@ -26,13 +26,20 @@ def _get_pool():
         with _pool_lock:
             if _pool is None:
                 # ThreadedConnectionPool.getconn() raises immediately when
-                # exhausted rather than queuing — keep this >= the sync
-                # thread-pool size (see main.py's _tune_sync_thread_pool) so
+                # exhausted rather than queuing — keep this >= SYNC_THREAD_POOL_SIZE
+                # (see main.py's _tune_sync_thread_pool, default also 20) so
                 # the DB pool is never a tighter, error-raising bottleneck
                 # than the thread-pool queue already in front of it.
+                #
+                # This pool is created PER worker process, so with N uvicorn
+                # workers (WEB_CONCURRENCY) the DB sees up to N * DB_POOL_MAX
+                # connections. Defaults are sized for a small free-tier hosted
+                # Postgres (e.g. Neon free tier) at the default WEB_CONCURRENCY
+                # of 2 -- raise these only after checking the target DB's
+                # actual max_connections against WEB_CONCURRENCY * DB_POOL_MAX.
                 _pool = psycopg2.pool.ThreadedConnectionPool(
-                    int(os.getenv("DB_POOL_MIN", "2")),
-                    int(os.getenv("DB_POOL_MAX", "80")),
+                    int(os.getenv("DB_POOL_MIN", "1")),
+                    int(os.getenv("DB_POOL_MAX", "20")),
                     host=os.getenv("DB_HOST", "localhost"),
                     port=os.getenv("DB_PORT", "5432"),
                     dbname=os.getenv("DB_NAME", "oneclickhire"),

@@ -40,7 +40,16 @@ def read_identity(session_id: str) -> Optional[dict]:
     return {"data": bytes(row["data"]), "ext": row["ext"], "content_type": row["content_type"]}
 
 
+_MAX_CHUNK_BYTES = 20 * 1024 * 1024  # 20MB -- one webcam/screen chunk (a few seconds of video)
+
+
 def save_chunk(session_id: str, media_type: str, chunk_index: int, data: bytes, ext: str, content_type: str) -> None:
+    if len(data) > _MAX_CHUNK_BYTES:
+        # No caller-facing size check existed before this -- proctoring media
+        # is stored as Postgres BYTEA (not disk), so an unbounded chunk here
+        # is a direct database-bloat / storage-cost risk, not just a disk one.
+        from fastapi import HTTPException
+        raise HTTPException(413, "Media chunk is too large")
     query(
         """INSERT INTO proctoring_media
                (session_id, media_type, chunk_index, ext, content_type, data, byte_size)

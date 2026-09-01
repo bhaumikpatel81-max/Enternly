@@ -15,8 +15,13 @@ from typing import Optional
 
 from ..db import query, query_one
 from . import cv_parser as _parser
+from .storage import get_storage
 
 _CV_STORE = os.environ.get("CV_STORE_DIR", "/app/cv_store")
+
+
+def _cv_storage():
+    return get_storage("cv", local_env_var="CV_STORE_DIR", local_default=_CV_STORE)
 
 _SCAN_PAUSED_KEY = "cv_scan_paused"
 
@@ -66,8 +71,6 @@ def ingest_one(
     Gmail CV-ingest poller in email_ingest.py — that resolves its own
     per-account tenant separately rather than through this parameter.
     """
-    os.makedirs(_CV_STORE, exist_ok=True)
-
     ext = Path(filename).suffix.lower().lstrip(".")
     file_hash = _parser.sha256_hash(data)
 
@@ -88,9 +91,7 @@ def ingest_one(
     name   = _parser.parse_candidate_name(filename)
 
     cv_id   = str(uuid.uuid4())
-    dest    = os.path.join(_CV_STORE, f"{cv_id}.{ext}")
-    with open(dest, "wb") as f:
-        f.write(data)
+    dest    = _cv_storage().save(f"{cv_id}.{ext}", data)
 
     # Auto-map by normalised full_name
     candidate_id = req_id = None

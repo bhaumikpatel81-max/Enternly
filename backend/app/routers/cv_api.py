@@ -21,6 +21,7 @@ from ..auth_utils import _decode, get_current_user
 from ..db import query, query_one
 from ..services import cv_parser as _parser
 from ..services.cv_ingest import ingest_one as _ingest_one
+from ..services.storage import get_storage, storage_response
 
 from ..module_access import require_tenant_module
 
@@ -31,6 +32,10 @@ _ALLOWED    = {"ta_manager", "recruiter", "admin"}
 _bearer     = HTTPBearer(auto_error=False)
 _SUPPORTED  = {".pdf", ".docx", ".doc"}
 _CV_STORE   = os.environ.get("CV_STORE_DIR", "/app/cv_store")
+
+
+def _cv_storage():
+    return get_storage("cv", local_env_var="CV_STORE_DIR", local_default=_CV_STORE)
 
 
 # ── Auth: JWT or long-lived API token ────────────────────────────────────────
@@ -170,8 +175,6 @@ def ingest_and_link(
     if the same bytes already exist, the existing row is re-linked if unlinked.
     Returns: {status:'ok'|'duplicate'|'error', cv_id, mapped:True}.
     """
-    os.makedirs(_CV_STORE, exist_ok=True)
-
     ext = Path(filename).suffix.lower().lstrip(".")
     if not ext:
         ext = "bin"
@@ -207,9 +210,7 @@ def ingest_and_link(
     name     = _parser.parse_candidate_name(filename)
 
     cv_id = str(uuid.uuid4())
-    dest  = os.path.join(_CV_STORE, f"{cv_id}.{ext}")
-    with open(dest, "wb") as f:
-        f.write(data)
+    dest  = _cv_storage().save(f"{cv_id}.{ext}", data)
 
     tenant_col, tenant_ph, tenant_val = ("tenant_id, ", "%s, ", [tenant_id]) if tenant_id else ("", "", [])
     query(
@@ -914,11 +915,8 @@ def serve_cv_file(cv_id: str, user: dict = Depends(_cv_auth)):
         "SELECT file_path, file_name, file_ext FROM cv_repository WHERE id=%s AND tenant_id=%s",
         [cv_id, user.get("tenant_id")],
     )
-    if not row:
+    if not row or not row["file_path"]:
         raise HTTPException(404, "CV not found")
-    path = row["file_path"]
-    if not path or not os.path.exists(path):
-        raise HTTPException(404, "File not found on disk")
     media_types = {
         "pdf":  "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -926,17 +924,19 @@ def serve_cv_file(cv_id: str, user: dict = Depends(_cv_auth)):
         "txt":  "text/plain",
     }
     mt = media_types.get(row["file_ext"] or "", "application/octet-stream")
-    return FileResponse(
-        path,
-        media_type=mt,
+    # "View" (viewAuth, opens in a new tab) needs the browser to render the
+    # file instead of forcing a download dialog. The separate "↓" download
+    # button goes through downloadAuth's blob+`download` attribute, which
+    # forces a save regardless of this header — so inline here doesn't
+    # affect that button.
+    resp = storage_response(
+        _cv_storage(), row["file_path"],
         filename=row["file_name"] or f"cv_{cv_id}.{row['file_ext']}",
-        # "View" (viewAuth, opens in a new tab) needs the browser to render
-        # the file instead of forcing a download dialog. The separate "↓"
-        # download button goes through downloadAuth's blob+`download`
-        # attribute, which forces a save regardless of this header — so
-        # switching to inline here doesn't affect that button.
-        content_disposition_type="inline",
+        media_type=mt, inline=True,
     )
+    if resp is None:
+        raise HTTPException(404, "File not found in storage")
+    return resp
 
 
 @router.delete("/{cv_id}")
@@ -953,11 +953,8 @@ def delete_cv(cv_id: str, user: dict = Depends(_cv_auth)):
 
     query("DELETE FROM cv_repository WHERE id=%s", [cv_id], fetch=False)
 
-    if row["file_path"] and os.path.exists(row["file_path"]):
-        try:
-            os.remove(row["file_path"])
-        except OSError:
-            pass
+    if row["file_path"]:
+        _cv_storage().delete(row["file_path"])
 
     return {"ok": True}
 
@@ -1078,8 +1075,8 @@ def _map_one_cv_to_requisition(cv_id: str, requisition_id: str, tenant_id: str =
         raise HTTPException(404, "Requisition not found")
 
     file_size_bytes = 0
-    if row["file_path"] and os.path.exists(row["file_path"]):
-        file_size_bytes = os.path.getsize(row["file_path"])
+    if row["file_path"]:
+        file_size_bytes = _cv_storage().size(row["file_path"]) or 0
 
     candidate_id = str(row["candidate_id"]) if row["candidate_id"] else None
     if not candidate_id:
@@ -1173,13 +1170,11 @@ def bulk_delete_cv(body: BulkDeleteIn, user: dict = Depends(_cv_auth)):
         query("DELETE FROM cv_repository WHERE id = ANY(%s::uuid[])", [found_ids], fetch=False)
 
     removed_files = 0
+    storage = _cv_storage()
     for r in rows:
-        if r["file_path"] and os.path.exists(r["file_path"]):
-            try:
-                os.remove(r["file_path"])
-                removed_files += 1
-            except OSError:
-                pass
+        if r["file_path"]:
+            storage.delete(r["file_path"])
+            removed_files += 1
 
     return {"deleted": len(found_ids), "not_found": not_found, "files_removed": removed_files}
 

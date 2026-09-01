@@ -78,6 +78,15 @@ def create_token(user: dict) -> str:
     return _build_token(user)
 
 
+def create_download_token(user: dict) -> str:
+    """Very short-lived (60s) staff token for one-off file-download links
+    (opening a CV/JD/resume in a new browser tab, which can't attach a
+    custom Authorization header, so the token has to travel in the URL).
+    A leaked URL, access log line, or Referer header now only exposes a
+    session valid for a minute instead of the full TOKEN_HOURS session."""
+    return _build_token(user, hours=1 / 60)
+
+
 def create_platform_token(user: dict) -> str:
     """Same staff token shape as create_token, plus platform=True so the
     platform console's own auth guard can tell a platform login apart from

@@ -7,6 +7,7 @@ python-multipart==0.0.9
 requests==2.31.0
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
+cryptography>=42.0.0    # explicit dep for services/token_crypto.py (Fernet) -- already pulled in transitively by python-jose[cryptography] above
 pypdf>=4.0.0
 reportlab>=4.2.0
 python-docx>=1.1.0
@@ -14,6 +15,7 @@ openpyxl>=3.1.0
 gtts>=2.4.0
 edge-tts>=6.1.9
 google-cloud-storage>=2.16.0
+boto3>=1.34.0    # S3-compatible object storage (Backblaze B2) -- see services/storage.py
 openai>=1.40.0
 pymupdf>=1.24.0
 mammoth>=1.6.0

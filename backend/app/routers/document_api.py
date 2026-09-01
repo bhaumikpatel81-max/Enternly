@@ -20,6 +20,7 @@ from ..db import query, query_one
 from ..module_access import require_tenant_module
 from ..routers.candidate_portal_api import get_current_candidate
 from ..services.activity_log import log_activity
+from ..services.storage import get_storage
 
 router = APIRouter(prefix="/api/documents", tags=["documents"],
                     dependencies=[Depends(require_tenant_module("documents"))])
@@ -310,11 +311,9 @@ async def candidate_upload_document(
     if not doc:
         raise HTTPException(404, "This document type was not requested")
 
-    store = os.environ.get("DOC_STORE_DIR", "/app/doc_store")
-    os.makedirs(store, exist_ok=True)
-    dest = os.path.join(store, f"{uuid.uuid4()}{ext}")
-    with open(dest, "wb") as f:
-        f.write(data)
+    dest = get_storage(
+        "docs", local_env_var="DOC_STORE_DIR", local_default="/app/doc_store"
+    ).save(f"{uuid.uuid4()}{ext}", data)
 
     query(
         """UPDATE candidate_document

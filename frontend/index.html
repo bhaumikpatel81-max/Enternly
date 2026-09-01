@@ -2436,17 +2436,26 @@ async function downloadAuth(url, filename) {
 // ── Authenticated file view (opens in a new tab instead of downloading) ───────
 // A new top-level tab can't be pointed at a fetch()-built blob: URL (it's
 // scoped to the tab that created it) and can't carry a custom Authorization
-// header either — so the token rides along as a query param the backend
-// accepts as a fallback (see _cv_auth in cv_api.py).
-function viewAuth(url) {
-  const token = localStorage.getItem('enternly_token');
+// header either — so a token rides along as a query param the backend
+// accepts as a fallback (see _cv_auth in cv_api.py). Using the long-lived
+// session token there would put it in the URL bar, browser history, and any
+// access log / Referer header for its full 8-hour life — instead this mints
+// a 60-second single-use download token first (see /api/auth/download-token)
+// and opens the tab with that. The tab is opened synchronously (before the
+// await) so it still counts as a direct user-gesture popup in every browser;
+// only its destination is filled in once the short-lived token comes back.
+async function viewAuth(url) {
+  const win = window.open('', '_blank');
+  const res = await api('/api/auth/download-token', { method: 'POST' });
+  if (!res || !res.token) {
+    if (win) win.close();
+    flash('Could not open file — please try again.', false);
+    return;
+  }
   const sep = url.includes('?') ? '&' : '?';
-  const a = document.createElement('a');
-  a.href = url + sep + 'token=' + encodeURIComponent(token);
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const dest = url + sep + 'token=' + encodeURIComponent(res.token);
+  if (win) win.location = dest;
+  else window.open(dest, '_blank');
 }
 
 // ── Activity Timeline panel (requisition/application detail drill-down) ──────
@@ -6404,8 +6413,8 @@ function renderCVTable(rows) {
 
     return `<tr>
       <td>
-        <div style="font-weight:600;font-size:13px">${r.full_name}</div>
-        <div style="font-size:11px;color:var(--muted)">${r.email}</div>
+        <div style="font-weight:600;font-size:13px">${esc(r.full_name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${esc(r.email)}</div>
       </td>
       <td style="font-size:12px;color:var(--muted)">${genderIcon} ${r.gender||'—'}</td>
       <td style="font-size:12px">${r.latest_position||'—'}</td>
@@ -11554,10 +11563,10 @@ async function screenEnteriAISessions() {
   const tRows = rows.map(r => {
     const durMin = r.duration_min != null ? parseFloat(r.duration_min).toFixed(0)+'m' : '—';
     const dateStr = r.created_at ? new Date(r.created_at).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'}) : '—';
-    const recCol = showRecruiter ? `<td style="font-size:12px;color:var(--muted)">${r.recruiter_name||'—'}</td>` : '';
+    const recCol = showRecruiter ? `<td style="font-size:12px;color:var(--muted)">${esc(r.recruiter_name)||'—'}</td>` : '';
     return `<tr>
-      <td><strong>${r.candidate_name}</strong><br><span style="font-size:11px;color:var(--muted)">${r.candidate_email||''}</span></td>
-      <td style="font-size:12px">${r.req_title}</td>
+      <td><strong>${esc(r.candidate_name)}</strong><br><span style="font-size:11px;color:var(--muted)">${esc(r.candidate_email)||''}</span></td>
+      <td style="font-size:12px">${esc(r.req_title)}</td>
       ${recCol}
       <td>${_scorePill(r.raw_score)}</td>
       <td><span class="pill ${r.status}">${r.status.replace(/_/g,' ')}</span></td>
@@ -11632,7 +11641,7 @@ async function screenSysHealth() {
     <td style="font-size:12px">${new Date(t.created_at).toLocaleDateString('en-IN')}</td>
     <td>${t.raised_by_name} <span style="font-size:11px;color:var(--muted)">(${(t.raised_by_role||'').replace(/_/g,' ')})</span></td>
     <td><span class="pill">${t.category}</span></td>
-    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.subject}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.subject)}</td>
     <td><span class="pill ${t.status}">${t.status.replace(/_/g,' ')}</span></td>
     <td><button class="btn btn-ghost btn-sm" onclick="navigate('tickets')">View</button></td>
   </tr>`).join('');
@@ -11640,7 +11649,7 @@ async function screenSysHealth() {
   // Recent logins
   const llRows = (d.recent_logins||[]).slice(0,15).map(l=>`<tr>
     <td style="font-size:11px">${new Date(l.logged_at).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</td>
-    <td>${l.full_name}</td>
+    <td>${esc(l.full_name)}</td>
     <td>${(l.user_role||'').replace(/_/g,' ')}</td>
     <td style="font-size:11px;color:var(--muted)">${l.ip_address||'—'}</td>
   </tr>`).join('');
@@ -13193,16 +13202,16 @@ async function screenChainTemplates(){
 
   function stepsPreview(steps){
     if(!steps||!steps.length) return '<em style="color:var(--muted)">No steps</em>';
-    return steps.map(s=>`<span title="SLA: ${s.sla_days}d"><strong>${s.sequence}.</strong> ${s.full_name} <span class="rag-badge amber" style="font-size:10px;padding:1px 5px">${s.sla_days}d</span></span>`).join(' → ');
+    return steps.map(s=>`<span title="SLA: ${s.sla_days}d"><strong>${s.sequence}.</strong> ${esc(s.full_name)} <span class="rag-badge amber" style="font-size:10px;padding:1px 5px">${s.sla_days}d</span></span>`).join(' → ');
   }
 
   const tRows=(templates||[]).map(t=>`
     <tr>
-      <td><strong>${t.name}</strong>${t.description?`<div style="font-size:11px;color:var(--muted)">${t.description}</div>`:''}</td>
+      <td><strong>${esc(t.name)}</strong>${t.description?`<div style="font-size:11px;color:var(--muted)">${esc(t.description)}</div>`:''}</td>
       <td><div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">${stepsPreview(t.steps)}</div></td>
       <td><div class="inline-btns">
-        <button class="btn btn-ghost btn-sm" onclick="openCTModal('${t.id}')">Edit</button>
-        <button class="btn btn-ghost btn-sm" style="color:#e2455a" onclick="_deleteCT('${t.id}','${t.name.replace(/'/g,"\\'")}')">Delete</button>
+        <button class="btn btn-ghost btn-sm" onclick="openCTModal('${escAttr(t.id)}')">Edit</button>
+        <button class="btn btn-ghost btn-sm" style="color:#e2455a" onclick="_deleteCT('${escAttr(t.id)}','${escAttr(t.name)}')">Delete</button>
       </div></td>
     </tr>`).join('');
 
@@ -13248,7 +13257,7 @@ function _ctRenderSteps(){
     ? _ctSteps.map((s,i)=>`
         <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--hov);border:1px solid var(--border);border-radius:4px">
           <span style="font-size:11px;font-weight:700;color:var(--muted);min-width:22px">${'→'.repeat(i)} ${i+1}</span>
-          <span style="flex:1;font-size:13px">${s.full_name}</span>
+          <span style="flex:1;font-size:13px">${esc(s.full_name)}</span>
           <label style="font-size:11px;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:4px">
             SLA <input type="number" min="1" value="${s.sla_days||2}" style="width:50px;font-size:12px;padding:2px 5px;border:1px solid var(--border);border-radius:3px"
               oninput="_ctSteps[${i}].sla_days=Math.max(1,parseInt(this.value)||1)"> days

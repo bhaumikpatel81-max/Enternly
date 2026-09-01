@@ -28,6 +28,7 @@ from typing import Optional
 import requests
 
 from ..db import query, query_one
+from .token_crypto import encrypt as _enc, decrypt as _dec
 
 _TOKEN_URL   = "https://oauth2.googleapis.com/token"
 _AUTH_URL    = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -67,10 +68,14 @@ def is_configured() -> bool:
 
 def get_connection(tenant_id: str) -> Optional[dict]:
     """This tenant's active connection row, if one exists."""
-    return query_one(
+    conn = query_one(
         "SELECT * FROM google_calendar_connection WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
         [tenant_id],
     )
+    if conn:
+        conn["access_token"] = _dec(conn.get("access_token"))
+        conn["refresh_token"] = _dec(conn.get("refresh_token"))
+    return conn
 
 
 def is_connected(tenant_id: str) -> bool:
@@ -193,7 +198,7 @@ def exchange_code_and_store(code: str, connected_by: Optional[str]) -> dict:
         """INSERT INTO google_calendar_connection
              (google_email, access_token, refresh_token, token_expiry, scope, connected_by, tenant_id)
            VALUES (%s,%s,%s,%s,%s,%s,%s)""",
-        [google_email, access_token, refresh_token, expiry, scope, connected_by, tenant_id],
+        [google_email, _enc(access_token), _enc(refresh_token), expiry, scope, connected_by, tenant_id],
         fetch=False,
     )
     return {"google_email": google_email}
@@ -226,7 +231,7 @@ def _refresh_access_token(conn: dict) -> Optional[str]:
     expiry = datetime.now(timezone.utc) + timedelta(seconds=int(tokens.get("expires_in") or 3600))
     query(
         "UPDATE google_calendar_connection SET access_token=%s, token_expiry=%s, updated_at=now() WHERE id=%s",
-        [access_token, expiry, conn["id"]], fetch=False,
+        [_enc(access_token), expiry, conn["id"]], fetch=False,
     )
     return access_token
 

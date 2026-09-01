@@ -307,7 +307,10 @@ def get_offer_approvers(req_id: str, user: dict = Depends(get_current_user)):
     """Return the ordered approval chain for a requisition (with user names)."""
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
-    if not query_one("SELECT id FROM requisition WHERE id=%s", [req_id]):
+    if not query_one(
+        "SELECT id FROM requisition WHERE id=%s AND tenant_id=%s",
+        [req_id, user.get("tenant_id")],
+    ):
         raise HTTPException(404, "Requisition not found")
     rows = query(
         """SELECT roa.sequence, roa.approver_id,
@@ -334,7 +337,8 @@ def set_offer_approvers(
     """
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised")
-    if not query_one("SELECT id FROM requisition WHERE id=%s", [req_id]):
+    tid = user.get("tenant_id")
+    if not query_one("SELECT id FROM requisition WHERE id=%s AND tenant_id=%s", [req_id, tid]):
         raise HTTPException(404, "Requisition not found")
 
     steps = body.effective_steps()
@@ -343,9 +347,12 @@ def set_offer_approvers(
         query("DELETE FROM req_offer_approver WHERE requisition_id=%s", [req_id], fetch=False)
         return {"ok": True, "total_steps": 0}
 
-    # Validate all approver IDs exist
+    # Validate all approver IDs exist and belong to the same tenant
     for s in steps:
-        if not query_one("SELECT id FROM app_user WHERE id=%s AND is_active=TRUE", [s.approver_id]):
+        if not query_one(
+            "SELECT id FROM app_user WHERE id=%s AND is_active=TRUE AND tenant_id=%s",
+            [s.approver_id, tid],
+        ):
             raise HTTPException(400, f"User {s.approver_id} not found or inactive")
 
     # Replace chain (delete + re-insert to preserve ordering cleanly)
@@ -379,8 +386,8 @@ def create_offer(body: CreateOfferIn, user: dict = Depends(get_current_user)):
            FROM application a
            JOIN candidate   c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
-           WHERE a.id = %s""",
-        [body.application_id],
+           WHERE a.id = %s AND r.tenant_id = %s""",
+        [body.application_id, user.get("tenant_id")],
     )
     if not app_row:
         raise HTTPException(404, "Application not found")
@@ -590,8 +597,8 @@ def get_offer(offer_id: str, user: dict = Depends(get_current_user)):
            JOIN candidate    c   ON c.id  = a.candidate_id
            JOIN requisition  r   ON r.id  = a.requisition_id
            LEFT JOIN app_user sub ON sub.id = o.submitted_by
-           WHERE o.id = %s""",
-        [offer_id],
+           WHERE o.id = %s AND r.tenant_id = %s""",
+        [offer_id, user.get("tenant_id")],
     )
     if not offer:
         raise HTTPException(404, "Offer not found")
@@ -638,9 +645,11 @@ def edit_offer(offer_id: str, body: EditOfferIn, user: dict = Depends(get_curren
 
     offer = query_one(
         """SELECT o.id, o.status, o.fixed_ctc, o.variable_ctc, o.bonus_ctc, a.requisition_id
-           FROM offer o JOIN application a ON a.id = o.application_id
-           WHERE o.id=%s""",
-        [offer_id],
+           FROM offer o
+           JOIN application a ON a.id = o.application_id
+           JOIN requisition r ON r.id = a.requisition_id
+           WHERE o.id=%s AND r.tenant_id=%s""",
+        [offer_id, user.get("tenant_id")],
     )
     if not offer:
         raise HTTPException(404, "Offer not found")
@@ -690,8 +699,8 @@ def resubmit_offer(offer_id: str, user: dict = Depends(get_current_user)):
            JOIN application a ON a.id = o.application_id
            JOIN candidate   c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
-           WHERE o.id = %s""",
-        [offer_id],
+           WHERE o.id = %s AND r.tenant_id = %s""",
+        [offer_id, user.get("tenant_id")],
     )
     if not offer:
         raise HTTPException(404, "Offer not found")
@@ -765,8 +774,8 @@ def resend_approval_notice(offer_id: str, user: dict = Depends(get_current_user)
            JOIN application a ON a.id = o.application_id
            JOIN candidate   c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
-           WHERE o.id = %s""",
-        [offer_id],
+           WHERE o.id = %s AND r.tenant_id = %s""",
+        [offer_id, user.get("tenant_id")],
     )
     if not offer:
         raise HTTPException(404, "Offer not found")
@@ -827,8 +836,8 @@ def approve_offer_step(offer_id: str, body: ApproveIn, user: dict = Depends(get_
            JOIN application a ON a.id = o.application_id
            JOIN candidate   c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
-           WHERE o.id = %s""",
-        [offer_id],
+           WHERE o.id = %s AND r.tenant_id = %s""",
+        [offer_id, user.get("tenant_id")],
     )
     if not offer:
         raise HTTPException(404, "Offer not found")
@@ -1012,8 +1021,8 @@ def reject_offer_step(offer_id: str, body: RejectIn, user: dict = Depends(get_cu
            JOIN application a ON a.id = o.application_id
            JOIN candidate   c ON c.id = a.candidate_id
            JOIN requisition r ON r.id = a.requisition_id
-           WHERE o.id = %s""",
-        [offer_id],
+           WHERE o.id = %s AND r.tenant_id = %s""",
+        [offer_id, user.get("tenant_id")],
     )
     if not offer:
         raise HTTPException(404, "Offer not found")
@@ -1095,9 +1104,11 @@ def update_offer_status(offer_id: str, body: OfferStatusIn, user: dict = Depends
 
     offer = query_one(
         """SELECT o.id, o.application_id, o.status, a.requisition_id
-           FROM offer o JOIN application a ON a.id = o.application_id
-           WHERE o.id=%s""",
-        [offer_id],
+           FROM offer o
+           JOIN application a ON a.id = o.application_id
+           JOIN requisition r ON r.id = a.requisition_id
+           WHERE o.id=%s AND r.tenant_id=%s""",
+        [offer_id, user.get("tenant_id")],
     )
     if not offer:
         raise HTTPException(404, "Offer not found")

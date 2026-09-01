@@ -368,7 +368,10 @@ def _assert_ta_or_admin(user: dict) -> None:
 def suspend_vendor_user(vendor_id: str, user_id: str, user: dict = Depends(get_current_user)):
     _assert_ta_or_admin(user)
     if not query_one(
-        "SELECT id FROM vendor_user WHERE id=%s AND vendor_id=%s", [user_id, vendor_id]
+        """SELECT vu.id FROM vendor_user vu
+           JOIN vendor v ON v.id = vu.vendor_id
+           WHERE vu.id=%s AND vu.vendor_id=%s AND v.tenant_id=%s""",
+        [user_id, vendor_id, user.get("tenant_id")],
     ):
         raise HTTPException(404, "Vendor user not found")
     query("UPDATE vendor_user SET is_active=FALSE WHERE id=%s", [user_id], fetch=False)
@@ -383,7 +386,10 @@ def suspend_vendor_user(vendor_id: str, user_id: str, user: dict = Depends(get_c
 def reactivate_vendor_user(vendor_id: str, user_id: str, user: dict = Depends(get_current_user)):
     _assert_ta_or_admin(user)
     if not query_one(
-        "SELECT id FROM vendor_user WHERE id=%s AND vendor_id=%s", [user_id, vendor_id]
+        """SELECT vu.id FROM vendor_user vu
+           JOIN vendor v ON v.id = vu.vendor_id
+           WHERE vu.id=%s AND vu.vendor_id=%s AND v.tenant_id=%s""",
+        [user_id, vendor_id, user.get("tenant_id")],
     ):
         raise HTTPException(404, "Vendor user not found")
     query("UPDATE vendor_user SET is_active=TRUE WHERE id=%s", [user_id], fetch=False)
@@ -394,7 +400,10 @@ def reactivate_vendor_user(vendor_id: str, user_id: str, user: dict = Depends(ge
 
 @router.get("/requisitions/{req_id}/vendors")
 def list_req_vendors(req_id: str, user: dict = Depends(_require_internal)):
-    if not query_one("SELECT id FROM requisition WHERE id=%s", [req_id]):
+    if not query_one(
+        "SELECT id FROM requisition WHERE id=%s AND tenant_id=%s",
+        [req_id, user.get("tenant_id")],
+    ):
         raise HTTPException(404, "Requisition not found")
     return query(
         """SELECT v.id, v.name, v.status, rv.opened_at,

@@ -21,6 +21,7 @@ from ..db import query, query_one
 from ..auth_utils import hash_password, require_company_admin, get_current_user, is_company_tier
 from ..services.connectors import send_email, _load_email_cfg
 from ..services.activity_log import log_activity
+from ..services.rate_limit import rate_limit_dep
 
 router = APIRouter(prefix="/api/auth", tags=["password"])
 
@@ -167,7 +168,7 @@ class ForgotIn(BaseModel):
     email: str
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", dependencies=[Depends(rate_limit_dep("forgot_password", 5, 900))])
 def forgot_password(body: ForgotIn):
     """
     Public. Checks staff (app_user), then vendor (vendor_user), then candidate

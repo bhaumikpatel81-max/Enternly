@@ -15,6 +15,8 @@ import tempfile
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File
+
+from ..services.rate_limit import rate_limit_dep
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
@@ -1574,7 +1576,7 @@ def _fire_completion_email(session_id: str) -> None:
         )
 
 
-@router.post("/invite/converse")
+@router.post("/invite/converse", dependencies=[Depends(rate_limit_dep("ai_converse", 60, 60))])
 async def converse_invite(token: str, body: ConverseIn, background_tasks: BackgroundTasks):
     """
     Public — drive one turn of a conversational (LLM-led) Enteri AI interview.
@@ -2254,16 +2256,25 @@ async def submit_invited_session(session_id: str, body: SubmitSessionIn, backgro
     return {"session_id": session_id, "raw_score": raw_score, "score_detail": detail}
 
 
-@router.post("/invite/transcribe")
+_MAX_TRANSCRIBE_BYTES = 25 * 1024 * 1024  # 25MB -- matches Whisper's own upload cap
+
+
+@router.post("/invite/transcribe", dependencies=[Depends(rate_limit_dep("ai_transcribe", 30, 60))])
 async def transcribe_candidate_audio(file: UploadFile = File(...)):
     """
     Public — transcribe one candidate audio blob via Whisper.
     Returns {"text": "..."}. The frontend sends this text to /invite/converse.
+
+    No JWT gates this (any candidate with an in-progress interview link needs
+    it), so it's bounded instead by a per-IP rate limit and a hard size cap —
+    otherwise it's an open door to run up Whisper API costs.
     """
     from ..services.stt import transcribe_audio
     audio = await file.read()
     if not audio:
         raise HTTPException(400, "Empty audio")
+    if len(audio) > _MAX_TRANSCRIBE_BYTES:
+        raise HTTPException(413, "Audio clip is too large (25MB max)")
     try:
         text = transcribe_audio(audio, file.filename or "audio.webm")
     except Exception as exc:

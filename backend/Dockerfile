@@ -40,4 +40,8 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",\"8080\")}/api/health')" || exit 1
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers=8"]
+# Worker count is configurable (WEB_CONCURRENCY) so free-tier deployments
+# (Render Free, Neon Free's low connection ceiling) aren't forced into
+# workers × DB_POOL_MAX connections far beyond what the DB can accept.
+# Default of 2 is deliberately conservative; raise it via env on bigger infra.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers=${WEB_CONCURRENCY:-2}"]

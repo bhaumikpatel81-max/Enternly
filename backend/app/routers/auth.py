@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..db import query, query_one
-from ..auth_utils import create_token, get_current_user, hash_password, verify_password
+from ..auth_utils import create_download_token, create_token, get_current_user, hash_password, verify_password
 from ..login_rate_limit import client_ip as _client_ip, log_attempt as _log_attempt, rate_limited as _rate_limited
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -94,6 +94,27 @@ def login(body: LoginIn, request: Request):
 @router.get("/me")
 def me(user: dict = Depends(get_current_user)):
     return user
+
+
+@router.post("/download-token")
+def download_token(user: dict = Depends(get_current_user)):
+    """
+    A fresh 60-second token for opening a file (CV/JD/resume) in a new
+    browser tab -- those links can't attach a custom Authorization header,
+    so the token has to travel in the URL's ?token= query param, which lands
+    in server access logs / browser history / any Referer header the tab
+    sends onward. Minting a near-immediately-expiring token for that one
+    request keeps that exposure to ~60 seconds instead of the full session.
+    """
+    row = query_one(
+        """SELECT id, full_name, email, role, tenant_id, token_version,
+                  is_platform_superadmin, is_company_admin
+           FROM app_user WHERE id = %s""",
+        [user["sub"]],
+    )
+    if not row:
+        raise HTTPException(404, "User not found")
+    return {"token": create_download_token(dict(row))}
 
 
 @router.post("/change-password")

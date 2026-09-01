@@ -3088,6 +3088,36 @@ END $$""",
         """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
            SELECT t.id, 'hrms', TRUE, now() FROM tenant t
            ON CONFLICT (tenant_id, module_key) DO NOTHING""",
+
+        # ── Migration 113: v_recruiter_load tenant scoping (2026-09). Mirrors
+        # database/73_tenant_scoping_hardening.sql -- that file only runs on a
+        # brand-new database's initdb pass (docker-entrypoint-initdb.d), never
+        # against an already-initialized one, so it has to be repeated here
+        # too for _auto_migrate() to actually apply it on a normal boot. See
+        # PLATFORM_ADMIN_MAPPING-era dashboard() fix: this view previously had
+        # no tenant_id column at all, so pipeline_api.dashboard()'s
+        # "recruiter_load" panel for ta_manager/admin leaked every tenant's
+        # recruiter-load stats to every other tenant's staff. A bare
+        # CREATE OR REPLACE VIEW can't insert tenant_id ahead of full_name
+        # (Postgres only allows appending trailing columns, not reordering/
+        # renaming existing ones -- "cannot change name of view column
+        # \"full_name\" to \"tenant_id\""), so this drops and recreates
+        # instead. Confirmed via pg_depend that nothing else references this
+        # view, so CASCADE has nothing else to drop.
+        "DROP VIEW IF EXISTS v_recruiter_load CASCADE",
+        """CREATE OR REPLACE VIEW v_recruiter_load AS
+           SELECT
+               u.id          AS recruiter_id,
+               u.tenant_id   AS tenant_id,
+               u.full_name,
+               COUNT(DISTINCT rr.requisition_id) FILTER (WHERE r.status = 'open') AS open_reqs,
+               COUNT(DISTINCT a.id)              AS total_applications
+           FROM app_user u
+           LEFT JOIN requisition_recruiter rr ON rr.recruiter_id = u.id
+           LEFT JOIN requisition r            ON r.id = rr.requisition_id
+           LEFT JOIN application a            ON a.requisition_id = r.id
+           WHERE u.role IN ('recruiter','ta_manager')
+           GROUP BY u.id, u.tenant_id, u.full_name""",
     ]
     for sql in migrations:
         try:
@@ -3159,7 +3189,7 @@ async def _tune_sync_thread_pool():
     """
     import anyio
     limiter = anyio.to_thread.current_default_thread_limiter()
-    limiter.total_tokens = int(os.getenv("SYNC_THREAD_POOL_SIZE", "64"))
+    limiter.total_tokens = int(os.getenv("SYNC_THREAD_POOL_SIZE", "20"))
 
 
 # Postgres advisory-lock key identifying "the background-workers singleton
@@ -3428,6 +3458,33 @@ async def auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """
+    Baseline response headers -- none of these existed before. Kept
+    conservative on purpose: the frontend is 100% inline <script>/<style>
+    per-page (no external JS/CSS bundle), so a strict Content-Security-Policy
+    would need 'unsafe-inline' anyway and risks breaking pages we can't
+    exercise in a real browser from here. SECURITY_CSP=1 opts into a minimal
+    same-origin CSP once someone has verified it against a live deployment.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "geolocation=(), camera=(self), microphone=(self)"
+    )
+    if os.getenv("SECURITY_CSP", "0") == "1":
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data: https:; "
+            "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; frame-ancestors 'self'",
+        )
+    return response
+
+
 @app.exception_handler(psycopg2.Error)
 def db_error_handler(request: Request, exc: psycopg2.Error):
     return JSONResponse(status_code=400,
@@ -3451,24 +3508,52 @@ def serve_resume(filename: str, request: Request):
     if not safe_name or safe_name != filename:
         raise HTTPException(400, "Invalid filename")
 
-    file_path = os.path.join(_UPLOADS_DIR, safe_name)
-    if not os.path.isfile(file_path):
-        # Fallback: new resumes are stored in cv_store (single canonical location)
-        _cv_store_dir = os.environ.get("CV_STORE_DIR", "/app/cv_store")
-        file_path = os.path.join(_cv_store_dir, safe_name)
-        if not os.path.isfile(file_path):
-            raise HTTPException(404, "Resume file not found")
+    # This endpoint used to serve any file on disk by name with no ownership
+    # check at all -- any of the roles above, from any tenant, could fetch
+    # any other tenant's resume just by knowing/guessing the filename. Require
+    # a matching record (cv_repository or the legacy candidate.resume_url)
+    # inside the caller's own tenant before serving anything.
+    tenant_id = request.state.user.get("tenant_id")
+    like_suffix = f"%/{safe_name}"
+    owned = query_one(
+        """
+        SELECT 1 FROM cv_repository
+         WHERE tenant_id = %s AND (file_path LIKE %s OR file_name = %s)
+        UNION ALL
+        SELECT 1 FROM candidate
+         WHERE tenant_id = %s AND resume_url LIKE %s
+        LIMIT 1
+        """,
+        [tenant_id, like_suffix, safe_name, tenant_id, like_suffix],
+    )
+    if not owned:
+        raise HTTPException(404, "Resume file not found")
 
     ext = os.path.splitext(safe_name)[1].lower()
     media_type = _RESUME_MIME.get(ext, "application/octet-stream")
-
     # PDFs open inline in the browser; other formats force download
-    disposition = "inline" if ext == ".pdf" else "attachment"
-    return FileResponse(
-        file_path,
-        media_type=media_type,
-        headers={"Content-Disposition": f'{disposition}; filename="{safe_name}"'},
+    inline = ext == ".pdf"
+
+    # Legacy path: resumes uploaded before cv_repository existed, always local disk.
+    legacy_path = os.path.join(_UPLOADS_DIR, safe_name)
+    if os.path.isfile(legacy_path):
+        disposition = "inline" if inline else "attachment"
+        return FileResponse(
+            legacy_path,
+            media_type=media_type,
+            headers={"Content-Disposition": f'{disposition}; filename="{safe_name}"'},
+        )
+
+    # Canonical location -- goes through the same storage backend cv_api.py
+    # uses, so this works whether STORAGE_PROVIDER is local or s3.
+    from .services.storage import get_storage, storage_response
+    resp = storage_response(
+        get_storage("cv", local_env_var="CV_STORE_DIR", local_default="/app/cv_store"),
+        safe_name, filename=safe_name, media_type=media_type, inline=inline,
     )
+    if resp is None:
+        raise HTTPException(404, "Resume file not found")
+    return resp
 
 
 # ---------------- health ----------------

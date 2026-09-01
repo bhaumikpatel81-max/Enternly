@@ -15,6 +15,7 @@ from ..auth_utils import get_current_user
 from ..services import connectors
 from ..services.gamification import award as _gam_award
 from ..services.activity_log import log_activity
+from ..services.storage import get_storage, storage_response
 
 router = APIRouter(prefix="/api", tags=["pipeline"])
 
@@ -155,6 +156,7 @@ def pipeline_status(user: dict = Depends(get_current_user)):
     resolved server-side from existing relationships. Never trust a
     client-supplied scope; there isn't one to trust here on purpose."""
     role = user["role"]
+    tid = user.get("tenant_id")
     where, params = "", []
     if role == "recruiter":
         where = "AND r.id IN (SELECT requisition_id FROM requisition_recruiter WHERE recruiter_id = %s)"
@@ -166,9 +168,16 @@ def pipeline_status(user: dict = Depends(get_current_user)):
         hrbp_where, hrbp_params = scope_requisitions_for_hrbp(user)
         where, params = f"AND {hrbp_where}", hrbp_params
     elif role == "ta_manager":
-        pass  # unscoped -- full pipeline visibility
+        pass  # company-wide visibility, bounded to the caller's tenant below
     else:
         raise HTTPException(403, "Not authorised")
+
+    # Every role above is scoped within a single tenant already (recruiter via
+    # their own assignments, HM via hiring_manager_id, HRBP via its helper) --
+    # this is the one boundary ta_manager/admin previously lacked entirely.
+    if tid:
+        where += " AND r.tenant_id = %s"
+        params = params + [tid]
 
     rows = query(
         f"""SELECT a.id AS application_id, a.status AS app_status,
@@ -209,6 +218,7 @@ def dashboard(user: dict = Depends(get_current_user)):
     _deny_hrbp(user)
     role = user["role"]
     uid  = user["sub"]
+    tid  = user.get("tenant_id")
 
     if role == "recruiter":
         # Only count applications under the recruiter's own requisitions
@@ -224,9 +234,11 @@ def dashboard(user: dict = Depends(get_current_user)):
         """
         p = [uid]
     else:
-        app_filter = "1=1"
-        req_filter  = "1=1"
-        p = []
+        # admin / ta_manager / hiring_manager: company-wide visibility, bounded
+        # to the caller's own tenant -- never cross-tenant.
+        app_filter = "a.requisition_id IN (SELECT id FROM requisition WHERE tenant_id = %s)"
+        req_filter  = "r.tenant_id = %s"
+        p = [tid]
 
     def cnt(extra_where):
         row = query_one(
@@ -260,9 +272,12 @@ def dashboard(user: dict = Depends(get_current_user)):
         ) AS avg_days
         FROM stage_event e1
         JOIN stage_event e2 ON e2.application_id = e1.application_id
+        JOIN application a  ON a.id = e1.application_id
+        JOIN requisition r  ON r.id = a.requisition_id
         WHERE e1.to_status = 'applied' AND e2.to_status = 'hired'
+          AND r.tenant_id = %s
         """,
-        [],
+        [tid],
     )
     counts["avg_days_to_hire"] = float(ath["avg_days"]) if ath and ath["avg_days"] else None
 
@@ -282,8 +297,8 @@ def dashboard(user: dict = Depends(get_current_user)):
         )
     else:
         gender = query(
-            "SELECT gender, COUNT(*) AS n FROM candidate GROUP BY gender",
-            [],
+            "SELECT gender, COUNT(*) AS n FROM candidate WHERE tenant_id = %s GROUP BY gender",
+            [tid],
         )
     counts["gender_split"] = gender
 
@@ -325,9 +340,10 @@ def dashboard(user: dict = Depends(get_current_user)):
             FROM requisition r
             JOIN band b          ON b.id = r.band_id
             JOIN business_unit bu ON bu.id = r.bu_id
+            WHERE r.tenant_id = %s
             ORDER BY r.created_at DESC LIMIT 10
             """,
-            [],
+            [tid],
         )
     counts["recent_reqs"] = reqs
 
@@ -372,12 +388,17 @@ def dashboard(user: dict = Depends(get_current_user)):
         """
         nx_recent_params = [uid]
     else:
-        nx_where = ""
-        nx_params = []
-        nx_dist_where = "WHERE ns.status = 'completed' AND ns.raw_score IS NOT NULL"
-        nx_dist_params = []
-        nx_recent_where = ""
-        nx_recent_params = []
+        nx_where = "JOIN requisition r2 ON r2.id = ns.requisition_id AND r2.tenant_id = %s"
+        nx_params = [tid]
+        nx_dist_where = """
+            WHERE ns.status = 'completed' AND ns.raw_score IS NOT NULL
+              AND ns.requisition_id IN (
+                  SELECT id FROM requisition WHERE tenant_id = %s
+              )
+        """
+        nx_dist_params = [tid]
+        nx_recent_where = "JOIN requisition ri ON ri.id = ns.requisition_id AND ri.tenant_id = %s"
+        nx_recent_params = [tid]
 
     if role in ("recruiter", "ta_manager"):
         nx_row = query_one(
@@ -442,15 +463,18 @@ def dashboard(user: dict = Depends(get_current_user)):
             LEFT JOIN requisition_recruiter rr ON rr.recruiter_id = u.id
             LEFT JOIN enteri_ai_session ns ON ns.requisition_id = rr.requisition_id
             WHERE u.role IN ('recruiter','ta_manager') AND u.is_active = true
+              AND u.tenant_id = %s
             GROUP BY u.id, u.full_name
             ORDER BY avg_score DESC NULLS LAST, u.full_name
             """,
-            [],
+            [tid],
         )
 
     # Recruiter load panel (ta_manager / admin only)
     if role in ("ta_manager", "admin"):
-        counts["recruiter_load"] = query("SELECT * FROM v_recruiter_load", [])
+        counts["recruiter_load"] = query(
+            "SELECT * FROM v_recruiter_load WHERE tenant_id = %s", [tid]
+        )
 
     # TA Manager: hiring manager overview
     if role == "ta_manager":
@@ -468,10 +492,11 @@ def dashboard(user: dict = Depends(get_current_user)):
             LEFT JOIN requisition r  ON r.hiring_manager_id = u.id
             LEFT JOIN application a  ON a.requisition_id    = r.id
             WHERE u.role = 'hiring_manager' AND u.is_active = true
+              AND u.tenant_id = %s
             GROUP BY u.id, u.full_name, u.email
             ORDER BY pending_reviews DESC, u.full_name
             """,
-            [],
+            [tid],
         )
 
     # Hiring manager: profiles + interviews + enteri_ai + skills + time data
@@ -984,6 +1009,10 @@ def create_requisition(body: RequisitionIn, user: dict = Depends(get_current_use
 _JD_STORE = _os.environ.get("JD_STORE_DIR", "/app/jd_store")
 _JD_SUPPORTED_EXT = ("pdf", "docx", "doc")
 
+
+def _jd_storage():
+    return get_storage("jd", local_env_var="JD_STORE_DIR", local_default=_JD_STORE)
+
 _JD_PARSE_SYSTEM = """\
 You are a job description parser. Extract structured data from the job description text.
 Return ONLY a valid JSON object — no markdown fences, no prose before or after.
@@ -1103,7 +1132,10 @@ async def upload_jd_file(
     if role not in ("recruiter", "ta_manager", "hiring_manager", "admin", "hrbp"):
         raise HTTPException(403, "Not authorised to attach a JD file")
 
-    req = query_one("SELECT id FROM requisition WHERE id = %s", [req_id])
+    req = query_one(
+        "SELECT id FROM requisition WHERE id = %s AND tenant_id = %s",
+        [req_id, user.get("tenant_id")],
+    )
     if not req:
         raise HTTPException(404, "requisition not found")
 
@@ -1120,11 +1152,10 @@ async def upload_jd_file(
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(422, "Uploaded file is empty.")
+    if len(file_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(413, "JD file is too large (10MB max)")
 
-    _os.makedirs(_JD_STORE, exist_ok=True)
-    dest = _os.path.join(_JD_STORE, f"{req_id}.{suffix}")
-    with open(dest, "wb") as f:
-        f.write(file_bytes)
+    dest = _jd_storage().save(f"{req_id}.{suffix}", file_bytes)
 
     query(
         "UPDATE requisition SET jd_file_path=%s, jd_file_name=%s WHERE id=%s",
@@ -1138,17 +1169,19 @@ async def upload_jd_file(
 def download_jd_file(req_id: str, user: dict = Depends(get_current_user)):
     _deny_hrbp(user)
     req = query_one(
-        "SELECT jd_file_path, jd_file_name FROM requisition WHERE id = %s", [req_id]
+        "SELECT jd_file_path, jd_file_name FROM requisition WHERE id = %s AND tenant_id = %s",
+        [req_id, user.get("tenant_id")],
     )
     if not req or not req.get("jd_file_path"):
         raise HTTPException(404, "No JD file attached to this requisition")
-    if not _os.path.isfile(req["jd_file_path"]):
-        raise HTTPException(404, "JD file is missing from storage")
-    return FileResponse(
-        req["jd_file_path"],
+    resp = storage_response(
+        _jd_storage(), req["jd_file_path"],
         filename=req.get("jd_file_name") or "job_description",
         media_type="application/octet-stream",
     )
+    if resp is None:
+        raise HTTPException(404, "JD file is missing from storage")
+    return resp
 
 
 @router.get("/requisitions/{req_id}/detail")
@@ -1160,9 +1193,9 @@ def get_requisition_detail(req_id: str, user: dict = Depends(get_current_user)):
         FROM requisition r
         JOIN band b          ON b.id = r.band_id
         JOIN business_unit bu ON bu.id = r.bu_id
-        WHERE r.id = %s
+        WHERE r.id = %s AND r.tenant_id = %s
         """,
-        [req_id],
+        [req_id, user.get("tenant_id")],
     )
     if not req:
         raise HTTPException(404, "requisition not found")
@@ -1211,7 +1244,10 @@ def edit_requisition(req_id: str, body: RequisitionEditIn, user: dict = Depends(
     if user["role"] not in ("recruiter", "ta_manager", "admin"):
         raise HTTPException(403, "Not authorised to edit requisitions")
 
-    existing = query_one("SELECT id, status FROM requisition WHERE id = %s", [req_id])
+    existing = query_one(
+        "SELECT id, status FROM requisition WHERE id = %s AND tenant_id = %s",
+        [req_id, user.get("tenant_id")],
+    )
     if not existing:
         raise HTTPException(404, "Requisition not found")
     if user["role"] == "recruiter" and not _recruiter_owns_req(user, req_id):
@@ -1388,7 +1424,10 @@ def change_req_status(req_id: str, body: ReqStatusIn, user: dict = Depends(get_c
     allowed = {"open", "on_hold", "closed", "cancelled"}
     if body.status not in allowed:
         raise HTTPException(400, f"Status must be one of: {', '.join(allowed)}")
-    existing = query_one("SELECT id, status FROM requisition WHERE id = %s", [req_id])
+    existing = query_one(
+        "SELECT id, status FROM requisition WHERE id = %s AND tenant_id = %s",
+        [req_id, user.get("tenant_id")],
+    )
     if not existing:
         raise HTTPException(404, "Requisition not found")
     if user["role"] == "recruiter" and not _recruiter_owns_req(user, req_id):
@@ -1638,6 +1677,7 @@ def list_candidates(
         attach_source_labels(rows, "app_source")
         return rows
 
+    tid = user.get("tenant_id")
     total = query_one(
         f"""
         SELECT COUNT(*) AS n FROM (
@@ -1645,10 +1685,10 @@ def list_candidates(
           FROM candidate c
           JOIN application a ON a.candidate_id = c.id
           JOIN requisition r ON r.id = a.requisition_id
-          WHERE 1=1 {_search_where}
+          WHERE 1=1 {_search_where} AND r.tenant_id = %s
         ) deduped
         """,
-        _search_params,
+        _search_params + [tid],
     )["n"]
     response.headers["X-Total-Count"] = str(total)
     rows = query(
@@ -1665,13 +1705,13 @@ def list_candidates(
           JOIN application a ON a.candidate_id = c.id
           JOIN requisition r ON r.id = a.requisition_id
           {_rec_lat}
-          WHERE 1=1 {_search_where}
+          WHERE 1=1 {_search_where} AND r.tenant_id = %s
           ORDER BY LOWER(c.email), r.id, a.combined_score DESC NULLS LAST, a.applied_at DESC
         ) deduped
         ORDER BY applied_at DESC
         LIMIT %s OFFSET %s
         """,
-        _search_params + [limit, offset],
+        _search_params + [tid, limit, offset],
     ) or []
     attach_source_labels(rows, "app_source")
     return rows
@@ -1686,8 +1726,8 @@ def get_candidate_detail(candidate_id: str, user: dict = Depends(get_current_use
 
     cand = query_one(
         """SELECT id, full_name, email, phone, gender, source, resume_url, created_at
-           FROM candidate WHERE id = %s""",
-        [candidate_id],
+           FROM candidate WHERE id = %s AND tenant_id = %s""",
+        [candidate_id, user.get("tenant_id")],
     )
     if not cand:
         raise HTTPException(404, "Candidate not found")
@@ -2298,7 +2338,11 @@ def advance_application(
         raise HTTPException(403, "Not authorised to advance candidates")
 
     app = query_one(
-        "SELECT id, status, requisition_id, current_round, applied_at FROM application WHERE id=%s", [app_id]
+        """SELECT a.id, a.status, a.requisition_id, a.current_round, a.applied_at
+           FROM application a
+           JOIN requisition r ON r.id = a.requisition_id
+           WHERE a.id=%s AND r.tenant_id=%s""",
+        [app_id, user.get("tenant_id")],
     )
     if not app:
         raise HTTPException(404, "Application not found")
@@ -2673,7 +2717,7 @@ def record_screen_decision(
 
 # ─── Delete application (fix a wrongly-added candidate) ──────────────────────
 
-def _delete_application_row(app_id: str) -> tuple[bool, Optional[str]]:
+def _delete_application_row(app_id: str, tenant_id: Optional[str] = None) -> tuple[bool, Optional[str]]:
     """
     Shared core for single + bulk application delete. Returns (ok, reason).
     `reason` is a human-readable block/not-found message when ok is False.
@@ -2686,7 +2730,16 @@ def _delete_application_row(app_id: str) -> tuple[bool, Optional[str]]:
     candidate_feedback and the gamification ledger just lose the link
     (ON DELETE SET NULL) so those records survive.
     """
-    app_row = query_one("SELECT id, candidate_id FROM application WHERE id=%s", [app_id])
+    if tenant_id:
+        app_row = query_one(
+            """SELECT a.id, a.candidate_id
+               FROM application a
+               JOIN requisition r ON r.id = a.requisition_id
+               WHERE a.id=%s AND r.tenant_id=%s""",
+            [app_id, tenant_id],
+        )
+    else:
+        app_row = query_one("SELECT id, candidate_id FROM application WHERE id=%s", [app_id])
     if not app_row:
         return False, "Application not found"
 
@@ -2724,7 +2777,7 @@ def delete_application(app_id: str, user: dict = Depends(get_current_user)):
         if not req_id or not _recruiter_owns_req(user, req_id):
             raise HTTPException(404, "Application not found")
 
-    ok, reason = _delete_application_row(app_id)
+    ok, reason = _delete_application_row(app_id, tenant_id=user.get("tenant_id"))
     if not ok:
         raise HTTPException(404 if reason == "Application not found" else 400, reason)
     return {"ok": True}
@@ -2755,7 +2808,7 @@ def bulk_delete_applications(body: BulkDeleteApplicationsIn, user: dict = Depend
             if not req_id or not _recruiter_owns_req(user, req_id):
                 failed.append({"app_id": app_id, "reason": "Not found"})
                 continue
-        ok, reason = _delete_application_row(app_id)
+        ok, reason = _delete_application_row(app_id, tenant_id=user.get("tenant_id"))
         if ok:
             deleted.append(app_id)
         else:
