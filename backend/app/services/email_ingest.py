@@ -62,6 +62,16 @@ def _get_oauth_service(creds_path: str):
                 "Generate gmail_token.pickle offline (run the OAuth flow on a machine "
                 "with a browser) and place it next to the credentials file, then restart."
             )
+        # Left as a raw local-disk write (not routed through StorageBackend):
+        # this is an OAuth token cache, not persistent user content. It's
+        # written next to GOOGLE_OAUTH_CREDENTIALS, which is itself only ever
+        # a local file path an operator places on the server (see this
+        # module's docstring) -- StorageBackend has no equivalent for "the
+        # credentials file itself", so moving only the token half to S3
+        # wouldn't actually fix this feature's ephemeral-hosting fragility;
+        # both would still need to survive a redeploy together. That's a
+        # secrets-management problem, not a user-file-storage one -- out of
+        # scope for this migration.
         with open(token_path, "wb") as f:
             pickle.dump(creds, f)
 
@@ -133,6 +143,108 @@ def _set_ingest_status(status: str, detail: str = "") -> None:
         print(f"[email-ingest] could not persist status: {exc}")
 
 
+async def _run_one_poll_cycle(creds_path: str, query, query_one, cv_parser) -> None:
+    """One poll cycle across every configured mailbox. Raises on a cycle-
+    level failure (e.g. can't build the Gmail service) -- per-account and
+    per-attachment failures are caught internally and just logged, same as
+    before. Extracted out of start_email_poller's while-loop body so both
+    that loop (Redis-less fallback mode) and run_one_pass() (the Arq queued
+    job, worker.py, Redis mode) call the exact same logic."""
+    service = await asyncio.to_thread(_get_oauth_service, creds_path)
+
+    # Read accounts from system_settings -- this key is tenant-scoped
+    # (Migration 96), so every tenant that has configured its own
+    # ingest mailboxes gets its rows polled, each stamped with ITS
+    # OWN tenant_id below (never a single global reader picking one
+    # tenant's row arbitrarily).
+    settings_rows = await asyncio.to_thread(
+        query,
+        "SELECT tenant_id, value FROM system_settings WHERE key='email_ingest_accounts'",
+        [],
+    )
+    acct_tenant_map = {}
+    for row in (settings_rows or []):
+        for a in (row.get("value") or "").split(","):
+            a = a.strip()
+            if a:
+                acct_tenant_map[a] = row.get("tenant_id")
+
+    for acct, tenant_id in acct_tenant_map.items():
+        try:
+            attachments = await asyncio.to_thread(
+                _fetch_resume_attachments, service, acct
+            )
+        except Exception as exc:
+            print(f"[email-ingest] error fetching attachments for {acct}: {exc}")
+            continue
+
+        # Ingest and mark-read PER MESSAGE, not as one all-or-nothing
+        # batch -- previously one bad attachment raised before
+        # _mark_messages_read ran at all, so the whole cycle's
+        # messages (including already-ingested ones) stayed unread
+        # and got re-fetched/re-failed on every poll forever.
+        ok_message_ids = set()
+        failed_message_ids = set()
+        for att in attachments:
+            mid = att["message_id"]
+            if mid in failed_message_ids:
+                continue  # a sibling attachment on this message already failed
+            try:
+                await _ingest_email_attachment(
+                    att["data"], att["filename"], query, query_one, cv_parser, tenant_id
+                )
+                ok_message_ids.add(mid)
+            except Exception as exc:
+                failed_message_ids.add(mid)
+                ok_message_ids.discard(mid)
+                print(f"[email-ingest] failed to ingest {att['filename']!r} "
+                      f"(msg {mid}) from {acct}: {exc}")
+
+        message_ids = list(ok_message_ids)
+        if message_ids:
+            try:
+                await asyncio.to_thread(_mark_messages_read, service, acct, message_ids)
+            except Exception as exc:
+                print(f"[email-ingest] failed to mark messages read for {acct}: {exc}")
+        if failed_message_ids:
+            print(f"[email-ingest] {len(failed_message_ids)} message(s) left unread "
+                  f"for {acct} after ingest failure — will retry next poll: {failed_message_ids}")
+
+
+async def run_one_pass() -> str:
+    """
+    One full poll cycle, or a no-op if not configured. Returns
+    "idle_no_credentials" | "ok" | "error". Public entrypoint for the Arq
+    queued job (worker.py) -- idempotency here is via Gmail's UNREAD-label
+    removal plus cv_repository's file_hash uniqueness (an overlapping
+    concurrent pass can at worst re-fetch/re-parse the same still-unread
+    message once; the file_hash UNIQUE constraint rejects the duplicate
+    INSERT rather than corrupting state). worker.py additionally wraps this
+    in a job_lock so overlapping ticks skip instead of doing that
+    concurrent work at all.
+    """
+    creds_path = os.environ.get(_CREDS_ENV)
+    if not creds_path or not os.path.exists(creds_path):
+        await asyncio.to_thread(_set_ingest_status, "idle_no_credentials", _CREDS_ENV)
+        return "idle_no_credentials"
+
+    try:
+        from ..db import query, query_one
+        from . import cv_parser
+    except ImportError as exc:
+        print(f"[email-ingest] import error: {exc}")
+        return "error"
+
+    try:
+        await _run_one_poll_cycle(creds_path, query, query_one, cv_parser)
+        await asyncio.to_thread(_set_ingest_status, "running")
+        return "ok"
+    except Exception as exc:
+        print(f"[email-ingest] poll cycle error: {exc}")
+        await asyncio.to_thread(_set_ingest_status, "poll_error", str(exc)[:500])
+        return "error"
+
+
 async def start_email_poller():
     """
     Background asyncio task — polls Gmail for CV attachments.
@@ -142,91 +254,24 @@ async def start_email_poller():
     """
     creds_path = os.environ.get(_CREDS_ENV)
     if not creds_path or not os.path.exists(creds_path):
-        msg = (
+        print(
             "[email-ingest] idle — awaiting Google OAuth credentials. "
             f"Set env var {_CREDS_ENV} to activate Gmail CV polling."
         )
-        print(msg)
         await asyncio.to_thread(_set_ingest_status, "idle_no_credentials", _CREDS_ENV)
         return  # Do not enter the loop — no credentials available
 
     print(f"[email-ingest] Gmail poller starting (credentials: {creds_path})")
-    await asyncio.to_thread(_set_ingest_status, "running")
-
-    # Import here to keep the module importable even without google libs installed
-    try:
-        from ..db import query, query_one
-        from . import cv_parser
-    except ImportError as exc:
-        print(f"[email-ingest] import error: {exc}")
-        return
-
     while True:
         try:
-            service = await asyncio.to_thread(_get_oauth_service, creds_path)
-
-            # Read accounts from system_settings -- this key is tenant-scoped
-            # (Migration 96), so every tenant that has configured its own
-            # ingest mailboxes gets its rows polled, each stamped with ITS
-            # OWN tenant_id below (never a single global reader picking one
-            # tenant's row arbitrarily).
-            settings_rows = await asyncio.to_thread(
-                query,
-                "SELECT tenant_id, value FROM system_settings WHERE key='email_ingest_accounts'",
-                [],
-            )
-            acct_tenant_map = {}
-            for row in (settings_rows or []):
-                for a in (row.get("value") or "").split(","):
-                    a = a.strip()
-                    if a:
-                        acct_tenant_map[a] = row.get("tenant_id")
-
-            for acct, tenant_id in acct_tenant_map.items():
-                try:
-                    attachments = await asyncio.to_thread(
-                        _fetch_resume_attachments, service, acct
-                    )
-                except Exception as exc:
-                    print(f"[email-ingest] error fetching attachments for {acct}: {exc}")
-                    continue
-
-                # Ingest and mark-read PER MESSAGE, not as one all-or-nothing
-                # batch -- previously one bad attachment raised before
-                # _mark_messages_read ran at all, so the whole cycle's
-                # messages (including already-ingested ones) stayed unread
-                # and got re-fetched/re-failed on every poll forever.
-                ok_message_ids = set()
-                failed_message_ids = set()
-                for att in attachments:
-                    mid = att["message_id"]
-                    if mid in failed_message_ids:
-                        continue  # a sibling attachment on this message already failed
-                    try:
-                        await _ingest_email_attachment(
-                            att["data"], att["filename"], query, query_one, cv_parser, tenant_id
-                        )
-                        ok_message_ids.add(mid)
-                    except Exception as exc:
-                        failed_message_ids.add(mid)
-                        ok_message_ids.discard(mid)
-                        print(f"[email-ingest] failed to ingest {att['filename']!r} "
-                              f"(msg {mid}) from {acct}: {exc}")
-
-                message_ids = list(ok_message_ids)
-                if message_ids:
-                    try:
-                        await asyncio.to_thread(_mark_messages_read, service, acct, message_ids)
-                    except Exception as exc:
-                        print(f"[email-ingest] failed to mark messages read for {acct}: {exc}")
-                if failed_message_ids:
-                    print(f"[email-ingest] {len(failed_message_ids)} message(s) left unread "
-                          f"for {acct} after ingest failure — will retry next poll: {failed_message_ids}")
-
-            await asyncio.to_thread(_set_ingest_status, "running")
+            await run_one_pass()
+        except asyncio.CancelledError:
+            print("[email-ingest] task cancelled, shutting down")
+            return
         except Exception as exc:
-            print(f"[email-ingest] poll cycle error: {exc}")
-            await asyncio.to_thread(_set_ingest_status, "poll_error", str(exc)[:500])
+            # run_one_pass() already catches its own cycle errors -- this is
+            # only a backstop for something unexpected escaping it.
+            print(f"[email-ingest] unexpected error: {exc}")
 
         await asyncio.sleep(_POLL_EVERY)
 
@@ -257,12 +302,11 @@ async def _ingest_email_attachment(data: bytes, filename: str, query, query_one,
     skills   = cv_parser.extract_tier1_skills(raw_text)
     name     = cv_parser.parse_candidate_name(filename)
 
-    cv_id    = str(_uuid.uuid4())
-    store_dir = os.environ.get("CV_STORE_DIR", "/app/cv_store")
-    os.makedirs(store_dir, exist_ok=True)
-    dest = os.path.join(store_dir, f"{cv_id}.{ext}")
-    with open(dest, "wb") as f:
-        f.write(data)
+    cv_id = str(_uuid.uuid4())
+    from .storage import get_storage
+    dest = get_storage(
+        "cv", local_env_var="CV_STORE_DIR", local_default="/app/cv_store"
+    ).save(f"{cv_id}.{ext}", data)
 
     candidate_id = req_id = None
     map_status = "pool"

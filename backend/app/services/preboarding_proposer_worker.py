@@ -78,15 +78,29 @@ def _propose_due_cases() -> int:
     return proposed
 
 
+async def run_one_pass() -> int:
+    """
+    One pass across every tenant with auto-propose enabled. Returns the
+    number of cases proposed. Public entrypoint for the Arq queued job
+    (worker.py) -- already idempotent via _propose_due_cases's NOT EXISTS
+    guard (a candidate with any preboarding_case, from any prior run, is
+    never re-proposed), so no job_lock/claim is needed even under
+    concurrent execution: two overlapping passes just do some duplicate
+    read work and no duplicate writes.
+    """
+    count = await asyncio.to_thread(_propose_due_cases)
+    _set_status("ok", f"proposed {count} case(s)")
+    print(f"[preboarding-proposer] proposed {count} case(s)")
+    return count
+
+
 async def start_preboarding_proposer_worker():
     """Infinite background loop -- proposes preboarding cases for candidates
     approaching their joining date. Runs once at startup, then every 24h."""
     print("[preboarding-proposer] background worker started")
     while True:
         try:
-            count = await asyncio.to_thread(_propose_due_cases)
-            _set_status("ok", f"proposed {count} case(s)")
-            print(f"[preboarding-proposer] proposed {count} case(s)")
+            await run_one_pass()
         except asyncio.CancelledError:
             print("[preboarding-proposer] task cancelled, shutting down")
             return

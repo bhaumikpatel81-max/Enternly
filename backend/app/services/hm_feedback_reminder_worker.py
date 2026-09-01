@@ -328,31 +328,44 @@ def _mark_failure(row: dict, exc: Exception) -> None:
         print(f"[hm-feedback-reminder] application {app_id} attempt {attempts} failed, retrying in {backoff_min}m: {exc}")
 
 
+async def run_one_batch() -> str:
+    """
+    One claim-and-send cycle: up to _BATCH_SIZE due reminders. Returns
+    "not_configured" | "idle" | "sent" so the fallback loop's sleep choice
+    matches exactly what it did before this was extracted. Extracted so
+    both start_hm_feedback_reminder_worker (Redis-less fallback mode) and
+    the Arq queued job (worker.py, Redis mode) call the same logic -- the
+    FOR UPDATE SKIP LOCKED claim in _claim_batch already makes this safe
+    to invoke concurrently.
+    """
+    if not await asyncio.to_thread(_smtp_configured):
+        return "not_configured"
+    claimed_ids = await asyncio.to_thread(_claim_batch)
+    if not claimed_ids:
+        return "idle"
+    batch = await asyncio.to_thread(_fetch_batch, claimed_ids)
+
+    print(f"[hm-feedback-reminder] sending batch of {len(batch)}")
+    for row in batch:
+        try:
+            await asyncio.to_thread(_send_one, row)
+            print(f"[hm-feedback-reminder] sent to {row['hm_email']} re: application {row['app_id']}")
+        except Exception as exc:
+            await asyncio.to_thread(_mark_failure, row, exc)
+        await asyncio.sleep(_SEND_DELAY)
+    return "sent"
+
+
 async def start_hm_feedback_reminder_worker():
     """Infinite background loop -- sends due HM-feedback-pending reminders."""
     print("[hm-feedback-reminder] background worker started")
     while True:
         try:
-            if not await asyncio.to_thread(_smtp_configured):
+            outcome = await run_one_batch()
+            if outcome in ("not_configured", "idle"):
                 await asyncio.sleep(_IDLE_SLEEP)
-                continue
-
-            claimed_ids = await asyncio.to_thread(_claim_batch)
-            if not claimed_ids:
-                await asyncio.sleep(_IDLE_SLEEP)
-                continue
-            batch = await asyncio.to_thread(_fetch_batch, claimed_ids)
-
-            print(f"[hm-feedback-reminder] sending batch of {len(batch)}")
-            for row in batch:
-                try:
-                    await asyncio.to_thread(_send_one, row)
-                    print(f"[hm-feedback-reminder] sent to {row['hm_email']} re: application {row['app_id']}")
-                except Exception as exc:
-                    await asyncio.to_thread(_mark_failure, row, exc)
-                await asyncio.sleep(_SEND_DELAY)
-
-            await asyncio.sleep(_BATCH_DELAY)
+            else:
+                await asyncio.sleep(_BATCH_DELAY)
 
         except asyncio.CancelledError:
             print("[hm-feedback-reminder] task cancelled, shutting down")

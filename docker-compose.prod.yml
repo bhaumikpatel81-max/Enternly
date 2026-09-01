@@ -32,6 +32,48 @@ services:
       - jd_store:/app/jd_store        # persistent requisition JD file storage across restarts
     restart: unless-stopped
 
+  # ── Optional Redis-backed job queue (`docker compose --profile queue up`) ──
+  # Neither service starts by default -- `backend` above has no REDIS_URL set,
+  # so it stays in its normal advisory-locked in-process worker mode with zero
+  # Redis dependency (this is the first real bottleneck under load, not a
+  # requirement -- most deployments don't need this). To switch to queued
+  # mode: start with --profile queue AND add REDIS_URL=redis://redis:6379 to
+  # .env.prod, which `backend` already loads -- both steps are required
+  # together, since `backend` and `worker` would otherwise both try to run
+  # the same 8 jobs. See backend/app/worker.py.
+  redis:
+    image: redis:7-alpine
+    profiles: [queue]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    profiles: [queue]
+    environment:
+      REDIS_URL: redis://redis:6379
+    env_file: .env.prod
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - cv_store:/app/cv_store
+      - jd_store:/app/jd_store
+    restart: unless-stopped
+    # Arq has no HTTP server to check -- the base image's HEALTHCHECK
+    # (an /api/health GET) would otherwise always report this unhealthy.
+    healthcheck:
+      disable: true
+    command: ["sh", "-c", "arq app.worker.WorkerSettings"]
+
 volumes:
   cv_store:
   jd_store:

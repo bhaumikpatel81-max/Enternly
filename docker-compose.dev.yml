@@ -67,6 +67,55 @@ services:
     user: root
     command: ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload"]
 
+  # ── Optional Redis-backed job queue (`docker compose --profile queue up`) ──
+  # Neither service starts by default -- `backend` above has no REDIS_URL set,
+  # so it stays in its normal advisory-locked in-process worker mode with zero
+  # Redis dependency. To actually switch to queued mode: start with
+  # `--profile queue` AND add REDIS_URL=redis://redis:6379 to backend's own
+  # environment (or .env.prod, which backend already loads) -- both steps are
+  # required together, since `backend` and `worker` would otherwise both try
+  # to run the same 8 jobs. See backend/app/worker.py.
+  redis:
+    image: redis:7-alpine
+    profiles: [queue]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    profiles: [queue]
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: oneclickhire
+      DB_USER: ochuser
+      DB_PASSWORD: localdev
+      REDIS_URL: redis://redis:6379
+      CV_STORE_DIR: /app/cv_store
+      JD_STORE_DIR: /app/jd_store
+    env_file:
+      - .env.prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+      - cv_store:/app/cv_store
+      - jd_store:/app/jd_store
+    user: root
+    # Arq has no HTTP server to check -- the base image's HEALTHCHECK
+    # (an /api/health GET) would otherwise always report this unhealthy.
+    healthcheck:
+      disable: true
+    command: ["sh", "-c", "arq app.worker.WorkerSettings --watch app"]
+
 volumes:
   pgdata_dev:
   cv_store:

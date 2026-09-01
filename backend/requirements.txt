@@ -20,3 +20,5 @@ openai>=1.40.0
 pymupdf>=1.24.0
 mammoth>=1.6.0
 watchdog>=4.0.0
+arq==0.26.3      # Redis-backed job queue for background workers (see app/worker.py) -- async-native, built-in cron, picked over RQ (sync/fork-based, needs a separate rq-scheduler add-on for cron). Optional: only used when REDIS_URL is set.
+redis==5.0.8     # direct dep for services/rate_limit.py's Redis-mode sliding window (also pulled in transitively by arq above)

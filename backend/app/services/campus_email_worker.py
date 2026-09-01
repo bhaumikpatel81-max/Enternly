@@ -179,31 +179,47 @@ def _mark_failure(row: dict, exc: Exception) -> None:
         print(f"[campus-email] {row['email']} attempt {attempts} failed, retrying in {backoff_min}m: {exc}")
 
 
+async def run_one_batch() -> str:
+    """
+    One claim-and-send cycle: up to _BATCH_SIZE queued rows, sent with a
+    short delay between each. Returns "not_configured" | "idle" | "sent" so
+    the fallback loop's sleep choice matches exactly what it did before this
+    was extracted. Extracted out of start_campus_email_worker's while-loop
+    body so both that loop (Redis-less fallback mode) and the Arq queued job
+    (worker.py, Redis mode) call the exact same logic -- the FOR UPDATE
+    SKIP LOCKED claim in _claim_batch already makes this safe to invoke
+    concurrently from multiple processes/ticks.
+    """
+    if not await asyncio.to_thread(_smtp_configured):
+        return "not_configured"
+    claimed_ids = await asyncio.to_thread(_claim_batch)
+    if not claimed_ids:
+        return "idle"
+    batch = await asyncio.to_thread(_fetch_batch, claimed_ids)
+
+    print(f"[campus-email] sending batch of {len(batch)}")
+    for row in batch:
+        try:
+            await asyncio.to_thread(_send_one, row)
+            print(f"[campus-email] sent to {row['email']}")
+        except Exception as exc:
+            await asyncio.to_thread(_mark_failure, row, exc)
+        await asyncio.sleep(_SEND_DELAY)
+    return "sent"
+
+
 async def start_campus_email_worker():
     """Infinite background loop — sends queued campus invite emails in throttled batches of 20."""
     print("[campus-email] background worker started")
     while True:
         try:
-            if not await asyncio.to_thread(_smtp_configured):
+            outcome = await run_one_batch()
+            if outcome == "not_configured":
                 await asyncio.sleep(_NOT_CONFIGURED_SLEEP)
-                continue
-
-            claimed_ids = await asyncio.to_thread(_claim_batch)
-            if not claimed_ids:
+            elif outcome == "idle":
                 await asyncio.sleep(_IDLE_SLEEP)
-                continue
-            batch = await asyncio.to_thread(_fetch_batch, claimed_ids)
-
-            print(f"[campus-email] sending batch of {len(batch)}")
-            for row in batch:
-                try:
-                    await asyncio.to_thread(_send_one, row)
-                    print(f"[campus-email] sent to {row['email']}")
-                except Exception as exc:
-                    await asyncio.to_thread(_mark_failure, row, exc)
-                await asyncio.sleep(_SEND_DELAY)
-
-            await asyncio.sleep(_BATCH_DELAY)
+            else:
+                await asyncio.sleep(_BATCH_DELAY)
 
         except asyncio.CancelledError:
             print("[campus-email] task cancelled, shutting down")

@@ -3118,6 +3118,22 @@ END $$""",
            LEFT JOIN application a            ON a.requisition_id = r.id
            WHERE u.role IN ('recruiter','ta_manager')
            GROUP BY u.id, u.tenant_id, u.full_name""",
+
+        # ── Migration 114: cv_enricher claim support (2026-09, Redis job-queue
+        # migration). The in-process loop's single-consumer assumption ("only
+        # one process ever runs this") no longer holds once REDIS_URL is set
+        # and enrichment runs as an Arq queued job -- two overlapping ticks
+        # could otherwise both pick the same 'pending' row before either
+        # updates it. Adds a claim-then-timestamp state (same pattern as
+        # enteri_ai_render_worker's render_claimed_at) so a claim is
+        # compare-and-swapped and a crash mid-enrichment self-heals: a row
+        # stuck at 'processing' past the grace window in cv_enricher.py's
+        # claim query is picked up again, same resumability guarantee the
+        # original 'pending'-only design already relied on.
+        "ALTER TABLE cv_repository ADD COLUMN IF NOT EXISTS enrich_claimed_at TIMESTAMPTZ",
+        "ALTER TABLE cv_repository DROP CONSTRAINT IF EXISTS cv_repository_enrich_status_check",
+        """ALTER TABLE cv_repository ADD CONSTRAINT cv_repository_enrich_status_check
+           CHECK (enrich_status IN ('pending','processing','done','failed'))""",
     ]
     for sql in migrations:
         try:
@@ -3341,9 +3357,24 @@ async def _bg_worker_lock_watchdog():
 
 @app.on_event("startup")
 async def _start_background_services():
-    """Kick off the lock watchdog as a background task — every worker
-    process runs this, but only the one that eventually holds the lock
-    launches the actual background loops (see _bg_worker_lock_watchdog)."""
+    """
+    Kick off the lock watchdog as a background task — every worker process
+    runs this, but only the one that eventually holds the lock launches the
+    actual background loops (see _bg_worker_lock_watchdog).
+
+    Dual-mode switch: when REDIS_URL is set, the same 8 jobs run instead as
+    Arq cron jobs in a separate `arq app.worker.WorkerSettings` process (see
+    worker.py) -- this process must NOT also start them in-process, or every
+    job would run twice on two entirely different schedules/mechanisms.
+    REDIS_URL unset (the default) leaves this exactly as it always was: zero
+    behavior change, zero Redis dependency, for local/free-tier dev.
+    """
+    from .services.queue import queue_enabled
+    if queue_enabled():
+        print("[startup] REDIS_URL is set -- background jobs run via the separate "
+              "`arq app.worker.WorkerSettings` process, not in-process. "
+              "Skipping the advisory-lock worker loops.")
+        return
     import asyncio as _asyncio
     _asyncio.create_task(_bg_worker_lock_watchdog())
 

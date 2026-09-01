@@ -23,6 +23,7 @@ from datetime import datetime
 from ..db import query, query_one
 from ..auth_utils import get_current_user
 from ..services.resume_parser import extract_text as _parse_resume
+from ..services.storage import get_storage
 from ..services import pipeline as _pipeline_svc
 from ..services import prerender as _prerender_svc
 from ..services import excel_export
@@ -1148,17 +1149,23 @@ async def upload_campus_resume(
     if len(content) > 5 * 1024 * 1024:
         raise HTTPException(400, "File too large — maximum 5 MB")
 
-    _CV_STORE = os.environ.get("CV_STORE_DIR", "/app/cv_store")
-    os.makedirs(_CV_STORE, exist_ok=True)
     import uuid as _uuid
     safe_name = f"campus_{_uuid.uuid4().hex}_{os.path.basename(file.filename).replace(' ', '_')}"
-    file_path = os.path.join(_CV_STORE, safe_name)
-    with open(file_path, "wb") as fh:
-        fh.write(content)
+    file_path = get_storage(
+        "cv", local_env_var="CV_STORE_DIR", local_default="/app/cv_store"
+    ).save(safe_name, content)
 
     resume_url = f"/api/resume/{safe_name}"
 
     # Parse resume text and run screening
+    # NOTE (pre-existing, unrelated to this storage change): _parse_resume is
+    # services.resume_parser.extract_text(file_bytes, filename), which takes
+    # bytes + a filename, not a path -- this call passes only file_path (a
+    # path or, under STORAGE_PROVIDER=s3, a bare object key) and no filename
+    # arg, so it already always raised before this change too and has always
+    # been swallowed by this except, leaving resume_text empty. Left as-is:
+    # out of scope for "where bytes are written/read", not something this
+    # migration changed the behavior of.
     try:
         resume_text = _parse_resume(file_path)
     except Exception:

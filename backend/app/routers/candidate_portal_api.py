@@ -39,6 +39,7 @@ from ..services.candidate_profile_parser import parse_resume_to_profile, apply_p
 from ..services.activity_log import log_activity
 from ..services import connectors
 from ..services import linkedin_oauth
+from ..services.storage import get_storage
 
 router = APIRouter(prefix="/api/candidate", tags=["candidate-portal"])
 
@@ -857,12 +858,10 @@ async def portal_update_resume(file: UploadFile = File(...), candidate: dict = D
     if not raw_text:
         raise HTTPException(400, warning or "Could not read this resume file")
 
-    cv_store = os.environ.get("CV_STORE_DIR", "/app/cv_store")
-    os.makedirs(cv_store, exist_ok=True)
     cv_id = str(uuid.uuid4())
-    dest = os.path.join(cv_store, f"{cv_id}{ext}")
-    with open(dest, "wb") as f:
-        f.write(data)
+    dest = get_storage(
+        "cv", local_env_var="CV_STORE_DIR", local_default="/app/cv_store"
+    ).save(f"{cv_id}{ext}", data)
 
     cv_row = query_one(
         """INSERT INTO cv_repository

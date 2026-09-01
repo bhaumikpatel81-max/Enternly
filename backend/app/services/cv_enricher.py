@@ -403,6 +403,66 @@ async def _heartbeat_ticker():
         await asyncio.sleep(_HEARTBEAT_INTERVAL)
 
 
+_CLAIM_GRACE_MINUTES = 10  # a row stuck at 'processing' past this is presumed crashed and re-claimable
+
+
+def _claim_next_pending() -> Optional[dict]:
+    """
+    Atomically claim the oldest eligible row: a fresh 'pending' row, or one
+    stuck at 'processing' past the grace window (a prior claimer crashed
+    mid-enrichment). The UPDATE...WHERE id=(SELECT...FOR UPDATE SKIP LOCKED)
+    compare-and-swap means two concurrent callers (an overlapping Arq tick,
+    or another process) can never claim the same row -- required once
+    REDIS_URL is set and this runs as a queued job instead of the original
+    single-process assumption. Rows never get stuck forever: this is the
+    same claim-then-timestamp pattern already used by
+    enteri_ai_render_worker.py's render_claimed_at.
+    """
+    return query_one(
+        """UPDATE cv_repository
+           SET enrich_status = 'processing', enrich_claimed_at = now()
+           WHERE id = (
+               SELECT id FROM cv_repository
+               WHERE raw_text IS NOT NULL AND raw_text != ''
+                 AND (
+                   enrich_status = 'pending'
+                   OR (enrich_status = 'processing'
+                       AND enrich_claimed_at < now() - (%s || ' minutes')::interval)
+                 )
+               ORDER BY created_at ASC
+               LIMIT 1
+               FOR UPDATE SKIP LOCKED
+           )
+           RETURNING id, raw_text""",
+        [_CLAIM_GRACE_MINUTES],
+    )
+
+
+async def run_one_pass() -> str:
+    """
+    Claim-and-enrich exactly one row. Returns "idle" | "enriched" | "failed"
+    so the fallback loop's sleep choice matches exactly what it did before
+    this was extracted. Extracted so both start_enricher (Redis-less
+    fallback mode) and the Arq queued job (worker.py, Redis mode) call the
+    same logic.
+    """
+    row = await asyncio.to_thread(_claim_next_pending)
+    if not row:
+        return "idle"
+
+    row_id = str(row["id"])
+    result = await _enrich_one(row_id, row["raw_text"])
+
+    if result is not None:
+        await asyncio.to_thread(_persist_enrichment_result, row_id, result)
+        print(f"[cv-enricher] enriched {row_id}")
+        return "enriched"
+    else:
+        await asyncio.to_thread(_mark_enrichment_failed, row_id)
+        print(f"[cv-enricher] failed to enrich {row_id}")
+        return "failed"
+
+
 async def start_enricher():
     """
     Infinite background loop — picks pending CV rows and enriches them.
@@ -413,32 +473,8 @@ async def start_enricher():
     try:
         while True:
             try:
-                row = await asyncio.to_thread(
-                    query_one,
-                    """SELECT id, raw_text FROM cv_repository
-                       WHERE enrich_status = 'pending'
-                         AND raw_text IS NOT NULL
-                         AND raw_text != ''
-                       ORDER BY created_at ASC
-                       LIMIT 1""",
-                    [],
-                )
-
-                if not row:
-                    await asyncio.sleep(_IDLE_SLEEP)
-                    continue
-
-                row_id = str(row["id"])
-                result = await _enrich_one(row_id, row["raw_text"])
-
-                if result is not None:
-                    await asyncio.to_thread(_persist_enrichment_result, row_id, result)
-                    print(f"[cv-enricher] enriched {row_id}")
-                else:
-                    await asyncio.to_thread(_mark_enrichment_failed, row_id)
-                    print(f"[cv-enricher] failed to enrich {row_id}")
-
-                await asyncio.sleep(_SLEEP_BETWEEN)
+                outcome = await run_one_pass()
+                await asyncio.sleep(_IDLE_SLEEP if outcome == "idle" else _SLEEP_BETWEEN)
 
             except asyncio.CancelledError:
                 print("[cv-enricher] task cancelled, shutting down")

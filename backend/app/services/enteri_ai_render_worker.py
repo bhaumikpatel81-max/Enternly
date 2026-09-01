@@ -72,28 +72,43 @@ def _claim_batch() -> list:
     return [str(r["id"]) for r in (rows or [])]
 
 
+async def run_one_batch() -> str:
+    """
+    One claim-and-retry cycle: up to _BATCH_SIZE stuck/failed sessions.
+    Returns "not_configured" | "idle" | "retried" so the fallback loop's
+    sleep choice matches exactly what it did before this was extracted.
+    Extracted so both start_enteri_ai_render_worker (Redis-less fallback
+    mode) and the Arq queued job (worker.py, Redis mode) call the same
+    logic -- _claim_batch's FOR UPDATE SKIP LOCKED + render_claimed_at
+    already makes this safe to invoke concurrently.
+    """
+    from .prerender import prerender_interview_videos
+
+    if not await asyncio.to_thread(_gpu_configured):
+        return "not_configured"
+    claimed_ids = await asyncio.to_thread(_claim_batch)
+    if not claimed_ids:
+        return "idle"
+
+    print(f"[enteri-ai-render] retrying {len(claimed_ids)} stuck/failed session(s)")
+    for session_id in claimed_ids:
+        try:
+            await prerender_interview_videos(session_id)
+        except Exception as exc:
+            print(f"[enteri-ai-render] session={session_id} retry raised: {exc}")
+    return "retried"
+
+
 async def start_enteri_ai_render_worker():
     """Infinite background loop -- retries dropped/failed avatar pre-renders."""
     print("[enteri-ai-render] background worker started")
-    from .prerender import prerender_interview_videos
-
     while True:
         try:
-            if not await asyncio.to_thread(_gpu_configured):
+            outcome = await run_one_batch()
+            if outcome == "not_configured":
                 await asyncio.sleep(_NOT_CONFIGURED_SLEEP)
-                continue
-
-            claimed_ids = await asyncio.to_thread(_claim_batch)
-            if not claimed_ids:
+            elif outcome == "idle":
                 await asyncio.sleep(_IDLE_SLEEP)
-                continue
-
-            print(f"[enteri-ai-render] retrying {len(claimed_ids)} stuck/failed session(s)")
-            for session_id in claimed_ids:
-                try:
-                    await prerender_interview_videos(session_id)
-                except Exception as exc:
-                    print(f"[enteri-ai-render] session={session_id} retry raised: {exc}")
 
         except asyncio.CancelledError:
             print("[enteri-ai-render] task cancelled, shutting down")

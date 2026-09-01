@@ -5,7 +5,6 @@ Used when a candidate is in the 'documentation' stage (HR collects
 offer documents and records salary negotiation updates).
 """
 import os
-import shutil
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
@@ -13,6 +12,7 @@ from pydantic import BaseModel
 
 from ..db import query, query_one
 from ..auth_utils import get_current_user
+from ..services.storage import get_storage
 from .enteri_ai_api import _recruiter_owns_req, _application_req_id
 
 router = APIRouter(prefix="/api/applications", tags=["documentation"])
@@ -22,7 +22,16 @@ _DOCS_DIR = os.path.normpath(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "uploads", "documents"
     )
 )
-os.makedirs(_DOCS_DIR, exist_ok=True)
+
+
+def _app_docs_storage():
+    # Distinct namespace/env var from document_api.py's "docs"
+    # (DOC_STORE_DIR) -- this is a separate storage location for a separate
+    # feature (offer-stage application documents vs. candidate document
+    # collection), kept separate on purpose rather than merged.
+    return get_storage(
+        "application_docs", local_env_var="APPLICATION_DOCS_DIR", local_default=_DOCS_DIR
+    )
 
 
 def _assert_can_access(app_id: str, user: dict) -> None:
@@ -73,9 +82,8 @@ async def upload_document(
     _assert_can_access(app_id, user)
 
     safe_name = "".join(c for c in (file.filename or "file") if c.isalnum() or c in "._- ")
-    dest = os.path.join(_DOCS_DIR, f"{app_id}_{safe_name}")
-    with open(dest, "wb") as fh:
-        shutil.copyfileobj(file.file, fh)
+    data = await file.read()
+    dest = _app_docs_storage().save(f"{app_id}_{safe_name}", data)
 
     row = query_one(
         """INSERT INTO application_document
@@ -96,11 +104,8 @@ def delete_document(app_id: str, doc_id: str, user: dict = Depends(get_current_u
     )
     if not doc:
         raise HTTPException(404, "Document not found")
-    try:
-        if os.path.exists(doc["file_path"]):
-            os.remove(doc["file_path"])
-    except Exception:
-        pass
+    if doc["file_path"]:
+        _app_docs_storage().delete(doc["file_path"])
     query("DELETE FROM application_document WHERE id=%s", [doc_id], fetch=False)
     return {"ok": True}
 
