@@ -3134,6 +3134,42 @@ END $$""",
         "ALTER TABLE cv_repository DROP CONSTRAINT IF EXISTS cv_repository_enrich_status_check",
         """ALTER TABLE cv_repository ADD CONSTRAINT cv_repository_enrich_status_check
            CHECK (enrich_status IN ('pending','processing','done','failed'))""",
+
+        # ── Migration 115: widen cv_repository.source CHECK to add
+        # 'candidate_portal' (2026-09). routers/candidate_portal_api.py's
+        # portal_update_resume has always inserted with
+        # source='candidate_portal', but the CHECK constraint never allowed
+        # that value (only bulk_folder/upload/watcher/email/application/
+        # email_ingest, per Migrations 36 and 74) -- every candidate resume
+        # re-upload via the portal has always failed the INSERT. Same
+        # dynamic-lookup-then-recreate pattern as those two migrations
+        # (rather than a hardcoded DROP CONSTRAINT IF EXISTS <name>) so this
+        # still works even if the constraint's actual name ever drifted from
+        # the expected cv_repository_source_check.
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'cv_repository'::regclass
+               AND contype = 'c'
+               AND pg_get_constraintdef(oid) ILIKE '%source%'
+    LOOP
+        EXECUTE 'ALTER TABLE cv_repository DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        """DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'cv_repository'::regclass
+          AND conname = 'cv_repository_source_check'
+    ) THEN
+        EXECUTE $sql$
+            ALTER TABLE cv_repository ADD CONSTRAINT cv_repository_source_check
+            CHECK (source IN ('bulk_folder','upload','watcher','email','application','email_ingest','candidate_portal'))
+        $sql$;
+    END IF;
+END $$""",
     ]
     for sql in migrations:
         try:
