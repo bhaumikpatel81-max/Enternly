@@ -39,7 +39,7 @@ DELEGABLE_MODULES = {
 GATED_NAV_MODULES = (
     "campus_hiring", "enteri_ai_tracker", "kpi_dashboard", "gamification",
     "proctoring_review", "hiring_plan", "cv_repository", "ai_scorecard", "no_poach",
-    "documents", "bgv",
+    "documents", "bgv", "preboarding", "onboarding", "hrms",
 )
 
 

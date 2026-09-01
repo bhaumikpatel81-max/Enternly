@@ -66,6 +66,9 @@ from .routers.platform_auth_api import router as _platform_auth_router
 from .routers.platform_admin_api import router as _platform_admin_router
 from .routers.document_api import router as _document_router
 from .routers.bgv_api import router as _bgv_router
+from .routers.preboarding_api import router as _preboarding_router
+from .routers.onboarding_api import router as _onboarding_router
+from .routers.hrms_api import router as _hrms_router
 from .routers.cv_api import ingest_and_link as _cv_ingest_and_link
 from .auth_utils import _decode, assert_staff, require_company_admin
 
@@ -107,6 +110,9 @@ app.include_router(_platform_auth_router)
 app.include_router(_platform_admin_router)
 app.include_router(_document_router)
 app.include_router(_bgv_router)
+app.include_router(_preboarding_router)
+app.include_router(_onboarding_router)
+app.include_router(_hrms_router)
 
 
 @app.get("/api/subscription/status")
@@ -2852,6 +2858,236 @@ END $$""",
         """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
            SELECT t.id, 'bgv', TRUE, now() FROM tenant t
            ON CONFLICT (tenant_id, module_key) DO NOTHING""",
+        # ── Migration 108: module_catalog label drift fix (2026-09).
+        # Migration 106 renamed NAV_DEF/DELEGABLE_MODULES' req_approvals
+        # label to the singular "Requisition Approval" but missed
+        # module_catalog's own copy of that label (still the old plural
+        # "Requisition Approvals" from Migration 102) -- this closes that
+        # gap the same way Migration 106 did: a plain UPDATE, not an edit to
+        # Migration 102's original INSERT row. See database/68_*.sql, which
+        # this statement is appended to.
+        "UPDATE module_catalog SET label='Requisition Approval' WHERE key='req_approvals' AND label='Requisition Approvals'",
+        # ── Migration 109: Preboarding & Asset Allocation (2026-09). ATS
+        # spec §12 -- a case per candidate once their offer is accepted,
+        # tenant-configurable welcome/policy content, per-case policy
+        # acknowledgements, and asset-allocation requests routed to
+        # IT/Admin/HR/Security. Mirrors Migrations 105/107's case+child-rows
+        # shape and gates the same way via require_tenant_module('preboarding').
+        # See database/70_preboarding.sql for the doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS preboarding_case (
+            id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id             UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            candidate_id          UUID NOT NULL REFERENCES candidate(id),
+            application_id        UUID REFERENCES application(id),
+            offer_id              UUID,
+            status                TEXT NOT NULL DEFAULT 'not_started'
+                                  CHECK (status IN ('not_started','in_progress','ready','joined')),
+            portal_access_token   TEXT,
+            initiated_by          UUID REFERENCES app_user(id),
+            initiated_at          TIMESTAMPTZ,
+            joining_date          DATE,
+            created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_preboarding_case_tenant ON preboarding_case(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_preboarding_case_candidate ON preboarding_case(candidate_id)",
+        """CREATE TABLE IF NOT EXISTS preboarding_content (
+            id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id      UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            title          TEXT NOT NULL,
+            content_type   TEXT NOT NULL
+                           CHECK (content_type IN ('company_info','welcome_video','org_structure','policy')),
+            body           TEXT,
+            url            TEXT,
+            display_order  INT NOT NULL DEFAULT 0,
+            is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_preboarding_content_tenant ON preboarding_content(tenant_id)",
+        """INSERT INTO preboarding_content (tenant_id, title, content_type, body, display_order)
+           SELECT '00000000-0000-0000-0000-000000000001', 'Welcome', 'company_info',
+                  'Welcome to the team! We''re excited to have you on board.', 0
+           WHERE NOT EXISTS (
+             SELECT 1 FROM preboarding_content
+             WHERE tenant_id = '00000000-0000-0000-0000-000000000001' AND content_type = 'company_info'
+           )""",
+        """INSERT INTO preboarding_content (tenant_id, title, content_type, body, display_order)
+           SELECT '00000000-0000-0000-0000-000000000001', 'Our Organisation', 'org_structure',
+                  'Org chart placeholder — replace with your company''s actual structure.', 1
+           WHERE NOT EXISTS (
+             SELECT 1 FROM preboarding_content
+             WHERE tenant_id = '00000000-0000-0000-0000-000000000001' AND content_type = 'org_structure'
+           )""",
+        """CREATE TABLE IF NOT EXISTS preboarding_policy_ack (
+            id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id             UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            preboarding_case_id   UUID NOT NULL REFERENCES preboarding_case(id) ON DELETE CASCADE,
+            policy_key            TEXT NOT NULL,
+            policy_label          TEXT NOT NULL,
+            acknowledged          BOOLEAN NOT NULL DEFAULT FALSE,
+            acknowledged_at       TIMESTAMPTZ
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_preboarding_policy_ack_tenant ON preboarding_policy_ack(tenant_id)",
+        """CREATE TABLE IF NOT EXISTS asset_task (
+            id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id             UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            preboarding_case_id   UUID NOT NULL REFERENCES preboarding_case(id) ON DELETE CASCADE,
+            asset_type            TEXT NOT NULL,
+            assigned_team         TEXT NOT NULL CHECK (assigned_team IN ('IT','Admin','HR','Security')),
+            status                TEXT NOT NULL DEFAULT 'requested'
+                                  CHECK (status IN ('requested','in_progress','assigned','completed','cancelled')),
+            notes                 TEXT,
+            requested_by          UUID,
+            updated_by            UUID,
+            updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+            created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_asset_task_tenant ON asset_task(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_asset_task_case ON asset_task(preboarding_case_id)",
+        """INSERT INTO module_catalog (key, label, "group", default_route, icon) VALUES
+             ('preboarding','Preboarding & Asset Allocation','Onboarding','preboarding','🎒')
+           ON CONFLICT (key) DO NOTHING""",
+        """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
+           SELECT t.id, 'preboarding', TRUE, now() FROM tenant t
+           ON CONFLICT (tenant_id, module_key) DO NOTHING""",
+        # ── Migration 110: Preboarding scheduled + confirmed chaining
+        # (2026-09). Adds the "joining date near -> propose -> human
+        # confirms -> portal opens" flow on top of Migration 109's
+        # preboarding_case, without touching its existing columns/rows.
+        # 'proposed' is a new pre-in_progress status written only by
+        # services/preboarding_proposer_worker.py's daily loop (see
+        # _launch_background_tasks) -- it never seeds policy acks or opens
+        # the portal; POST /candidates/{id}/confirm does that. See
+        # database/70_preboarding.sql for the doc-only snapshot, which this
+        # statement is appended to.
+        "ALTER TABLE preboarding_case ADD COLUMN IF NOT EXISTS confirmed_by UUID",
+        "ALTER TABLE preboarding_case ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ",
+        "ALTER TABLE preboarding_case ADD COLUMN IF NOT EXISTS auto_proposed BOOLEAN NOT NULL DEFAULT FALSE",
+        # Widen preboarding_case.status — drop old CHECK and replace (name varies by Postgres)
+        """DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN SELECT conname FROM pg_constraint
+             WHERE conrelid = 'preboarding_case'::regclass AND contype = 'c'
+               AND pg_get_constraintdef(oid) ILIKE '%status%'
+    LOOP
+        EXECUTE 'ALTER TABLE preboarding_case DROP CONSTRAINT ' || quote_ident(r.conname);
+    END LOOP;
+END $$""",
+        """ALTER TABLE preboarding_case ADD CONSTRAINT preboarding_case_status_check
+           CHECK (status IN ('proposed','not_started','in_progress','ready','joined'))""",
+        """CREATE TABLE IF NOT EXISTS preboarding_config (
+            id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id              UUID NOT NULL UNIQUE REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            days_before_joining    INT NOT NULL DEFAULT 14,
+            auto_propose_enabled   BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        """INSERT INTO preboarding_config (tenant_id) VALUES ('00000000-0000-0000-0000-000000000001')
+           ON CONFLICT (tenant_id) DO NOTHING""",
+        # ── Migration 111: Onboarding & Employee Master (2026-09). ATS spec
+        # §13 -- fires on Day-1 (joining date), independent of preboarding.
+        # employee_master is the record §14's future HRMS sync will read,
+        # so its field names are kept plain/complete rather than
+        # abbreviated. Mirrors the case+child-rows shape of every prior
+        # onboarding-family module and gates the same way via
+        # require_tenant_module('onboarding'). See database/71_onboarding.sql
+        # for the doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS employee_master (
+            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id       UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            candidate_id    UUID NOT NULL REFERENCES candidate(id),
+            application_id  UUID REFERENCES application(id),
+            employee_code   TEXT NOT NULL,
+            designation     TEXT,
+            department_id   UUID REFERENCES business_unit(id),
+            manager_id      UUID REFERENCES app_user(id),
+            location        TEXT,
+            grade           TEXT,
+            cost_center     TEXT,
+            joining_date    DATE,
+            status          TEXT NOT NULL DEFAULT 'active'
+                            CHECK (status IN ('active','pre_sync','inactive')),
+            created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (tenant_id, employee_code)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_employee_master_tenant ON employee_master(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_employee_master_candidate ON employee_master(candidate_id)",
+        """CREATE TABLE IF NOT EXISTS onboarding_case (
+            id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id           UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            candidate_id        UUID NOT NULL REFERENCES candidate(id),
+            employee_master_id  UUID REFERENCES employee_master(id),
+            status              TEXT NOT NULL DEFAULT 'not_started'
+                                CHECK (status IN ('not_started','day_one','completed')),
+            day_one_at          TIMESTAMPTZ,
+            initiated_by        UUID,
+            created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_onboarding_case_tenant ON onboarding_case(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_onboarding_case_candidate ON onboarding_case(candidate_id)",
+        """CREATE TABLE IF NOT EXISTS onboarding_task (
+            id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id            UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            onboarding_case_id   UUID NOT NULL REFERENCES onboarding_case(id) ON DELETE CASCADE,
+            task_key             TEXT NOT NULL,
+            task_label           TEXT NOT NULL,
+            status               TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','done')),
+            completed_by         UUID,
+            completed_at         TIMESTAMPTZ
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_onboarding_task_tenant ON onboarding_task(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_onboarding_task_case ON onboarding_task(onboarding_case_id)",
+        """INSERT INTO module_catalog (key, label, "group", default_route, icon) VALUES
+             ('onboarding','Onboarding & Employee Master','Onboarding','onboarding','🪪')
+           ON CONFLICT (key) DO NOTHING""",
+        """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
+           SELECT t.id, 'onboarding', TRUE, now() FROM tenant t
+           ON CONFLICT (tenant_id, module_key) DO NOTHING""",
+        # ── Migration 112: HRMS Multi-Provider Integration Layer (2026-09).
+        # ATS spec §14 -- pushes employee_master (Migration 111) + verified
+        # documents (Migration 105) into whichever external HRMS a tenant
+        # configures. Provider credentials live in system_settings only
+        # (hrms_{provider}_base / hrms_{provider}_key, per tenant) -- never
+        # in hrms_provider_config or source. Mirrors the case+child-rows
+        # shape of every prior module and gates the same way via
+        # require_tenant_module('hrms'). See database/72_hrms.sql for the
+        # doc-only snapshot.
+        """CREATE TABLE IF NOT EXISTS hrms_provider_config (
+            id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id      UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            provider       TEXT NOT NULL
+                           CHECK (provider IN ('successfactors','workday','oracle_hcm','darwinbox',
+                                               'zoho_people','bamboohr','greythr')),
+            is_enabled     BOOLEAN NOT NULL DEFAULT FALSE,
+            field_mapping  JSONB NOT NULL DEFAULT '{}'::jsonb,
+            created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (tenant_id, provider)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_hrms_provider_config_tenant ON hrms_provider_config(tenant_id)",
+        """CREATE TABLE IF NOT EXISTS hrms_sync (
+            id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id           UUID NOT NULL REFERENCES tenant(id) DEFAULT '00000000-0000-0000-0000-000000000001',
+            provider            TEXT NOT NULL,
+            candidate_id        UUID NOT NULL REFERENCES candidate(id),
+            employee_master_id  UUID REFERENCES employee_master(id),
+            external_ref        TEXT,
+            status              TEXT NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending','in_progress','success','failed')),
+            request_payload     JSONB,
+            response_summary    TEXT,
+            error               TEXT,
+            synced_by           UUID,
+            created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+            completed_at        TIMESTAMPTZ
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_hrms_sync_tenant ON hrms_sync(tenant_id)",
+        "CREATE INDEX IF NOT EXISTS idx_hrms_sync_candidate ON hrms_sync(candidate_id)",
+        """INSERT INTO module_catalog (key, label, "group", default_route, icon) VALUES
+             ('hrms','HRMS Integration','Onboarding','hrms','🔗')
+           ON CONFLICT (key) DO NOTHING""",
+        """INSERT INTO tenant_module_config (tenant_id, module_key, is_enabled, enabled_at)
+           SELECT t.id, 'hrms', TRUE, now() FROM tenant t
+           ON CONFLICT (tenant_id, module_key) DO NOTHING""",
     ]
     for sql in migrations:
         try:
@@ -3037,6 +3273,11 @@ def _launch_background_tasks():
         _track_bg_task(_asyncio.create_task(_start_hm_feedback_reminder_worker()), "hm_feedback_reminder_worker")
     except Exception as exc:
         print(f"[startup] hm_feedback_reminder_worker failed to start: {exc}")
+    try:
+        from .services.preboarding_proposer_worker import start_preboarding_proposer_worker as _start_preboarding_proposer_worker
+        _track_bg_task(_asyncio.create_task(_start_preboarding_proposer_worker()), "preboarding_proposer_worker")
+    except Exception as exc:
+        print(f"[startup] preboarding_proposer_worker failed to start: {exc}")
 
 
 _BG_LOCK_RETRY_SECONDS = 30
@@ -3159,6 +3400,7 @@ _PUBLIC_PREFIXES = (
     "/api/scheduling/pick",            # candidate slot validate/confirm — token-auth, no JWT
     "/api/scheduling/reschedule",       # self-service reschedule validate/confirm — token-auth, no JWT
     "/api/bgv/webhooks/",               # inbound BGV vendor webhook — no JWT, signature-authenticated (see bgv_api.bgv_webhook)
+    "/api/integrations/hrms/webhooks/", # inbound HRMS vendor webhook — no JWT, signature-authenticated (see hrms_api.hrms_webhook)
 )
 
 
